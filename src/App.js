@@ -1,7 +1,12 @@
-
+import Login from "./components/login/Login";
 
 function App() {
-  return <h1>Proyecto IPVU 🚀</h1>;
+  return (
+    <div>
+      <h1>Proyecto IPVU 🚀</h1>
+      <Login />
+    </div>
+  )
 }
 
 export default App;
