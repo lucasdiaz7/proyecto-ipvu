@@ -1,10 +1,11 @@
 import Login from "./components/login/login.jsx";
+import Form1 from "./components/trabajadorSocial/Form/Form1.jsx";
 
 function App() {
   return (
     <div>
-      <h1>Proyecto IPVU 🚀</h1>
-      <Login />
+      {/* <Login /> */}
+      <Form1 />
     </div>
   )
 }
