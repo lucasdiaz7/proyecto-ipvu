@@ -7,7 +7,7 @@ function App() {
     <div>
       <NavBar />
       {/* <Login /> */}
-      {/* <Form1 /> */}
+      <Form1 />
     </div>
   )
 }
