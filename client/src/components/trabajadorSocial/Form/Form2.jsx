@@ -1,0 +1,100 @@
+
+const Form2 = () => {
+
+  const label = [
+    "Acta de Matrimonio Legalizada",
+    "Acta de Unión Convivencial",
+    "Acta de Nacimiento de los hijos legalizada o grupo familiar entre hermanos",
+    "Acta de Defunción en caso de fallecimiento de los cónyuges legalizada",
+    "Acta Judicial de Separación Legalizada o Sentencia de Divorcio",
+    "Acta de cada uno legalizada",
+    "Disolución de uniones de hecho con acreditación judicial de los hijos",
+    "Constancia de AFIP y Rentas (Ingresos Brutos)",
+    "Certificado de discapacidad emitido por organismo oficial",
+    "Recibo de sueldo autenticado o Certificado de Ingresos por CPN",
+    "Certificado de Residencia de los titulares y mayores de 18 años",
+    "Contrato de Alquiler y últimos recibos autenticados",
+    "Constancia de CUIL de los titulares",
+    "Acreditación de datos personales en ANSES (ADP)",
+    "Certificado del Registro de la Propiedad del grupo familiar",
+    "Fotocopia y/o Boleta de Compra-Venta e Impuestos autenticados",
+    "Catastro Municipal"
+  ]
+
+
+  return (
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+
+      <div className="w-full max-w-5xl bg-white shadow-lg rounded-2xl mt-8 p-6 md:p-10">
+
+        <div className="mb-6 text-center">
+          <h2 className="text-gray-800 font-bold text-lg md:text-xl tracking-tight">
+            INSTITUTO PROVINCIAL DE VIVIENDA Y URBANISMO
+          </h2>
+          <h2 className="text-gray-800 font-bold text-lg md:text-xl tracking-tight">
+            MINISTERIO DE OBRAS Y SERVICIOS PÚBLICOS
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <p className="text-gray-800 font-semibold text-base md:col-span-2">
+            Santiago del Estero
+          </p>
+
+          <label className="font-semibold text-gray-700">Fecha:</label>
+          <input
+            type="text"
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200"
+          />
+
+          <label className="font-semibold text-gray-700">Señor:</label>
+          <input
+            type="text"
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200"
+          />
+
+          <label className="font-semibold text-gray-700">Domicilio:</label>
+          <input
+            type="text"
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200"
+          />
+
+          <label className="font-semibold text-gray-700 md:col-span-2">
+            El Instituto Provincial de Vivienda y Urbanismo (I.P.V.U) informa a Ud. que a fin de proseguir con el trámite de Ficha N°
+          </label>
+          <input
+            type="text"
+            className="w-full md:col-span-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200"
+          />
+        </div>
+
+        <div className="mt-10">
+          <h4 className="text-gray-800 font-semibold text-base uppercase">
+            Todas las fotocopias deberán ser autenticadas por la policía
+          </h4>
+          <p className="text-gray-700 font-serif text-sm mt-1">
+            Fotocopias de Documento de Identidad 1° y 2° hoja y de todo el grupo familiar.
+          </p>
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-1 gap-4">
+          {label.map((e) => (
+            <div
+              key={e}
+              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b pb-2"
+            >
+              <span className="text-gray-700 font-serif text-sm flex-none">
+                {e}
+              </span>
+              <button className="w-full sm:w-auto max-w-[180px] mx-auto sm:mx-0 bg-blue-500 hover:bg-blue-600 text-white font-semibold text-xs sm:text-sm px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg shadow-sm transition duration-200">
+                Subir archivo
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Form2;
