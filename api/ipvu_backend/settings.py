@@ -121,4 +121,6 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+
+#cuando se use el sistema, esto tiene que ir false
 CORS_ALLOW_ALL_ORIGINS = True
