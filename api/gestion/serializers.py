@@ -62,7 +62,7 @@ class HistorialAccionSerializer(serializers.ModelSerializer):
         
 class FormularioSocioHabitacionalSerializer(serializers.ModelSerializer):
     class Meta:
-        model = FormularioSociohabitacional
+        model = FormularioSocioHabitacional
         fields = '__all__'
         read_only_fields = ('fecha_creacion', 'fecha_modificacion')
         

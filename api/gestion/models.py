@@ -156,7 +156,7 @@ class HistorialAccion(models.Model):
         return f"ID Accion: {self.id}, mensaje: {self.mensaje_accion}"
     
     
-class FormularioSociohabitacional(models.Model): 
+class FormularioSocioHabitacional(models.Model): 
     grupo_familiar=models.TextField()
     situacion_habitacional=models.TextField()
     aspecto_economico=models.TextField()
