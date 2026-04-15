@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 
 const NavBar = () => {
     return (
@@ -49,10 +50,11 @@ const NavBar = () => {
                 <span className="text-white sm:hidden">
                     Lucas
                 </span>
-
-                <button className="hidden sm:block text-white px-3 py-1 bg-blue-800 hover:bg-blue-950 rounded-lg font-semibold transition-colors">
-                    Salir
-                </button>
+                <Link to="/login">
+                    <button className="hidden sm:block text-white px-3 py-1 bg-blue-800 hover:bg-blue-950 rounded-lg font-semibold transition-colors">
+                        Salir
+                    </button>
+                </Link>
             </div>
         </nav>
     );

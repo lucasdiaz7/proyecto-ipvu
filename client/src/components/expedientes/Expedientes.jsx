@@ -2,7 +2,7 @@ import { Link } from "react-router";
 
 
 const Expedientes = () => {
-    const count = 2
+    const count = 0
 
     const expedientes = [
         {
