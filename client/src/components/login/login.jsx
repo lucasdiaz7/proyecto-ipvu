@@ -1,4 +1,4 @@
-
+import { Link } from "react-router";
 
 const Login = () => {
     return (
@@ -43,10 +43,11 @@ const Login = () => {
                         />
                     </div>
 
-
-                    <button class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold text-[13px] py-2.5 rounded-lg shadow-sm transition-colors duration-200 mt-2">
-                        Iniciar sesión
-                    </button>
+                    <Link to="/expedientes">
+                        <button class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold text-[13px] py-2.5 rounded-lg shadow-sm transition-colors duration-200 mt-2">
+                            Iniciar sesión
+                        </button>
+                    </Link>
 
 
                     <div class="text-center mt-3">

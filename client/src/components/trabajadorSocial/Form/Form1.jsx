@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 
 const Form1 = () => {
     return (
@@ -105,10 +106,11 @@ const Form1 = () => {
                     <button class="w-full md:w-72 bg-blue-500 hover:bg-blue-600 text-white font-bold text-[13px] py-2.5 rounded-lg shadow-sm transition-colors duration-200">
                         Enviar a legales
                     </button>
-
-                    <button class="w-full md:w-72 bg-blue-500 hover:bg-blue-600 text-white font-bold text-[13px] py-2.5 rounded-lg shadow-sm transition-colors duration-200">
-                        Continuar con el proceso
-                    </button>
+                    <Link to="/form2">
+                        <button class="w-full md:w-72 bg-blue-500 hover:bg-blue-600 text-white font-bold text-[13px] py-2.5 rounded-lg shadow-sm transition-colors duration-200">
+                            Continuar con el proceso
+                        </button>
+                    </Link>
                 </div>
 
             </div>

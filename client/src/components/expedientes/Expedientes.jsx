@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 
 
 const Expedientes = () => {
@@ -166,6 +167,11 @@ const Expedientes = () => {
                             </span>
                         </button>
                     ))}
+                </div>
+                <div className="mt-15 ">
+                    <Link to="/form1">
+                        <button className="w-50 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg shadow-sm">Primer Formulario</button>
+                    </Link>
                 </div>
             </div>
         </div>
