@@ -1,3 +1,4 @@
+import HomeAdmin from "./components/admin/HomeAdmin.jsx";
 import Expedientes from "./components/expedientes/Expedientes.jsx";
 import Login from "./components/login/login.jsx";
 import Layout from "./components/navBar/Layout.jsx";
@@ -18,6 +19,7 @@ function App() {
             <Route path="/expedientes" element={<Expedientes />} />
             <Route path="/form1" element={<Form1 />} />
             <Route path="/form2" element={<Form2 />} />
+            <Route path="/homeAdmin" element={<HomeAdmin />} />
           </Route>
 
 
