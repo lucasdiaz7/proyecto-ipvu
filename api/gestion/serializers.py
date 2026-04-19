@@ -35,8 +35,18 @@ class UsuarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = Usuario
         fields = '__all__'
-        read_only_fields = ('usuario','dni')
+    
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+    
+        if instance.usuario:
+            ret['username_display'] = instance.usuario.username
         
+        if instance.rol:
+            ret['rol_display'] = instance.rol.nombre_rol
+    
+        return ret
+    
 class DocumentoAdjuntoSerializer(serializers.ModelSerializer):
     class Meta:
         model = DocumentoAdjunto
