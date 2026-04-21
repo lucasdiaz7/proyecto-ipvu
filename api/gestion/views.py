@@ -35,12 +35,12 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     serializer_class = UsuarioSerializer
     
 class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
-    queryset = Usuario.objects.all()
+    queryset = DocumentoAdjunto.objects.all()
     permission_classes = [permissions.AllowAny]
-    serializer_classm = DocumentoAdjuntoSerializer        
+    serializer_class = DocumentoAdjuntoSerializer        
 
 class HistorialPaseViewSet(viewsets.ModelViewSet):
-    queryset = DocumentoAdjunto.objects.all()
+    queryset = HistorialPase.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = HistorialAccionSerializer
     
