@@ -32,10 +32,26 @@ class RolSerializer(serializers.ModelSerializer):
         read_only_fields = ('tipo_rol','nombre_rol')
         
 class UsuarioSerializer(serializers.ModelSerializer):
+
     class Meta:
         model = Usuario
         fields = '__all__'
+        read_only_fields = ['usuario']
+        
+    def create(self, validated_data):
+        dni_ingresado = validated_data.get('dni')
+        email_ingresado= validated_data.get('email')
+        
+        nuevo_usuario= User.objects.create_user (
+            username = dni_ingresado,
+            password = dni_ingresado,
+            email=email_ingresado
+        )
     
+        perfil_usuario = Usuario.objects.create(usuario=nuevo_usuario, **validated_data)
+        
+        return perfil_usuario
+        
     def to_representation(self, instance):
         ret = super().to_representation(instance)
     
