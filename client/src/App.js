@@ -1,4 +1,5 @@
 import HomeAdmin from "./components/admin/HomeAdmin.jsx";
+import FormUsuario from "./components/admin/Usuarios/FormUsuario.jsx";
 import Usuarios from "./components/admin/Usuarios/Usuarios.jsx";
 import Expedientes from "./components/expedientes/Expedientes.jsx";
 import Login from "./components/login/login.jsx";
@@ -22,6 +23,8 @@ function App() {
             <Route path="/form2" element={<Form2 />} />
             <Route path="/homeAdmin" element={<HomeAdmin />} />
             <Route path="/usuarios" element={<Usuarios />} />
+            <Route path="/crearUsuario" element={<FormUsuario />} />
+
           </Route>
 
 
