@@ -2,6 +2,7 @@ import HomeAdmin from "./components/admin/HomeAdmin.jsx";
 import TrabajadorSocial from "./components/admin/Trabajador Social/TrabajadorSocial.jsx";
 import FormUsuario from "./components/admin/Usuarios/FormUsuario.jsx";
 import Usuarios from "./components/admin/Usuarios/Usuarios.jsx";
+import FormExpedientes from "./components/data entry/FormExpedientes.jsx";
 import Home from "./components/data entry/Home.jsx";
 import Expedientes from "./components/expedientes/Expedientes.jsx";
 import Login from "./components/login/login.jsx";
@@ -28,6 +29,7 @@ function App() {
             <Route path="/crearUsuario" element={<FormUsuario />} />
             <Route path="/trabajadoraSocial" element={<TrabajadorSocial />} />
             <Route path="/dataEntry" element={<Home />} />
+            <Route path="/nuevoExpediente" element={<FormExpedientes />} />
 
           </Route>
 
