@@ -91,9 +91,9 @@ const Home = () => {
                     </div>
 
                     <div className="flex items-center justify-between bg-gray-100 p-3 rounded-xl shadow-sm hover:bg-gray-200 transition">
-                        <span className="text-gray-700 font-medium">
+                        <Link to="/nuevoExpediente" className="text-gray-700 font-medium">
                             Crear Nuevo Expediente
-                        </span>
+                        </Link>
 
 
                         <PlusIcon className="w-6 h-6" />
