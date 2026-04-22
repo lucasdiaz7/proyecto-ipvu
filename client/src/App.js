@@ -1,4 +1,5 @@
 import HomeAdmin from "./components/admin/HomeAdmin.jsx";
+import TrabajadorSocial from "./components/admin/Trabajador Social/TrabajadorSocial.jsx";
 import FormUsuario from "./components/admin/Usuarios/FormUsuario.jsx";
 import Usuarios from "./components/admin/Usuarios/Usuarios.jsx";
 import Expedientes from "./components/expedientes/Expedientes.jsx";
@@ -24,6 +25,7 @@ function App() {
             <Route path="/homeAdmin" element={<HomeAdmin />} />
             <Route path="/usuarios" element={<Usuarios />} />
             <Route path="/crearUsuario" element={<FormUsuario />} />
+            <Route path="/trabajadoraSocial" element={<TrabajadorSocial />} />
 
           </Route>
 
