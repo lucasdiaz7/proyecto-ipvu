@@ -1,8 +1,12 @@
 import { Link } from "react-router";
+import { ChevronDownIcon, BellIcon } from "@heroicons/react/24/outline";
 
 
 const Expedientes = () => {
-    const count = 0
+    const count = 2
+
+
+
 
     const expedientes = [
         {
@@ -75,12 +79,7 @@ const Expedientes = () => {
                         <span className="text-gray-700 font-medium">
                             Todos los estados
                         </span>
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none"
-                            viewBox="0 0 24 24" strokeWidth={1.5}
-                            stroke="currentColor" className="w-5 h-5">
-                            <path strokeLinecap="round" strokeLinejoin="round"
-                                d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                        </svg>
+                        <ChevronDownIcon className="w-5 h-5" />
                     </div>
 
                     <div className="bg-gray-100 p-3 rounded-xl shadow-sm">
@@ -97,18 +96,7 @@ const Expedientes = () => {
                         </span>
 
                         <div className="relative inline-block">
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                viewBox="0 0 20 20"
-                                fill="currentColor"
-                                className="w-6 h-6 text-yellow-600"
-                            >
-                                <path
-                                    fillRule="evenodd"
-                                    d="M10 2a6 6 0 0 0-6 6c0 1.887-.454 3.665-1.257 5.234a.75.75 0 0 0 .515 1.076 32.91 32.91 0 0 0 3.256.508 3.5 3.5 0 0 0 6.972 0 32.903 32.903 0 0 0 3.256-.508.75.75 0 0 0 .515-1.076A11.448 11.448 0 0 1 16 8a6 6 0 0 0-6-6Z"
-                                    clipRule="evenodd"
-                                />
-                            </svg>
+                            <BellIcon className="w-6 h-6 text-yellow-600" />
                             <span
                                 className={`absolute -top-1 -right-1 flex items-center justify-center
                                 min-w-[16px] h-[16px] px-1 text-[10px] font-bold text-white rounded-full

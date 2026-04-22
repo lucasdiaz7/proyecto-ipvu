@@ -1,3 +1,7 @@
+import HomeAdmin from "./components/admin/HomeAdmin.jsx";
+import TrabajadorSocial from "./components/admin/Trabajador Social/TrabajadorSocial.jsx";
+import FormUsuario from "./components/admin/Usuarios/FormUsuario.jsx";
+import Usuarios from "./components/admin/Usuarios/Usuarios.jsx";
 import Expedientes from "./components/expedientes/Expedientes.jsx";
 import Login from "./components/login/login.jsx";
 import Layout from "./components/navBar/Layout.jsx";
@@ -18,6 +22,11 @@ function App() {
             <Route path="/expedientes" element={<Expedientes />} />
             <Route path="/form1" element={<Form1 />} />
             <Route path="/form2" element={<Form2 />} />
+            <Route path="/homeAdmin" element={<HomeAdmin />} />
+            <Route path="/usuarios" element={<Usuarios />} />
+            <Route path="/crearUsuario" element={<FormUsuario />} />
+            <Route path="/trabajadoraSocial" element={<TrabajadorSocial />} />
+
           </Route>
 
 
