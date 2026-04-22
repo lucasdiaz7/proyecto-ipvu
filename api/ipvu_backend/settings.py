@@ -122,5 +122,16 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    # Opcional pero recomendado: Obligar a que todos tengan token para entrar a cualquier ruta
+    # 'DEFAULT_PERMISSION_CLASSES': (
+    #     'rest_framework.permissions.IsAuthenticated',
+    # )
+}
+
+
 #cuando se use el sistema, esto tiene que ir false
 CORS_ALLOW_ALL_ORIGINS = True
