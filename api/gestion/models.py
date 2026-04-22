@@ -95,10 +95,13 @@ class Usuario(models.Model):
     apellido = models.CharField(max_length=50,)
     matricula = models.CharField(max_length=20, unique=True,)
     dni = models.CharField(max_length=15)
+    email= models.EmailField(unique=True, null=True, blank=True)
     
     #FK
     rol = models.ForeignKey(Rol, on_delete=models.RESTRICT)
 
+    requiere_cambio_password  = models.BooleanField(default=True)
+    
     def __str__(self):
         return f"Perfil de: {self.usuario.username} {self.usuario.last_name} - DNI: {self.dni}"
 
