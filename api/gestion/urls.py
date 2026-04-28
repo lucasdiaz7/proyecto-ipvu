@@ -1,5 +1,6 @@
 from django.urls import path, include
 from .views import *
+from .views import MiLoginPersonalizadoView, UsuarioViewSet
 from rest_framework.routers import DefaultRouter
 from django.contrib import admin
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
@@ -24,7 +25,7 @@ urlpatterns = [
     path('api/', include(router.urls)),
     
     #rutas de login
-    path('api/login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/login/', MiLoginPersonalizadoView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh')
     ]
 

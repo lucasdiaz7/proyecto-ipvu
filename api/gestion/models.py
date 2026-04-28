@@ -88,7 +88,6 @@ class Rol(models.Model):
      def __str__(self):
         return self.get_nombre_rol_display()
 
-
 class Usuario(models.Model):
     usuario = models.OneToOneField(User, on_delete=models.CASCADE)
     nombre = models.CharField(max_length=50,)

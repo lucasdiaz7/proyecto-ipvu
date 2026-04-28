@@ -1,5 +1,7 @@
 from rest_framework import serializers
 from .models import *
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer 
+
 
 class PostulanteTitularSerializer(serializers.ModelSerializer):
     class Meta:
@@ -97,3 +99,20 @@ class DictamenLegalSerializer(serializers.ModelSerializer):
         model = DictamenLegal
         fields = '__all__'
         read_only_fields = ('fecha_dictamen', 'estado_sancion')
+        
+        
+class MiLoginPersonalizadoSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+    
+        try:
+            perfil_ipvu = Usuario.objects.get(usuario=self.user)
+        
+            data['nombre_completo'] = f"{perfil_ipvu.nombre} {perfil_ipvu.apellido}"
+            data['rol_id'] = perfil_ipvu.rol.id
+            data['requiere_cambio_password'] = perfil_ipvu.requiere_cambio_password
+        
+        except Usuario.DoesNotExist:
+            pass
+        
+        return data
