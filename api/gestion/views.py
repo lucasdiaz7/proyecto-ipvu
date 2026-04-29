@@ -3,6 +3,7 @@ from django.shortcuts import render
 from rest_framework import viewsets, permissions
 from .models import *
 from .serializers import *
+from .serializers import MiLoginPersonalizadoSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 class PostulanteTitularViewSet(viewsets.ModelViewSet):
@@ -66,4 +67,4 @@ class DictamenLegalViewSet(viewsets.ModelViewSet):
     serializer_class = DictamenLegalSerializer
     
 class MiLoginPersonalizadoView(TokenObtainPairView):
-    serializers_class = MiLoginPersonalizadoSerializer
+    serializer_class = MiLoginPersonalizadoSerializer

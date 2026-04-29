@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import *
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer 
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 
 class PostulanteTitularSerializer(serializers.ModelSerializer):
@@ -104,15 +104,20 @@ class DictamenLegalSerializer(serializers.ModelSerializer):
 class MiLoginPersonalizadoSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
-    
+        
+        # AGREGÁ ESTO PARA DEBUGEAR
+        print(f"DEBUG: Intentando buscar perfil para el usuario: {self.user}")
+
         try:
             perfil_ipvu = Usuario.objects.get(usuario=self.user)
-        
+            print("DEBUG: ¡Perfil encontrado!") # AGREGÁ ESTO
+            
             data['nombre_completo'] = f"{perfil_ipvu.nombre} {perfil_ipvu.apellido}"
             data['rol_id'] = perfil_ipvu.rol.id
             data['requiere_cambio_password'] = perfil_ipvu.requiere_cambio_password
-        
+            
         except Usuario.DoesNotExist:
+            print("DEBUG: No se encontró perfil para este usuario.") # AGREGÁ ESTO
             pass
-        
+            
         return data
