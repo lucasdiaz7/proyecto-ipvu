@@ -32,16 +32,16 @@ class IntegranteFamilia(models.Model):
 
 class EstadoExpediente(models.Model):
     tipo_estado = [
-        ('SI', 'Sin Iniciar'),
+        ('SinI', 'Sin Iniciar'),
         ('1V', '1ra Visita'),
-        ('LG', 'Legales'),
-        ('DP', 'Doc Presentada'),
+        ('Leg', 'Legales'),
+        ('DocP', 'Doc Presentada'),
         ('AP', 'Apto'),
-        ('NA', 'No Apto'),
-        ('NV', 'Nueva Visita'),
+        ('NoAP', 'No Apto'),
+        ('NuevaV', 'Nueva Visita'),
     ]
     
-    nombre = models.CharField(max_length=2, choices=tipo_estado, unique=True)
+    nombre = models.CharField(max_length=10, choices=tipo_estado, unique=True)
     
     def __str__(self):
         # Magia de Django: get_FOO_display() muestra el texto legible ("Apto") y no el código ("AP")
@@ -51,13 +51,13 @@ class EstadoExpediente(models.Model):
     def color(self):
         # Asociamos cada código con un color (Ideales para usar con Bootstrap o CSS en el HTML que te dio Claude)
         colores = {
-            'SI': 'gray',       # Sin Iniciar -> Gris
+            'SinI': 'gray',       # Sin Iniciar -> Gris
             '1V': 'blue',       # 1ra Visita -> Azul
-            'LG': 'purple',     # Legales -> Morado
-            'DP': 'teal',       # Doc Presentada -> Turquesa
+            'Leg': 'purple',     # Legales -> Morado
+            'DocP': 'teal',       # Doc Presentada -> Turquesa
             'AP': 'green',      # Apto -> Verde
-            'NA': 'red',        # No Apto -> Rojo
-            'NV': 'orange',     # Nueva Visita -> Naranja
+            'NoAP': 'red',        # No Apto -> Rojo
+            'NuevaV': 'orange',     # Nueva Visita -> Naranja
             }
     
     
@@ -88,14 +88,19 @@ class Rol(models.Model):
      def __str__(self):
         return self.get_nombre_rol_display()
 
-
 class Usuario(models.Model):
     usuario = models.OneToOneField(User, on_delete=models.CASCADE)
+    nombre = models.CharField(max_length=50,)
+    apellido = models.CharField(max_length=50,)
+    matricula = models.CharField(max_length=20, unique=True,)
     dni = models.CharField(max_length=15)
+    email= models.EmailField(unique=True, null=True, blank=True)
     
     #FK
     rol = models.ForeignKey(Rol, on_delete=models.RESTRICT)
 
+    requiere_cambio_password  = models.BooleanField(default=True)
+    
     def __str__(self):
         return f"Perfil de: {self.usuario.username} {self.usuario.last_name} - DNI: {self.dni}"
 
@@ -156,7 +161,7 @@ class HistorialAccion(models.Model):
         return f"ID Accion: {self.id}, mensaje: {self.mensaje_accion}"
     
     
-class FormularioSociohabitacional(models.Model): 
+class FormularioSocioHabitacional(models.Model): 
     grupo_familiar=models.TextField()
     situacion_habitacional=models.TextField()
     aspecto_economico=models.TextField()
@@ -194,7 +199,7 @@ class DictamenLegal(models.Model):
 
     #FK 
     id_usuario=models.ForeignKey(Usuario, on_delete=models.PROTECT)
-    id_usuario=models.ForeignKey(Expediente, on_delete=models.PROTECT)
+    id_expediente=models.ForeignKey(Expediente, on_delete=models.PROTECT, null=True, blank=True)
     
     def __str__(self):
        return f"Observaciones: {self.texto_observaciones}. Estado: {self.estado_sancion}. Fecha {self.fecha_dictamen}"
