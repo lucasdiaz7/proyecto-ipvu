@@ -41,7 +41,7 @@ class EstadoExpediente(models.Model):
         ('NuevaV', 'Nueva Visita'),
     ]
     
-    nombre = models.CharField(max_length=10, choices=tipo_estado, unique=True)
+    nombre = models.CharField(max_length=50, choices=tipo_estado, unique=True)
     
     def __str__(self):
         # Magia de Django: get_FOO_display() muestra el texto legible ("Apto") y no el código ("AP")

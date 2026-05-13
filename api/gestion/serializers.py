@@ -26,6 +26,9 @@ class ExpedienteSerializer(serializers.ModelSerializer):
         model = Expediente
         fields = '__all__'
         read_only_fields = ('fecha_creacion', 'fecha_modificacion')
+        extra_kwargs = {
+            'estado_expediente': {'required': False}
+        }
         
 class RolSerializer(serializers.ModelSerializer):
     class Meta:
