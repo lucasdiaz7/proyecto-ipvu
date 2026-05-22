@@ -119,3 +119,8 @@ class MiLoginPersonalizadoSerializer(TokenObtainPairSerializer):
             pass
             
         return data
+
+class DocumentoExpedienteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DocumentoExpediente
+        fields = '__all__'

@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from django.contrib.auth.models import User
 
 from .models import *
+from .models import DocumentoExpediente
 from .serializers import *
 from .serializers import MiLoginPersonalizadoSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -186,3 +187,8 @@ class DictamenLegalViewSet(viewsets.ModelViewSet):
 
 class MiLoginPersonalizadoView(TokenObtainPairView):
     serializer_class = MiLoginPersonalizadoSerializer
+
+class DocumentoExpedienteViewSet(viewsets.ModelViewSet):
+    queryset = DocumentoExpediente.objects.all()
+    serializer_class = DocumentoExpedienteSerializer
+    permission_classes = [permissions.AllowAny] 
