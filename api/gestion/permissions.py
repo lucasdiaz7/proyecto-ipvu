@@ -14,4 +14,4 @@ class IsLegales(BasePermission):
     
 class IsTrabajadoraSocial(BasePermission):
     def has_permission(self, request, view):
-        return bool(request.user and request.user.is_athenticated and request.user.rol.nombre_rol == 'TS')
+        return bool(request.user and request.user.is_authenticated and request.user.rol.nombre_rol == 'TS')

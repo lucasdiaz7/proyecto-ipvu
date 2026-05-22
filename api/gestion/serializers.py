@@ -98,7 +98,7 @@ class DictamenLegalSerializer(serializers.ModelSerializer):
     class Meta:
         model = DictamenLegal
         fields = '__all__'
-        read_only_fields = ('fecha_dictamen', 'estado_sancion')
+        read_only_fields = ('fecha_dictamen')
         
         
 class MiLoginPersonalizadoSerializer(TokenObtainPairSerializer):
