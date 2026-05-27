@@ -8,6 +8,7 @@ class PostulanteTitular(models.Model):
     telefono = models.CharField (max_length=15)
     dni = models.CharField (max_length=15, unique=True)
     domicilio_actual = models.CharField (max_length=200)
+    email = models.EmailField(null=True, blank=True)
     
     #fechas
     fecha_creacion = models.DateTimeField (auto_now_add=True)
@@ -64,7 +65,8 @@ class EstadoExpediente(models.Model):
 class Expediente(models.Model):
     #fechas
     fecha_creacion =  models.DateTimeField(auto_now_add=True)
-    fecha_limite_ts = models.DateTimeField(null=True, blank=True) 
+    fecha_limite_ts = models.DateTimeField(null=True, blank=True)
+    DDJJ = models.CharField(max_length=50, null=True, blank=True, unique=True) 
     #FK
     postulante_titular = models.ForeignKey(PostulanteTitular, on_delete=models.CASCADE)
     usuario_asignado = models.ForeignKey(User, on_delete= models.SET_NULL, null=True)

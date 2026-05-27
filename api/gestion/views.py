@@ -5,6 +5,9 @@ from .models import *
 from .serializers import *
 from .serializers import MiLoginPersonalizadoSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
+from permissions import *
+from rest_framework.decorators import action
+
 
 class PostulanteTitularViewSet(viewsets.ModelViewSet):
     queryset = PostulanteTitular.objects.all()
@@ -23,9 +26,31 @@ class EstadoExpedienteViewSet(viewsets.ModelViewSet):
     
 class ExpedienteViewSet(viewsets.ModelViewSet):
     queryset = Expediente.objects.all()
-    permission_classes = [permissions.AllowAny]
     serializer_class = ExpedienteSerializer
     
+    def get_permissions(self):
+        if self.action == 'create':
+            return [IsDataEntry()]
+        if self.action == 'destroy':
+            return [IsSuperAdmin()]
+        
+        return [IsDataEntry() | IsSuperAdmin() | IsTrabajadoraSocial() | IsLegales()]
+    
+    @action(detail=True, methods=['patch'], permission_classes=[IsLegales])
+    def cambiar_estado(self, request, pk=None):
+        expediente= self.get_object()
+        nuevo_estado = request.data.get('estado')
+        
+        if nuevo_estado in ['AP', 'NoAP']:
+            estado_obj = EstadoExpediente.objects.get(tipo_estado=nuevo_estado)
+            expediente.estado_expediente = estado_obj
+            expediente.save()
+            return Response ({'mensaje': 'Estado actualizado'})
+        else:
+            return Response ({'mensaje': 'Estado no válido'})
+        
+        
+        
 class RolViewSet(viewsets.ModelViewSet):
     queryset = Rol.objects.all()
     permission_classes = [permissions.AllowAny]
