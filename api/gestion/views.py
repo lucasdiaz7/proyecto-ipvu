@@ -95,6 +95,14 @@ class FormularioSocioHabitacionalViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
     serializer_class = FormularioSocioHabitacionalSerializer
     
+    def perform_create(self, serializer):
+        formulario = serializer.save()
+        expediente = formulario.expediente
+        estado_1v = EstadoExpediente.objects.get(nombre='1V')
+        expediente.estado_expediente = estado_1v
+        expediente.save()
+    
+    
 class DictamenLegalViewSet(viewsets.ModelViewSet):
     queryset = DictamenLegal.objects.all()
     permission_classes = [permissions.AllowAny]
