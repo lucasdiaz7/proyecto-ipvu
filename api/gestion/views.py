@@ -5,7 +5,7 @@ from .models import *
 from .serializers import *
 from .serializers import MiLoginPersonalizadoSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
-from permissions import *
+from .permissions import *
 from rest_framework.decorators import action
 
 
