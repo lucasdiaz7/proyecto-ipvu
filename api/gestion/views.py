@@ -42,6 +42,8 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
             return [IsDataEntry()]
         if self.action == 'destroy':
             return [IsSuperAdmin()]
+        else:
+            return Response({'mensaje': 'Usuario no autorizado para esta accion'})
         
         return [IsAnyRole()]    
     
