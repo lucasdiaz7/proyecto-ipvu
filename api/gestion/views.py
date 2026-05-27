@@ -7,6 +7,7 @@ from .serializers import MiLoginPersonalizadoSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .permissions import *
 from rest_framework.decorators import action
+from rest_framework.response import Response
 
 
 class PostulanteTitularViewSet(viewsets.ModelViewSet):
