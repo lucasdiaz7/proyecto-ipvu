@@ -43,7 +43,7 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
         nuevo_estado = request.data.get('estado')
         
         if nuevo_estado in ['AP', 'NoAP']:
-            estado_obj = EstadoExpediente.objects.get(tipo_estado=nuevo_estado)
+            estado_obj = EstadoExpediente.objects.get(nombre=nuevo_estado)
             expediente.estado_expediente = estado_obj
             expediente.save()
             return Response ({'mensaje': 'Estado actualizado'})
