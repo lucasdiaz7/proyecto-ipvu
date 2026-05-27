@@ -26,8 +26,16 @@ class EstadoExpedienteViewSet(viewsets.ModelViewSet):
     serializer_class = EstadoExpedienteSerializer
     
 class ExpedienteViewSet(viewsets.ModelViewSet):
-    queryset = Expediente.objects.all()
     serializer_class = ExpedienteSerializer
+    def get_queryset(self):
+        usuario = self.request.user
+    
+        if usuario.usuario.rol.nombre_rol == 'TS':
+            return Expediente.objects.filter(usuario_asignado=usuario)
+    
+        return Expediente.objects.all()
+    
+    
     
     def get_permissions(self):
         if self.action == 'create':
