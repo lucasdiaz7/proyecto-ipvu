@@ -35,7 +35,7 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
         if self.action == 'destroy':
             return [IsSuperAdmin()]
         
-        return [IsDataEntry | IsSuperAdmin | IsTrabajadoraSocial | IsLegales]
+        return [IsAnyRole()]    
     
     @action(detail=True, methods=['patch'], permission_classes=[IsLegales])
     def cambiar_estado(self, request, pk=None):
