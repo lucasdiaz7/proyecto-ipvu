@@ -33,13 +33,13 @@ class IntegranteFamilia(models.Model):
 
 class EstadoExpediente(models.Model):
     tipo_estado = [
-        ('SinI', 'Sin Iniciar'),
+        ('SINI', 'Sin Iniciar'),
         ('1V', '1ra Visita'),
-        ('Leg', 'Legales'),
-        ('DocP', 'Doc Presentada'),
+        ('LEG', 'Legales'),
+        ('DOCP', 'Doc Presentada'),
         ('AP', 'Apto'),
-        ('NoAP', 'No Apto'),
-        ('NuevaV', 'Nueva Visita'),
+        ('NOAP', 'No Apto'),
+        ('NUEVAV', 'Nueva Visita'),
     ]
     
     nombre = models.CharField(max_length=10, choices=tipo_estado, unique=True)
@@ -52,13 +52,13 @@ class EstadoExpediente(models.Model):
     def color(self):
         # Asociamos cada código con un color (Ideales para usar con Bootstrap o CSS en el HTML que te dio Claude)
         colores = {
-            'SinI': 'gray',       # Sin Iniciar -> Gris
+            'SINI': 'gray',       # Sin Iniciar -> Gris
             '1V': 'blue',       # 1ra Visita -> Azul
-            'Leg': 'purple',     # Legales -> Morado
-            'DocP': 'teal',       # Doc Presentada -> Turquesa
+            'LEG': 'purple',     # Legales -> Morado
+            'DOCP': 'teal',       # Doc Presentada -> Turquesa
             'AP': 'green',      # Apto -> Verde
-            'NoAP': 'red',        # No Apto -> Rojo
-            'NuevaV': 'orange',     # Nueva Visita -> Naranja
+            'NOAP': 'red',        # No Apto -> Rojo
+            'NUEVAV': 'orange',     # Nueva Visita -> Naranja
             }
     
     
