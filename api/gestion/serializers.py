@@ -22,6 +22,12 @@ class EstadoExpedienteSerializer(serializers.ModelSerializer):
         read_only_fields = ('tipo_estado','nombre')
 
 class ExpedienteSerializer(serializers.ModelSerializer):
+    estado_expediente = EstadoExpedienteSerializer()
+    estado_expediente_id = serializers.PrimaryKeyRelatedField(
+        queryset=EstadoExpediente.objects.all(),
+        source='estado_expediente',
+        write_only=True
+    )
     class Meta:
         model = Expediente
         fields = '__all__'
