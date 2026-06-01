@@ -44,7 +44,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = Usuario
         fields = '__all__'
-        read_only_fields = ['usuario']
+        read_only_fields = ('usuario')
         
     def create(self, validated_data):
         dni_ingresado = validated_data.get('dni')
