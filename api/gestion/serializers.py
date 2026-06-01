@@ -44,7 +44,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = Usuario
         fields = '__all__'
-        read_only_fields = ('usuario')
+        read_only_fields = ('usuario',)
         
     def create(self, validated_data):
         dni_ingresado = validated_data.get('dni')
@@ -104,7 +104,7 @@ class DictamenLegalSerializer(serializers.ModelSerializer):
     class Meta:
         model = DictamenLegal
         fields = '__all__'
-        read_only_fields = ('fecha_dictamen')
+        read_only_fields = ('fecha_dictamen',)
         
         
 class MiLoginPersonalizadoSerializer(TokenObtainPairSerializer):
