@@ -36,16 +36,13 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
         return Expediente.objects.all()
     
     
-    
     def get_permissions(self):
         if self.action == 'create':
             return [IsDataEntry()]
         if self.action == 'destroy':
             return [IsSuperAdmin()]
-        else:
-            return Response({'mensaje': 'Usuario no autorizado para esta accion'})
-        
         return [IsAnyRole()]    
+    
     
     @action(detail=True, methods=['patch'], permission_classes=[IsLegales])
     def cambiar_estado(self, request, pk=None):
