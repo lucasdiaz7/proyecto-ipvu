@@ -18,7 +18,8 @@ class IntegranteFamiliaSerializer(serializers.ModelSerializer):
 class EstadoExpedienteSerializer(serializers.ModelSerializer):
     class Meta:
         model = EstadoExpediente
-        read_only_fields = ('tipo_estado','nombre')
+        fields = ['id', 'nombre']
+        read_only_fields = ('nombre',)
 
 class ExpedienteSerializer(serializers.ModelSerializer):
     estado_expediente = EstadoExpedienteSerializer(read_only= True)
