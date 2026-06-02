@@ -4,7 +4,7 @@ from .views import MiLoginPersonalizadoView, UsuarioViewSet
 from rest_framework.routers import DefaultRouter
 from django.contrib import admin
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView
+
 
 router = DefaultRouter()
 
@@ -27,7 +27,5 @@ urlpatterns = [
     #rutas de login
     path('api/login/', MiLoginPersonalizadoView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
-    path('api/docs/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
     ]
 
