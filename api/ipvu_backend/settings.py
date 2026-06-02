@@ -49,7 +49,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'gestion',
-    'drf_spectacular'
+   
     
 ]
 

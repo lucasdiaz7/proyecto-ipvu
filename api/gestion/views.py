@@ -80,7 +80,7 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
 class HistorialPaseViewSet(viewsets.ModelViewSet):
     queryset = HistorialPase.objects.all()
     permission_classes = [permissions.AllowAny]
-    serializer_class = HistorialAccionSerializer
+    serializer_class = HistorialPaseSerializer
     
 class NotificacionViewSet(viewsets.ModelViewSet):
     queryset = Notificacion.objects.all()
