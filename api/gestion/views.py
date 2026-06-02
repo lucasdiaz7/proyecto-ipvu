@@ -82,6 +82,34 @@ class HistorialPaseViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
     serializer_class = HistorialPaseSerializer
     
+    def perform_create(self, serializer):
+        # 1. Guardamos el pase con el usuario origen automático
+        pase = serializer.save(usuario_origen=self.request.user)
+        
+        # 2. Agarramos el expediente
+        expediente = pase.expediente
+        
+        # 3. Solo cambiamos estado si no está aprobado
+        if expediente.estado_expediente.nombre != 'AP':
+            rol_destino = pase.usuario_destino.usuario.rol.nombre_rol
+            
+            if rol_destino == 'LG':
+                nuevo_estado = EstadoExpediente.objects.get(nombre='LEG')
+            else:
+                nuevo_estado = EstadoExpediente.objects.get(nombre='1V')
+            
+            expediente.estado_expediente = nuevo_estado
+            expediente.save()
+        
+        # 4. Creamos el historial de acción automáticamente
+        HistorialAccion.objects.create(
+            mensaje_accion=f"Expediente transferido a {pase.usuario_destino.username}. Motivo: {pase.observacion}",
+            id_usuario_accion=self.request.user.usuario,
+            id_expediente=expediente
+        )
+        
+        
+            
 class NotificacionViewSet(viewsets.ModelViewSet):
     queryset = Notificacion.objects.all()
     permission_classes = [permissions.AllowAny]

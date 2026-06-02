@@ -80,7 +80,7 @@ class HistorialPaseSerializer(serializers.ModelSerializer):
     class Meta:
         model = HistorialPase
         fields = '__all__'
-        read_only_fields = ('fecha_envio',)
+        read_only_fields = ('fecha_envio', 'usuario_origen')
         
 class NotificacionSerializer(serializers.ModelSerializer):
     class Meta:
