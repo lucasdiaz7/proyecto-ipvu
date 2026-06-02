@@ -22,7 +22,7 @@ class EstadoExpedienteSerializer(serializers.ModelSerializer):
         read_only_fields = ('tipo_estado','nombre')
 
 class ExpedienteSerializer(serializers.ModelSerializer):
-    estado_expediente = EstadoExpedienteSerializer()
+    estado_expediente = EstadoExpedienteSerializer(read_only= True)
     estado_expediente_id = serializers.PrimaryKeyRelatedField(
         queryset=EstadoExpediente.objects.all(),
         source='estado_expediente',
