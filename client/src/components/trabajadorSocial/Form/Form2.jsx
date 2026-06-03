@@ -1,25 +1,6 @@
 
 const Form2 = () => {
 
-  const label = [
-    "Acta de Matrimonio Legalizada",
-    "Acta de Unión Convivencial",
-    "Acta de Nacimiento de los hijos legalizada o grupo familiar entre hermanos",
-    "Acta de Defunción en caso de fallecimiento de los cónyuges legalizada",
-    "Acta Judicial de Separación Legalizada o Sentencia de Divorcio",
-    "Acta de cada uno legalizada",
-    "Disolución de uniones de hecho con acreditación judicial de los hijos",
-    "Constancia de AFIP y Rentas (Ingresos Brutos)",
-    "Certificado de discapacidad emitido por organismo oficial",
-    "Recibo de sueldo autenticado o Certificado de Ingresos por CPN",
-    "Certificado de Residencia de los titulares y mayores de 18 años",
-    "Contrato de Alquiler y últimos recibos autenticados",
-    "Constancia de CUIL de los titulares",
-    "Acreditación de datos personales en ANSES (ADP)",
-    "Certificado del Registro de la Propiedad del grupo familiar",
-    "Fotocopia y/o Boleta de Compra-Venta e Impuestos autenticados",
-    "Catastro Municipal"
-  ]
 
 
   return (
@@ -78,19 +59,11 @@ const Form2 = () => {
         </div>
 
         <div className="mt-6 grid grid-cols-1 md:grid-cols-1 gap-4">
-          {label.map((e) => (
-            <div
-              key={e}
-              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b pb-2"
-            >
-              <span className="text-gray-700 font-serif text-sm flex-none">
-                {e}
-              </span>
-              <button className="w-full sm:w-auto max-w-[180px] mx-auto sm:mx-0 bg-blue-500 hover:bg-blue-600 text-white font-semibold text-xs sm:text-sm px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg shadow-sm transition duration-200">
-                Subir archivo
-              </button>
-            </div>
-          ))}
+
+          <button className="w-full sm:w-auto max-w-[180px] mx-auto sm:mx-0 bg-blue-500 hover:bg-blue-600 text-white font-semibold text-xs sm:text-sm px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg shadow-sm transition duration-200">
+            Subir archivo
+          </button>
+
         </div>
       </div>
     </div>
