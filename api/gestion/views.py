@@ -8,21 +8,35 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from .permissions import *
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin
+from rest_framework.viewsets import GenericViewSet
 
 
 class PostulanteTitularViewSet(viewsets.ModelViewSet):
     queryset = PostulanteTitular.objects.all()
-    permission_classes = [permissions.AllowAny]
     serializer_class = PostulanteTitularSerializer
 
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return [IsDataEntryOrSuperAdmin()]
+        if self.action == 'destroy':
+            return [IsSuperAdmin()]
+        return [IsAnyRole()]
+    
 class IntegranteFamiliaViewSet(viewsets.ModelViewSet):
     queryset = IntegranteFamilia.objects.all()
-    permission_classes = [permissions.AllowAny]
     serializer_class = IntegranteFamiliaSerializer
-    
-class EstadoExpedienteViewSet(viewsets.ModelViewSet):
+ 
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return [IsDataEntryOrSuperAdmin()]
+        if self.action == 'destroy':
+            return [IsSuperAdmin()]
+        return [IsAnyRole()]
+ 
+class EstadoExpedienteViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
     queryset = EstadoExpediente.objects.all()
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [IsAnyRole]
     serializer_class = EstadoExpedienteSerializer
     
 class ExpedienteViewSet(viewsets.ModelViewSet):
@@ -39,7 +53,7 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action == 'create':
             return [IsDataEntry()]
-        if self.action == 'destroy':
+        if self.action in ['destroy', 'update', 'partial_update']:
             return [IsSuperAdmin()]
         return [IsAnyRole()]    
     
@@ -58,9 +72,9 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
             return Response ({'mensaje': 'Estado no válido'})
         
          
-class RolViewSet(viewsets.ModelViewSet):
+class RolViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
     queryset = Rol.objects.all()
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [IsAnyRole]
     serializer_class = RolSerializer
     
 class UsuarioViewSet(viewsets.ModelViewSet):
@@ -68,19 +82,19 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     serializer_class = UsuarioSerializer
     
     def get_permissions(self):
-        if self.action == 'create':
+        if self.action in ['create', 'destroy', 'update', 'partial_update']:
             return [IsSuperAdmin()]
         return [IsAnyRole()]
     
     
 class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
     queryset = DocumentoAdjunto.objects.all()
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [IsAnyRole]
     serializer_class = DocumentoAdjuntoSerializer        
 
-class HistorialPaseViewSet(viewsets.ModelViewSet):
+class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, GenericViewSet):
     queryset = HistorialPase.objects.all()
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [IsAnyRole]
     serializer_class = HistorialPaseSerializer
     
     def perform_create(self, serializer):
@@ -113,15 +127,19 @@ class HistorialPaseViewSet(viewsets.ModelViewSet):
             
 class NotificacionViewSet(viewsets.ModelViewSet):
     queryset = Notificacion.objects.all()
-    permission_classes = [permissions.AllowAny]
     serializer_class = NotificacionSerializer
 
-class HistorialAccionViewSet(viewsets.ModelViewSet):
+    def get_permissions(self):
+        if self.action == 'create':
+            return [IsSuperAdmin()]
+        return [IsAnyRole()]
+
+class HistorialAccionViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
     queryset = HistorialAccion.objects.all()
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [IsAnyRole]
     serializer_class = HistorialAccionSerializer
     
-class FormularioSocioHabitacionalViewSet(viewsets.ModelViewSet):
+class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, GenericViewSet):
     queryset = FormularioSocioHabitacional.objects.all()
     serializer_class = FormularioSocioHabitacionalSerializer
     
@@ -142,7 +160,7 @@ class DictamenLegalViewSet(viewsets.ModelViewSet):
     serializer_class = DictamenLegalSerializer
     
     def get_permissions(self):
-        if self.action == 'create':
+        if self.action in ['create', 'destroy']:
             return [IsLegales()]
         return [IsAnyRole()]
     
