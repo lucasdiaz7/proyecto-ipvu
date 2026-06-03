@@ -11,7 +11,6 @@ import Form1 from "./components/trabajadorSocial/Form/Form1.jsx";
 import Form2 from "./components/trabajadorSocial/Form/Form2.jsx";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router";
 
-
 function App() {
   return (
     <div>
@@ -30,15 +29,10 @@ function App() {
             <Route path="/trabajadoraSocial" element={<TrabajadorSocial />} />
             <Route path="/dataEntry" element={<Home />} />
             <Route path="/nuevoExpediente" element={<FormExpedientes />} />
-
           </Route>
-
-
         </Routes>
-
       </BrowserRouter>
     </div>
   )
 }
-
 export default App;
