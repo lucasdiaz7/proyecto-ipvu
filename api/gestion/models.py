@@ -8,6 +8,7 @@ class PostulanteTitular(models.Model):
     telefono = models.CharField (max_length=15)
     dni = models.CharField (max_length=15, unique=True)
     domicilio_actual = models.CharField (max_length=200)
+    email = models.EmailField(null=True, blank=True)
     
     #fechas
     fecha_creacion = models.DateTimeField (auto_now_add=True)
@@ -32,13 +33,13 @@ class IntegranteFamilia(models.Model):
 
 class EstadoExpediente(models.Model):
     tipo_estado = [
-        ('SinI', 'Sin Iniciar'),
+        ('SINI', 'Sin Iniciar'),
         ('1V', '1ra Visita'),
-        ('Leg', 'Legales'),
-        ('DocP', 'Doc Presentada'),
+        ('LEG', 'Legales'),
+        ('DOCP', 'Doc Presentada'),
         ('AP', 'Apto'),
-        ('NoAP', 'No Apto'),
-        ('NuevaV', 'Nueva Visita'),
+        ('NOAP', 'No Apto'),
+        ('NUEVAV', 'Nueva Visita'),
     ]
     
     nombre = models.CharField(max_length=10, choices=tipo_estado, unique=True)
@@ -51,20 +52,21 @@ class EstadoExpediente(models.Model):
     def color(self):
         # Asociamos cada código con un color (Ideales para usar con Bootstrap o CSS en el HTML que te dio Claude)
         colores = {
-            'SinI': 'gray',       # Sin Iniciar -> Gris
+            'SINI': 'gray',       # Sin Iniciar -> Gris
             '1V': 'blue',       # 1ra Visita -> Azul
-            'Leg': 'purple',     # Legales -> Morado
-            'DocP': 'teal',       # Doc Presentada -> Turquesa
+            'LEG': 'purple',     # Legales -> Morado
+            'DOCP': 'teal',       # Doc Presentada -> Turquesa
             'AP': 'green',      # Apto -> Verde
-            'NoAP': 'red',        # No Apto -> Rojo
-            'NuevaV': 'orange',     # Nueva Visita -> Naranja
+            'NOAP': 'red',        # No Apto -> Rojo
+            'NUEVAV': 'orange',     # Nueva Visita -> Naranja
             }
     
     
 class Expediente(models.Model):
     #fechas
     fecha_creacion =  models.DateTimeField(auto_now_add=True)
-    fecha_limite_ts = models.DateTimeField(null=True, blank=True) 
+    fecha_limite_ts = models.DateTimeField(null=True, blank=True)
+    DDJJ = models.CharField(max_length=50, null=True, blank=True, unique=True) 
     #FK
     postulante_titular = models.ForeignKey(PostulanteTitular, on_delete=models.CASCADE)
     usuario_asignado = models.ForeignKey(User, on_delete= models.SET_NULL, null=True)

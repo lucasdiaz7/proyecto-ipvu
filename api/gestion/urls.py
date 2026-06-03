@@ -11,7 +11,7 @@ router = DefaultRouter()
 router.register(r'postulantetitular', PostulanteTitularViewSet)
 router.register(r'integrantefamilia', IntegranteFamiliaViewSet)
 router.register(r'estadoexpediente', EstadoExpedienteViewSet)
-router.register(r'expediente', ExpedienteViewSet)
+router.register(r'expediente', ExpedienteViewSet, basename='expediente')
 router.register(r'rol', RolViewSet)
 router.register(r'usuario', UsuarioViewSet)
 router.register(r'documentoadjunto', DocumentoAdjuntoViewSet)   
@@ -26,6 +26,6 @@ urlpatterns = [
     
     #rutas de login
     path('api/login/', MiLoginPersonalizadoView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh')
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     ]
 

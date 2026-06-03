@@ -18,10 +18,16 @@ class IntegranteFamiliaSerializer(serializers.ModelSerializer):
 class EstadoExpedienteSerializer(serializers.ModelSerializer):
     class Meta:
         model = EstadoExpediente
-        fields = '__all__'
-        read_only_fields = ('tipo_estado','nombre')
+        fields = ['id', 'nombre']
+        read_only_fields = ('nombre',)
 
 class ExpedienteSerializer(serializers.ModelSerializer):
+    estado_expediente = EstadoExpedienteSerializer(read_only= True)
+    estado_expediente_id = serializers.PrimaryKeyRelatedField(
+        queryset=EstadoExpediente.objects.all(),
+        source='estado_expediente',
+        write_only=True
+    )
     class Meta:
         model = Expediente
         fields = '__all__'
@@ -38,7 +44,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = Usuario
         fields = '__all__'
-        read_only_fields = ['usuario']
+        read_only_fields = ('usuario',)
         
     def create(self, validated_data):
         dni_ingresado = validated_data.get('dni')
@@ -74,7 +80,7 @@ class HistorialPaseSerializer(serializers.ModelSerializer):
     class Meta:
         model = HistorialPase
         fields = '__all__'
-        read_only_fields = ('fecha_envio',)
+        read_only_fields = ('fecha_envio', 'usuario_origen')
         
 class NotificacionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -98,7 +104,7 @@ class DictamenLegalSerializer(serializers.ModelSerializer):
     class Meta:
         model = DictamenLegal
         fields = '__all__'
-        read_only_fields = ('fecha_dictamen', 'estado_sancion')
+        read_only_fields = ('fecha_dictamen',)
         
         
 class MiLoginPersonalizadoSerializer(TokenObtainPairSerializer):
