@@ -57,8 +57,7 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
         else:
             return Response ({'mensaje': 'Estado no válido'})
         
-        
-        
+         
 class RolViewSet(viewsets.ModelViewSet):
     queryset = Rol.objects.all()
     permission_classes = [permissions.AllowAny]
@@ -66,8 +65,13 @@ class RolViewSet(viewsets.ModelViewSet):
     
 class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
-    permission_classes = [permissions.AllowAny]
     serializer_class = UsuarioSerializer
+    
+    def get_permissions(self):
+        if self.action == 'create':
+            return [IsSuperAdmin()]
+        return [IsAnyRole()]
+    
     
 class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
     queryset = DocumentoAdjunto.objects.all()
@@ -119,7 +123,6 @@ class HistorialAccionViewSet(viewsets.ModelViewSet):
     
 class FormularioSocioHabitacionalViewSet(viewsets.ModelViewSet):
     queryset = FormularioSocioHabitacional.objects.all()
-    permission_classes = [permissions.AllowAny]
     serializer_class = FormularioSocioHabitacionalSerializer
     
     def perform_create(self, serializer):
@@ -129,11 +132,19 @@ class FormularioSocioHabitacionalViewSet(viewsets.ModelViewSet):
         expediente.estado_expediente = estado_1v
         expediente.save()
     
+    def get_permissions(self):
+        if self.action == 'create':
+            return [IsTrabajadoraSocial()]
+        return [IsAnyRole()]
     
 class DictamenLegalViewSet(viewsets.ModelViewSet):
     queryset = DictamenLegal.objects.all()
-    permission_classes = [permissions.AllowAny]
     serializer_class = DictamenLegalSerializer
+    
+    def get_permissions(self):
+        if self.action == 'create':
+            return [IsLegales()]
+        return [IsAnyRole()]
     
 class MiLoginPersonalizadoView(TokenObtainPairView):
     serializer_class = MiLoginPersonalizadoSerializer
