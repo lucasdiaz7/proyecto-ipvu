@@ -8,7 +8,7 @@ class PostulanteTitularSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = PostulanteTitular
-        fields = ['nombre', 'apellido', 'dni', 'telefono', 'domicilio_actual', 'email', 'fecha_creacion', 'fecha_modificacion', 'ddjj']
+        fields = '__all__'
         read_only_fields = ('fecha_creacion', 'fecha_modificacion')
         
 class IntegranteFamiliaSerializer(serializers.ModelSerializer):

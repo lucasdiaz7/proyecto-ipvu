@@ -16,15 +16,19 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
     queryset = PostulanteTitular.objects.all()
     serializer_class = PostulanteTitularSerializer
 
-    def perform_create(self, serializer):
+    def perform_create(self, serializer):   
         ddjj = serializer.validated_data.pop('ddjj')
+        print(f"DDJJ recibida: {ddjj}")
         postulante = serializer.save()
+        print(f"Postulante creado: {postulante.id}")
         estado_inicial = EstadoExpediente.objects.get(nombre='SINI')
+        print(f"Estado inicial: {estado_inicial}")
         Expediente.objects.create(
             postulante_titular=postulante,
             estado_expediente=estado_inicial,
             DDJJ=ddjj
     )
+    print("Expediente creado")
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update']:
