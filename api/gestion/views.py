@@ -16,6 +16,16 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
     queryset = PostulanteTitular.objects.all()
     serializer_class = PostulanteTitularSerializer
 
+    def perform_create(self, serializer):
+        ddjj = serializer.validated_data.pop('ddjj')
+        postulante = serializer.save()
+        estado_inicial = EstadoExpediente.objects.get(nombre='SINI')
+        Expediente.objects.create(
+            postulante_titular=postulante,
+            estado_expediente=estado_inicial,
+            DDJJ=ddjj
+    )
+
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update']:
             return [IsDataEntryOrSuperAdmin()]
