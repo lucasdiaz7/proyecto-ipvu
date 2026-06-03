@@ -3,6 +3,9 @@ from django.shortcuts import render
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from django.contrib.auth.models import User
+import csv 
+from django.db.models import Count
+from rest_framework.decorators import action
 
 from .models import *
 from .models import DocumentoExpediente
@@ -46,6 +49,32 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
     queryset = Expediente.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = ExpedienteSerializer
+    @action(detail=False, methods=["get"], url_path="reporte-estados")
+    def reporte_estados(self, request):
+        conteos =(
+            Expediente.objects
+            .values("estado_expediente__nombre")
+            .annotate(cantidad=Count("id"))
+        )
+        
+        conteos_por_estado = {
+            item["estado_expediente__nombre"]: item["cantidad"]
+            for item in conteos
+        }
+
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="reporte_estados_expedientes.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow(["Estado", "Cantidad"])
+
+        estados = dict(EstadoExpediente.tipo_estado)
+
+        for codigo_estado, nombre_estado in estados.items():
+            cantidad = conteos_por_estado.get(codigo_estado, 0)
+            writer.writerow([nombre_estado, cantidad])
+
+        return response
 
     # 🔹 Transiciones válidas (CÓDIGOS)
     VALID_TRANSITIONS = {
