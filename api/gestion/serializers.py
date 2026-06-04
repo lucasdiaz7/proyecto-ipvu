@@ -4,6 +4,8 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 
 class PostulanteTitularSerializer(serializers.ModelSerializer):
+    ddjj= serializers.CharField(write_only = True)
+    
     class Meta:
         model = PostulanteTitular
         fields = '__all__'
