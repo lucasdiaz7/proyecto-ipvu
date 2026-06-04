@@ -102,7 +102,7 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
         usuario = self.request.user
 
        
-        estado = self.request.query_params.get('estado')
+        estado = self.request.query_params.get('estado_expediente')
         dni = self.request.query_params.get('dni')
         usuario_asignado = self.request.query_params.get('usuario_asignado')
         
