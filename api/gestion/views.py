@@ -23,10 +23,12 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
         print(f"Postulante creado: {postulante.id}")
         estado_inicial = EstadoExpediente.objects.get(nombre='SINI')
         print(f"Estado inicial: {estado_inicial}")
+        trabajadora_social = obtener_siguiente_trabajadora_social()
         Expediente.objects.create(
             postulante_titular=postulante,
             estado_expediente=estado_inicial,
-            DDJJ=ddjj
+            DDJJ=ddjj,
+            usuario_asignado=trabajadora_social
     )
     print("Expediente creado")
 
