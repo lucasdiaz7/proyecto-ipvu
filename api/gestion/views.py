@@ -100,12 +100,26 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         usuario = self.request.user
-    
+
+        estado = self.request.query_params.get('estado')
+        dni = self.request.query_params.get('dni')
+        usuario_asignado = self.request.query_params.get('usuario_asignado')
+        
         if usuario.usuario.rol.nombre_rol == 'TS':
-            return Expediente.objects.filter(usuario_asignado=usuario)
-    
-        return Expediente.objects.all()
-    
+            queryset = Expediente.objects.filter(usuario_asignado= usuario)
+        else:
+            queryset = Expediente.objects.all()
+
+        if estado:
+            queryset = queryset.filter(estado_expediente__nombre = estado)
+            
+        if dni:
+            queryset = queryset.filter(postulante_titular__dni = dni)
+            
+        if usuario_asignado:
+            queryset = queryset.filter(usuario_asignado = usuario_asignado)
+            
+        return queryset    
     
     def get_permissions(self):
         if self.action == 'create':
@@ -157,10 +171,8 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
         # 1. Guardamos el pase con el usuario origen automático
         pase = serializer.save(usuario_origen=self.request.user)
         
-        # 2. Agarramos el expediente
         expediente = pase.expediente
         
-        # 3. Solo cambiamos estado si no está aprobado
         if expediente.estado_expediente.nombre != 'AP':
             rol_destino = pase.usuario_destino.usuario.rol.nombre_rol
             
@@ -172,7 +184,6 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
             expediente.estado_expediente = nuevo_estado
             expediente.save()
         
-        # 4. Creamos el historial de acción automáticamente
         HistorialAccion.objects.create(
             mensaje_accion=f"Expediente transferido a {pase.usuario_destino.username}. Motivo: {pase.observacion}",
             id_usuario_accion=self.request.user.usuario,
