@@ -10,7 +10,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin
 from rest_framework.viewsets import GenericViewSet
-
+from django.contrib.auth.models import User
 
 class PostulanteTitularViewSet(viewsets.ModelViewSet):
     queryset = PostulanteTitular.objects.all()
@@ -52,7 +52,43 @@ class EstadoExpedienteViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet
     queryset = EstadoExpediente.objects.all()
     permission_classes = [IsAnyRole]
     serializer_class = EstadoExpedienteSerializer
-    
+
+
+
+def obtener_siguiente_trabajadora_social():
+    trabajadoras = list(
+        User.objects
+        .filter(usuario__rol__nombre_rol="TS")
+        .order_by("id")
+    )
+
+    if not trabajadoras:
+        return None
+
+    ultimo_expediente = (
+        Expediente.objects
+        .filter(usuario_asignado__usuario__rol__nombre_rol="TS")
+        .order_by("-id")
+        .first()
+    )
+
+    if not ultimo_expediente or not ultimo_expediente.usuario_asignado:
+        return trabajadoras[0]
+
+    ultimo_usuario = ultimo_expediente.usuario_asignado
+
+    try:
+        indice_actual = trabajadoras.index(ultimo_usuario)
+    except ValueError:
+        return trabajadoras[0]
+
+    siguiente_indice = indice_actual + 1
+
+    if siguiente_indice >= len(trabajadoras):
+        siguiente_indice = 0
+
+    return trabajadoras[siguiente_indice]
+
 class ExpedienteViewSet(viewsets.ModelViewSet):
     serializer_class = ExpedienteSerializer
     def get_queryset(self):
@@ -84,6 +120,11 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
             return Response ({'mensaje': 'Estado actualizado'})
         else:
             return Response ({'mensaje': 'Estado no válido'})
+
+        def perform_create(self, serializer):
+        trabajadora_social = obtener_siguiente_trabajadora_social()
+
+        serializer.save(usuario_asignado=trabajadora_social)    
         
          
 class RolViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
@@ -180,3 +221,37 @@ class DictamenLegalViewSet(viewsets.ModelViewSet):
     
 class MiLoginPersonalizadoView(TokenObtainPairView):
     serializer_class = MiLoginPersonalizadoSerializer
+
+def obtener_siguiente_trabajadora_social():
+    trabajadoras = list(
+        User.objects
+        .filter(usuario__rol__nombre_rol="TS")
+        .order_by("id")
+    )
+
+    if not trabajadoras:
+        return None
+
+    ultimo_expediente = (
+        Expediente.objects
+        .filter(usuario_asignado__usuario__rol__nombre_rol="TS")
+        .order_by("-id")
+        .first()
+    )
+
+    if not ultimo_expediente or not ultimo_expediente.usuario_asignado:
+        return trabajadoras[0]
+
+    ultimo_usuario = ultimo_expediente.usuario_asignado
+
+    try:
+        indice_actual = trabajadoras.index(ultimo_usuario)
+    except ValueError:
+        return trabajadoras[0]
+
+    siguiente_indice = indice_actual + 1
+
+    if siguiente_indice >= len(trabajadoras):
+        siguiente_indice = 0
+
+    return trabajadoras[siguiente_indice]    
