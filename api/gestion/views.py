@@ -10,7 +10,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin
 from rest_framework.viewsets import GenericViewSet
-
+from django.contrib.auth.models import User
 
 class PostulanteTitularViewSet(viewsets.ModelViewSet):
     queryset = PostulanteTitular.objects.all()
@@ -23,10 +23,12 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
         print(f"Postulante creado: {postulante.id}")
         estado_inicial = EstadoExpediente.objects.get(nombre='SINI')
         print(f"Estado inicial: {estado_inicial}")
+        trabajadora_social = obtener_siguiente_trabajadora_social()
         Expediente.objects.create(
             postulante_titular=postulante,
             estado_expediente=estado_inicial,
-            DDJJ=ddjj
+            DDJJ=ddjj,
+            usuario_asignado=trabajadora_social
     )
     print("Expediente creado")
 
@@ -52,9 +54,50 @@ class EstadoExpedienteViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet
     queryset = EstadoExpediente.objects.all()
     permission_classes = [IsAnyRole]
     serializer_class = EstadoExpedienteSerializer
-    
+
+
+
+def obtener_siguiente_trabajadora_social():
+    trabajadoras = list(
+        User.objects
+        .filter(usuario__rol__nombre_rol="TS")
+        .order_by("id")
+    )
+
+    if not trabajadoras:
+        return None
+
+    ultimo_expediente = (
+        Expediente.objects
+        .filter(usuario_asignado__usuario__rol__nombre_rol="TS")
+        .order_by("-id")
+        .first()
+    )
+
+    if not ultimo_expediente or not ultimo_expediente.usuario_asignado:
+        return trabajadoras[0]
+
+    ultimo_usuario = ultimo_expediente.usuario_asignado
+
+    try:
+        indice_actual = trabajadoras.index(ultimo_usuario)
+    except ValueError:
+        return trabajadoras[0]
+
+    siguiente_indice = indice_actual + 1
+
+    if siguiente_indice >= len(trabajadoras):
+        siguiente_indice = 0
+
+    return trabajadoras[siguiente_indice]
+
 class ExpedienteViewSet(viewsets.ModelViewSet):
     serializer_class = ExpedienteSerializer
+
+    def perform_create(self, serializer):
+        trabajadora_social = obtener_siguiente_trabajadora_social()
+        serializer.save(usuario_asignado=trabajadora_social)
+
     def get_queryset(self):
         usuario = self.request.user
     
@@ -66,7 +109,7 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
     
     def get_permissions(self):
         if self.action == 'create':
-            return [IsDataEntry()]
+            return [permissions.AllowAny()]
         if self.action in ['destroy', 'update', 'partial_update']:
             return [IsSuperAdmin()]
         return [IsAnyRole()]    
@@ -84,8 +127,7 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
             return Response ({'mensaje': 'Estado actualizado'})
         else:
             return Response ({'mensaje': 'Estado no válido'})
-        
-         
+
 class RolViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
     queryset = Rol.objects.all()
     permission_classes = [IsAnyRole]
