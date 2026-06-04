@@ -101,6 +101,9 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         usuario = self.request.user
 
+        if not usuario.is_authenticated:
+            return Expediente.objects.all()
+
         estado = self.request.query_params.get('estado')
         dni = self.request.query_params.get('dni')
         usuario_asignado = self.request.query_params.get('usuario_asignado')
