@@ -56,8 +56,8 @@ const Form1 = () => {
                                 class="w-full px-3 py-2 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200"
                                 {...register("domicilio", { required: "Este Campo Es Obligatorio" })}
                             />
+                            {errors.domicilio && <p className="font-sans text-sm text-red-600">Este Campo Es Obligatorio</p>}
                         </div>
-                        {errors.domicilio && <p className="font-sans text-sm text-red-600">Este Campo Es Obligatorio</p>}
                     </div>
 
                     <div>
@@ -67,8 +67,10 @@ const Form1 = () => {
                             <p class="text-gray-600 text-sm">Tipo y Dinamia Familiar. Conflictos</p>
                             <textarea
                                 class="w-full mt-2 px-3 py-3 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 resize-none"
-                                {...register("grupoFamiliarConstituyente")}
+                                {...register("grupoFamiliarConstituyente", { required: "Este Campo Es Obligatorio" })}
                             />
+                            {errors.grupoFamiliarConstituyente && <p className="font-sans text-sm text-red-600">Este Campo Es Obligatorio</p>}
+
                         </div>
 
                         <div class="mt-5">
@@ -76,8 +78,9 @@ const Form1 = () => {
                             <p class="text-gray-600 text-sm">Tipo de posesion y tiempo de habitabilidad</p>
                             <textarea
                                 class="w-full mt-2 px-3 py-3 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 resize-none"
-                                {...register("situacionHabitacional")}
+                                {...register("situacionHabitacional", { required: "Este Campo Es Obligatorio" })}
                             />
+                            {errors.situacionHabitacional && <p className="font-sans text-sm text-red-600">Este Campo Es Obligatorio</p>}
                         </div>
 
                         <div class="mt-5">
@@ -85,8 +88,9 @@ const Form1 = () => {
                             <p class="text-gray-600 text-sm">Ingresos y Calidad de Vida</p>
                             <textarea
                                 class="w-full mt-2 px-3 py-3 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 resize-none"
-                                {...register("aspectoEconomico")}
+                                {...register("aspectoEconomico", { required: "Este Campo Es Obligatorio" })}
                             />
+                            {errors.aspectoEconomico && <p className="font-sans text-sm text-red-600">Este Campo Es Obligatorio</p>}
                         </div>
 
                         <div class="mt-5">
@@ -94,8 +98,9 @@ const Form1 = () => {
                             <p class="text-gray-600 text-sm">Discapacidad. Invalidez</p>
                             <textarea
                                 class="w-full mt-2 px-3 py-3 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 resize-none"
-                                {...register("situacionDeSalud")}
+                                {...register("situacionDeSalud", { required: "Este Campo Es Obligatorio" })}
                             />
+                            {errors.situacionDeSalud && <p className="font-sans text-sm text-red-600">Este Campo Es Obligatorio</p>}
                         </div>
 
                         <div class="mt-5">
@@ -103,24 +108,27 @@ const Form1 = () => {
                             <input
                                 type="text"
                                 class="w-full mt-2 px-3 py-2 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200"
-                                {...register("nivelDeEstudios")}
+                                {...register("nivelDeEstudios", { required: "Este Campo Es Obligatorio" })}
                             />
+                            {errors.nivelDeEstudios && <p className="font-sans text-sm text-red-600">Este Campo Es Obligatorio</p>}
                         </div>
 
                         <div class="mt-5">
                             <h2 class="text-gray-800 font-semibold text-base">RELEVAMIENTO VECINAL</h2>
                             <textarea
                                 class="w-full mt-2 px-3 py-3 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 resize-none"
-                                {...register("relevamientoVecinal")}
+                                {...register("relevamientoVecinal", { required: "Este Campo Es Obligatorio" })}
                             />
+                            {errors.relevamientoVecinal && <p className="font-sans text-sm text-red-600">Este Campo Es Obligatorio</p>}
                         </div>
 
                         <div class="mt-5">
                             <h2 class="text-gray-800 font-semibold text-base">OBSERVACIONES Y/O PARTICULARIDADES</h2>
                             <textarea
                                 class="w-full mt-2 px-3 py-3 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 resize-none"
-                                {...register("observacionesParticularidades")}
+                                {...register("observacionesParticularidades", { required: "Este Campo Es Obligatorio" })}
                             />
+                            {errors.observacionesParticularidades && <p className="font-sans text-sm text-red-600">Este Campo Es Obligatorio</p>}
                         </div>
                     </div>
 
