@@ -91,6 +91,11 @@ def obtener_siguiente_trabajadora_social():
 
 class ExpedienteViewSet(viewsets.ModelViewSet):
     serializer_class = ExpedienteSerializer
+
+    def perform_create(self, serializer):
+        trabajadora_social = obtener_siguiente_trabajadora_social()
+        serializer.save(usuario_asignado=trabajadora_social)
+
     def get_queryset(self):
         usuario = self.request.user
     
@@ -121,12 +126,6 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
         else:
             return Response ({'mensaje': 'Estado no válido'})
 
-        def perform_create(self, serializer):
-        trabajadora_social = obtener_siguiente_trabajadora_social()
-
-        serializer.save(usuario_asignado=trabajadora_social)    
-        
-         
 class RolViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
     queryset = Rol.objects.all()
     permission_classes = [IsAnyRole]
@@ -221,37 +220,3 @@ class DictamenLegalViewSet(viewsets.ModelViewSet):
     
 class MiLoginPersonalizadoView(TokenObtainPairView):
     serializer_class = MiLoginPersonalizadoSerializer
-
-def obtener_siguiente_trabajadora_social():
-    trabajadoras = list(
-        User.objects
-        .filter(usuario__rol__nombre_rol="TS")
-        .order_by("id")
-    )
-
-    if not trabajadoras:
-        return None
-
-    ultimo_expediente = (
-        Expediente.objects
-        .filter(usuario_asignado__usuario__rol__nombre_rol="TS")
-        .order_by("-id")
-        .first()
-    )
-
-    if not ultimo_expediente or not ultimo_expediente.usuario_asignado:
-        return trabajadoras[0]
-
-    ultimo_usuario = ultimo_expediente.usuario_asignado
-
-    try:
-        indice_actual = trabajadoras.index(ultimo_usuario)
-    except ValueError:
-        return trabajadoras[0]
-
-    siguiente_indice = indice_actual + 1
-
-    if siguiente_indice >= len(trabajadoras):
-        siguiente_indice = 0
-
-    return trabajadoras[siguiente_indice]    
