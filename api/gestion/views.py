@@ -107,7 +107,7 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
         usuario_asignado = self.request.query_params.get('usuario_asignado')
         
         if not usuario.is_authenticated:
-            return Expediente.objects.all()
+            queryset = Expediente.objects.all()
         elif usuario.usuario.rol.nombre_rol == 'TS':
             queryset = Expediente.objects.filter(usuario_asignado= usuario)
         else:
