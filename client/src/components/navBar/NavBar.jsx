@@ -1,6 +1,17 @@
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
+import { authService } from "../../services/authService/authService";
 
 const NavBar = () => {
+    const navigate = useNavigate();
+
+    const nombreUsuario = localStorage.getItem("username")
+
+    const handleLogout = () => {
+        authService.cerrarSesion()
+
+        navigate("/login")
+    }
+
     return (
         <nav className=" relative bg-blue-500 w-full h-12 px-4 flex items-center justify-between">
 
@@ -50,11 +61,11 @@ const NavBar = () => {
                 <span className="text-white sm:hidden">
                     Lucas
                 </span>
-                <Link to="/login">
-                    <button className="hidden sm:block text-white px-3 py-1 bg-blue-800 hover:bg-blue-950 rounded-lg font-semibold transition-colors">
-                        Salir
-                    </button>
-                </Link>
+
+                <button onClick={handleLogout} className="hidden sm:block text-white px-3 py-1 bg-blue-800 hover:bg-blue-950 rounded-lg font-semibold transition-colors">
+                    Salir
+                </button>
+
             </div>
         </nav>
     );
