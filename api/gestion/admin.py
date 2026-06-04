@@ -1,8 +1,5 @@
-from django.contrib import admin
-from .models import *
 from django.contrib import admin  
 from .models import *
-
 
 # Register your models here.
 
@@ -16,7 +13,7 @@ admin.site.register(DocumentoAdjunto)
 admin.site.register(HistorialPase)
 admin.site.register(Notificacion)
 admin.site.register(HistorialAccion)
-admin.site.register(FormularioSociohabitacional)
+admin.site.register(FormularioSocioHabitacional)
 admin.site.register(DictamenLegal)
 
 

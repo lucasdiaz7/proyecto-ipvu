@@ -1,12 +1,15 @@
 import HomeAdmin from "./components/admin/HomeAdmin.jsx";
+import TrabajadorSocial from "./components/admin/Trabajador Social/TrabajadorSocial.jsx";
+import FormUsuario from "./components/admin/Usuarios/FormUsuario.jsx";
 import Usuarios from "./components/admin/Usuarios/Usuarios.jsx";
+import FormExpedientes from "./components/data entry/FormExpedientes.jsx";
+import Home from "./components/data entry/Home.jsx";
 import Expedientes from "./components/expedientes/Expedientes.jsx";
 import Login from "./components/login/login.jsx";
 import Layout from "./components/navBar/Layout.jsx";
 import Form1 from "./components/trabajadorSocial/Form/Form1.jsx";
 import Form2 from "./components/trabajadorSocial/Form/Form2.jsx";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router";
-
 
 function App() {
   return (
@@ -22,14 +25,14 @@ function App() {
             <Route path="/form2" element={<Form2 />} />
             <Route path="/homeAdmin" element={<HomeAdmin />} />
             <Route path="/usuarios" element={<Usuarios />} />
+            <Route path="/crearUsuario" element={<FormUsuario />} />
+            <Route path="/trabajadoraSocial" element={<TrabajadorSocial />} />
+            <Route path="/dataEntry" element={<Home />} />
+            <Route path="/nuevoExpediente" element={<FormExpedientes />} />
           </Route>
-
-
         </Routes>
-
       </BrowserRouter>
     </div>
   )
 }
-
 export default App;
