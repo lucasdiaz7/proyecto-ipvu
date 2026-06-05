@@ -79,12 +79,12 @@ class UsuarioSerializer(serializers.ModelSerializer):
 # serializador para cambiar la contraseña en el primer login 
 
 class EstablecerPasswordInicialSerializer(serializers.Serializer):
-    nuevo_password = serializers.CharField(write_only=True)
+    nueva_password = serializers.CharField(write_only=True)
     confirmar_password = serializers.CharField(write_only=True)
     
     #attrs es diccionario de django que contiene los datos de entrada validados 
     #que vinieron del request
-    def validar_password(self, attrs):
+    def validate(self, attrs):
         usuario=self.context["request"].user
         perfil = usuario.usuario
 
@@ -92,10 +92,10 @@ class EstablecerPasswordInicialSerializer(serializers.Serializer):
             raise serializers.ValidationError("El usuario no requiere cambio " \
             "de contraseña")
         
-        if attrs["nuevo_password"] != attrs["confirmar_password"]:
+        if attrs["nueva_password"] != attrs["confirmar_password"]:
             raise serializers.ValidationError("Las contraseñas no coinciden")
         
-        validate_password(attrs["nuevo_password"], user=usuario)
+        validate_password(attrs["nueva_password"], user=usuario)
 
         return attrs
     
@@ -106,7 +106,7 @@ class EstablecerPasswordInicialSerializer(serializers.Serializer):
         usuario = self.context["request"].user
         perfil = usuario.usuario
 
-        usuario.set_password(self.validated_data["nuevo_password"])
+        usuario.set_password(self.validated_data["nueva_password"])
         usuario.save()
 
         perfil.requiere_cambio_password = False

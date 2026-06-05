@@ -12,6 +12,7 @@ from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateMode
 from rest_framework.viewsets import GenericViewSet
 from django.contrib.auth.models import User
 from rest_framework.views import APIView
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 class PostulanteTitularViewSet(viewsets.ModelViewSet):
     queryset = PostulanteTitular.objects.all()
@@ -226,6 +227,7 @@ class MiLoginPersonalizadoView(TokenObtainPairView):
 
 
 class EstablecerPasswordInicialView(APIView):
+    authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
