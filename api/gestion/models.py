@@ -171,6 +171,7 @@ class FormularioSocioHabitacional(models.Model):
     nivel_estudios=models.CharField(max_length=100)
     relevamiento_vecinal=models.TextField()
     observaciones=models.TextField()
+    
 
     #FK
     expediente = models.ForeignKey(Expediente, on_delete=models.CASCADE)
@@ -205,3 +206,6 @@ class DictamenLegal(models.Model):
     
     def __str__(self):
        return f"Observaciones: {self.texto_observaciones}. Estado: {self.estado_sancion}. Fecha {self.fecha_dictamen}"
+
+
+    
