@@ -99,9 +99,10 @@ class EstablecerPasswordInicialSerializer(serializers.Serializer):
 
         return attrs
     
-    # **kwargs indica cualquier argumento extra
-
     
+
+     # **kwargs indica cualquier argumento extra
+     
     def save(self, **kwargs):
         usuario = self.context["request"].user
         perfil = usuario.usuario
