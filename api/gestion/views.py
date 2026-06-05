@@ -188,11 +188,11 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
             expediente.estado_expediente = nuevo_estado
             expediente.save()
         
-        HistorialAccion.objects.create(
-            mensaje_accion=f"Expediente transferido a {pase.usuario_destino.username}. Motivo: {pase.observacion}",
-            id_usuario_accion=self.request.user.usuario,
-            id_expediente=expediente
-        )
+        #HistorialAccion.objects.create(
+            #mensaje_accion=f"Expediente transferido a {pase.usuario_destino.username}. Motivo: {pase.observacion}",
+            #id_usuario_accion=self.request.user.usuario,
+            #id_expediente=expediente
+        #)
         
         
             

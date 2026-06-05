@@ -68,9 +68,6 @@ class UsuarioSerializer(serializers.ModelSerializer):
         if instance.usuario:
             ret['username_display'] = instance.usuario.username
         
-        if instance.password:
-            ret['password_display'] = instance.usuario.password
-        
         if instance.rol:
             ret['rol_display'] = instance.rol.nombre_rol
     
