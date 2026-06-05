@@ -23,9 +23,13 @@ router.register(r'dictamen', DictamenLegalViewSet)
 
 urlpatterns = [
     path('api/', include(router.urls)),
-    
-    #rutas de login
+
+    # rutas de login
     path('api/login/', MiLoginPersonalizadoView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    ]
-
+    path(
+        'api/establecer-password-inicial/',
+        EstablecerPasswordInicialView.as_view(),
+        name='establecer_password_inicial'
+    ),
+]

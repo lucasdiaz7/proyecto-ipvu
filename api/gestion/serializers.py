@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import *
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from django.contrib.auth.password_validation import validate_password
 
 
 class PostulanteTitularSerializer(serializers.ModelSerializer):
@@ -22,6 +23,7 @@ class EstadoExpedienteSerializer(serializers.ModelSerializer):
         model = EstadoExpediente
         fields = ['id', 'nombre']
         read_only_fields = ('nombre',)
+
 
 class ExpedienteSerializer(serializers.ModelSerializer):
     estado_expediente = EstadoExpedienteSerializer(read_only= True)
@@ -73,11 +75,54 @@ class UsuarioSerializer(serializers.ModelSerializer):
     
         return ret
     
+
+# serializador para cambiar la contraseña en el primer login 
+
+class EstablecerPasswordInicialSerializer(serializers.Serializer):
+    nueva_password = serializers.CharField(write_only=True)
+    confirmar_password = serializers.CharField(write_only=True)
+    
+    #attrs es diccionario de django que contiene los datos de entrada validados 
+    #que vinieron del request
+    def validate(self, attrs):
+        usuario=self.context["request"].user
+        perfil = usuario.usuario
+
+        if not perfil.requiere_cambio_password:
+            raise serializers.ValidationError("El usuario no requiere cambio " \
+            "de contraseña")
+        
+        if attrs["nueva_password"] != attrs["confirmar_password"]:
+            raise serializers.ValidationError("Las contraseñas no coinciden")
+        
+        validate_password(attrs["nueva_password"], user=usuario)
+
+        return attrs
+    
+    # **kwargs indica cualquier argumento extra
+
+    
+    def save(self, **kwargs):
+        usuario = self.context["request"].user
+        perfil = usuario.usuario
+
+        usuario.set_password(self.validated_data["nueva_password"])
+        usuario.save()
+
+        perfil.requiere_cambio_password = False
+        perfil.save(update_fields=["requiere_cambio_password"])
+
+        return usuario
+    
+
+
+
 class DocumentoAdjuntoSerializer(serializers.ModelSerializer):
-    class Meta:
+   class Meta:
         model = DocumentoAdjunto
         fields = '__all__'
-        
+
+
 class HistorialPaseSerializer(serializers.ModelSerializer):
     class Meta:
         model = HistorialPase
@@ -124,3 +169,5 @@ class MiLoginPersonalizadoSerializer(TokenObtainPairSerializer):
             pass
             
         return data
+
+
