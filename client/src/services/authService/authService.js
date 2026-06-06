@@ -32,8 +32,6 @@ export const authService = {
 
 
     cerrarSesion: () => {
-        localStorage.removeItem("token");
-        localStorage.removeItem("usuario");
-        window.location.href = "/login";
+        localStorage.clear();
     }
 };
