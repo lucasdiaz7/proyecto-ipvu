@@ -13,6 +13,12 @@ from rest_framework.viewsets import GenericViewSet
 from django.contrib.auth.models import User
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from django.conf import settings
+from django.core.mail import send_mail
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
+
 
 class PostulanteTitularViewSet(viewsets.ModelViewSet):
     queryset = PostulanteTitular.objects.all()
@@ -240,3 +246,48 @@ class EstablecerPasswordInicialView(APIView):
         serializer.save()
 
         return Response({"mensaje": "Contraseña actualizada correctamente"})
+
+class SolicitarResetPasswordView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = SolicitarResetPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+        usuario = User.objects.filter(email=email).first()
+
+        if usuario:
+            uid = urlsafe_base64_encode(force_bytes(usuario.pk))
+            token = default_token_generator.make_token(usuario)
+            reset_link = f"{settings.FRONTEND_URL}/reset-password/{uid}/{token}/"
+
+            send_mail(
+                subject="Restablecer contraseña",
+                message=(
+                    "Recibimos una solicitud para restablecer tu password.\n\n"
+                    f"Usa este enlace para crear una password nueva:\n{reset_link}\n\n"
+                    "Si no solicitaste este cambio, puedes ignorar este mensaje."
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[usuario.email],
+                fail_silently=False,
+            )
+
+        return Response({
+            "mensaje": "Si el email existe, se enviaron instrucciones para resetear la contraseña."
+        })
+
+
+class ConfirmarResetPasswordView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = ConfirmarResetPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response({
+            "mensaje": "Contraseña actualizada correctamente."
+        })
+
