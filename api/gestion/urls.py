@@ -27,11 +27,15 @@ urlpatterns = [
     # rutas de login
     path('api/login/', MiLoginPersonalizadoView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    
+    # ruta para establecer contraseña inicial
     path(
         'api/establecer-password-inicial/',
         EstablecerPasswordInicialView.as_view(),
         name='establecer_password_inicial'
     ),
+
+    # rutas para restablecer contraseña en caso de olvidarla
     path('api/password-reset/solicitar/', SolicitarResetPasswordView.as_view(), name='password_reset_solicitar'),
     path('api/password-reset/confirmar/', ConfirmarResetPasswordView.as_view(), name='password_reset_confirmar'),
 ]
