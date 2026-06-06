@@ -4,6 +4,7 @@ import FormUsuario from "./components/admin/Usuarios/FormUsuario.jsx";
 import Usuarios from "./components/admin/Usuarios/Usuarios.jsx";
 import FormExpedientes from "./components/data entry/FormExpedientes.jsx";
 import Home from "./components/data entry/Home.jsx";
+import DetailExpedientes from "./components/expedientes/DetailExpedientes.jsx";
 import Expedientes from "./components/expedientes/Expedientes.jsx";
 import CambiarContraseña from "./components/login/CambiarContraseña.jsx";
 import Login from "./components/login/login.jsx";
@@ -31,6 +32,7 @@ function App() {
             <Route path="/trabajadoraSocial" element={<TrabajadorSocial />} />
             <Route path="/dataEntry" element={<Home />} />
             <Route path="/nuevoExpediente" element={<FormExpedientes />} />
+            <Route path="/DetalleExpediente" element={<DetailExpedientes />} />
           </Route>
         </Routes>
       </BrowserRouter>

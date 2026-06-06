@@ -210,7 +210,8 @@ const Expedientes = () => {
                         </div>
                     ) : (
                         expedientesFinales.map((e) => (
-                            <button
+                            <Link
+                                to="/DetalleExpediente"
                                 key={e.ddjj}
                                 className="grid grid-cols-3 md:grid-cols-6 gap-2 items-center w-full text-left p-4 border-b hover:bg-gray-50 transition"
                             >
@@ -234,7 +235,7 @@ const Expedientes = () => {
                                 <span className="hidden md:block">
                                     {e.ultimaModificacion}
                                 </span>
-                            </button>
+                            </Link>
                         ))
                     )}
                 </div>
