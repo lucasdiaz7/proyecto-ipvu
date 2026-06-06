@@ -11,21 +11,51 @@ const Login = () => {
     const onSubmit = async (data) => {
         try {
             setCargando(true);
-            console.log('data :>> ', data);
-            await authService.iniciarSesion(data.username, data.password);
 
-            alert("¡Bienvenido al sistema del IPVU!");
+            // Ejecutamos el inicio de sesión esperando la respuesta del back
+            const res = await authService.iniciarSesion(data.username, data.password);
 
-            navigate("/expedientes");
+            // PRIMER CONTROL: ¿Tiene que cambiar la contraseña obligatoriamente?
+            if (res.requiere_cambio_password === true) {
+                alert("Por seguridad, debes cambiar tu contraseña predeterminada.");
+                navigate("/cambiarContraseña");
+                return; // Cortamos la ejecución acá para que no vaya a otra vista
+            }
+
+            // SEGUNDO CONTROL: Redirección por Rol de usuario
+            // Traemos el rol_id que guardamos (viene como string desde el localStorage)
+            const userRolId = localStorage.getItem("rol_id");
+
+            switch (userRolId) {
+                case "1":
+                    // Supongamos que 1 es Administrador
+                    navigate("/dashboard-admin");
+                    break;
+
+                case "2":
+                    // Supongamos que 2 es Mesa de Entradas
+                    navigate("/expedientes");
+                    break;
+
+                case "3":
+                    // Supongamos que 3 es Legal / Dictámenes
+                    navigate("/dictamenes");
+                    break;
+
+                case "4":
+                    // El rol de Laura Diaz en tu captura. 
+                    // Cambiá "/expedientes" por la ruta exacta a donde deba ir este perfil.
+                    alert(`¡Bienvenido/a ${res.nombre_completo}!`);
+                    navigate("/expedientes");
+                    break;
+            }
 
         } catch (error) {
             console.error("Error al iniciar sesión:", error.response?.data || error.message);
-
-
             if (error.response?.status === 400 || error.response?.status === 401) {
-                alert("Usuario o contraseña incorrectos. Por favor, verifica los datos.");
+                alert("Usuario o contraseña incorrectos.");
             } else {
-                alert("Hubo un problema de conexión con el servidor del IPVU.");
+                alert("Hubo un problema de conexión con el servidor.");
             }
         } finally {
             setCargando(false);
