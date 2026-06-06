@@ -1,12 +1,32 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { postulanteTitular } from "../../services/DataEntry/formDataEntry";
 
 const FormExpedientes = () => {
     const { register, formState: { errors }, handleSubmit } = useForm();
 
-    const onSubmit = (data) => {
-        console.log('data :>> ', data);
-    }
+    const onSubmit = async (data) => {
+
+        const datosParaDjango = {
+            ddjj: data.ddjj,
+            nombre: data.nombre,
+            apellido: data.apellido,
+            telefono: data.telefono,
+            dni: data.dni,
+            domicilio_actual: data.domicilio_actual,
+            email: data.email
+        };
+
+        console.log('Enviando formato exacto a Django :>> ', datosParaDjango);
+
+        try {
+            const crearPostualnte = await postulanteTitular.crearPostulante(datosParaDjango);
+            alert("¡Postulante Titular registrado con éxito en el IPVU!");
+            console.log("Respuesta de Django:", crearPostualnte);
+        } catch (error) {
+            console.log(error)
+        }
+    };
 
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="min-h-screen bg-gray-100 flex items-center justify-center py-10">
@@ -17,6 +37,17 @@ const FormExpedientes = () => {
                 </h3>
 
 
+                <div className='grid grid-cols-1'>
+                    <label className="text-gray-800 font-semibold text-base">DDJJ:</label>
+                    <input
+                        type="text"
+                        {...register('ddjj', {
+                            required: true
+                        })}
+                        className="w-full px-3 py-2 font-normal text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 rounded-md"
+                    />
+                    {errors.ddjj?.type === 'required' && <p className="font-sans text-sm text-red-600">El campo DDJJ es requerido</p>}
+                </div>
                 <div className='grid grid-cols-1'>
                     <label className="text-gray-800 font-semibold text-base">Nombre</label>
                     <input
@@ -54,6 +85,23 @@ const FormExpedientes = () => {
                 </div>
 
                 <div className='grid grid-cols-1'>
+                    <label className="text-gray-800 font-semibold text-base">Teléfono (Ingresa el nro sin 0 y 15): </label>
+                    <input
+                        type="text"
+                        {...register('telefono', {
+                            required: true,
+                            minLength: 10,
+                            maxLength: 13,
+                            pattern: "^[0-9]+$"
+
+                        })}
+                        className="w-full px-3 py-2 font-normal text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 rounded-md"
+                    />
+                    {errors.telefono?.type === 'required' && <p className="font-sans text-sm text-red-600">El telefono es requerido</p>}
+                    {errors.telefono?.type === 'pattern' && <p className="font-sans text-sm text-red-600">Telefono invalido (ingresa sin 0 y 15)</p>}
+                </div>
+
+                <div className='grid grid-cols-1'>
                     <label className="text-gray-800 font-semibold text-base">DNI (Sin puntos, guiones y espacios):</label>
                     <input
                         type="text"
@@ -72,6 +120,23 @@ const FormExpedientes = () => {
                     {errors.dni?.type === 'pattern' && <p className="font-sans text-sm text-red-600">El DNI debe ser correcto (solo numeros)</p>}
                 </div>
 
+
+                <div className='grid grid-cols-1'>
+                    <label className="text-gray-800 font-semibold text-base">Domicilio actual</label>
+                    <input
+                        type="text"
+                        {...register('domicilio_actual', {
+                            required: true,
+                            minLength: "5",
+                            maxLength: "100",
+                            pattern: "^[a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ°\s.,#-]+$"
+                        })}
+                        className="w-full px-3 py-2 font-normal text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 rounded-md"
+                    />
+                    {errors.domicilio_actual?.type === 'required' && <p className="font-sans text-sm text-red-600">Direccion es requerida</p>}
+                    {errors.domicilio_actual?.type === 'pattern' && <p className="font-sans text-sm text-red-600">Ingresa una dirección válida. Usa letras, números, puntos o comas, y evita símbolos extraños. (Ej: Av. Rivadavia 1520, Piso 3° B)</p>}
+                </div>
+
                 <div className='grid grid-cols-1'>
                     <label className="text-gray-800 font-semibold text-base">Email</label>
                     <input
@@ -84,39 +149,6 @@ const FormExpedientes = () => {
                     />
                     {errors.email?.type === 'required' && <p className="font-sans text-sm text-red-600">El email es requerido</p>}
                     {errors.email?.type === 'pattern' && <p className="font-sans text-sm text-red-600">Email invalido</p>}
-                </div>
-
-                <div className='grid grid-cols-1'>
-                    <label className="text-gray-800 font-semibold text-base">Teléfono (Ingresa el nro sin 0 y 15): </label>
-                    <input
-                        type="text"
-                        {...register('telefono', {
-                            required: true,
-                            minLength: 10,
-                            maxLength: 13,
-                            pattern: "^[0-9]+$"
-
-                        })}
-                        className="w-full px-3 py-2 font-normal text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 rounded-md"
-                    />
-                    {errors.telefono?.type === 'required' && <p className="font-sans text-sm text-red-600">El telefono es requerido</p>}
-                    {errors.telefono?.type === 'pattern' && <p className="font-sans text-sm text-red-600">Telefono invalido (ingresa sin 0 y 15)</p>}
-                </div>
-
-                <div className='grid grid-cols-1'>
-                    <label className="text-gray-800 font-semibold text-base">Dirección actual</label>
-                    <input
-                        type="text"
-                        {...register('direccion', {
-                            required: true,
-                            minLength: "5",
-                            maxLength: "100",
-                            pattern: "^[a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ°\s.,#-]+$"
-                        })}
-                        className="w-full px-3 py-2 font-normal text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 rounded-md"
-                    />
-                    {errors.direccion?.type === 'required' && <p className="font-sans text-sm text-red-600">Direccion es requerida</p>}
-                    {errors.direccion?.type === 'pattern' && <p className="font-sans text-sm text-red-600">Ingresa una dirección válida. Usa letras, números, puntos o comas, y evita símbolos extraños. (Ej: Av. Rivadavia 1520, Piso 3° B)</p>}
                 </div>
 
                 <div className="col-span-full flex justify-center">
