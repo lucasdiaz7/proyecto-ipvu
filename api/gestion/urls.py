@@ -32,4 +32,6 @@ urlpatterns = [
         EstablecerPasswordInicialView.as_view(),
         name='establecer_password_inicial'
     ),
+    path('api/password-reset/solicitar/', SolicitarResetPasswordView.as_view(), name='password_reset_solicitar'),
+    path('api/password-reset/confirmar/', ConfirmarResetPasswordView.as_view(), name='password_reset_confirmar'),
 ]

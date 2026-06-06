@@ -2,6 +2,11 @@ from rest_framework import serializers
 from .models import *
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.models import User
+from django.utils.http import urlsafe_base64_decode
+from django.utils.encoding import force_str
+from django.contrib.auth.tokens import default_token_generator
+
 
 
 class PostulanteTitularSerializer(serializers.ModelSerializer):
@@ -99,9 +104,10 @@ class EstablecerPasswordInicialSerializer(serializers.Serializer):
 
         return attrs
     
-    # **kwargs indica cualquier argumento extra
-
     
+
+     # **kwargs indica cualquier argumento extra
+     
     def save(self, **kwargs):
         usuario = self.context["request"].user
         perfil = usuario.usuario
@@ -114,6 +120,50 @@ class EstablecerPasswordInicialSerializer(serializers.Serializer):
 
         return usuario
     
+# serializador para reset de password en caso de olvidarla
+
+class SolicitarResetPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class ConfirmarResetPasswordSerializer(serializers.Serializer): 
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    nueva_password = serializers.CharField(write_only=True)
+    confirmar_password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        try:
+            uid = force_str(urlsafe_base64_decode(attrs['uid']))
+            usuario = User.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            raise serializers.ValidationError("El link de reset no es válido")
+
+        if not default_token_generator.check_token(usuario, attrs['token']):
+            raise serializers.ValidationError("El link de reset no es válido o ha expirado")
+
+        if attrs ['nueva_password'] != attrs['confirmar_password']:
+            raise serializers.ValidationError("Las contraseñas no coinciden")
+
+        validate_password(attrs["nueva_password"], user=usuario)
+        attrs['usuario'] = usuario
+
+
+        return attrs 
+    
+    def save(self, **kwargs):
+        usuario = self.validated_data['usuario']
+        
+        usuario.set_password(self.validated_data["nueva_password"])
+        usuario.save()
+
+        if hasattr(usuario, "usuario"):
+            perfil = usuario.usuario
+            perfil.requiere_cambio_password = False
+            perfil.save(update_fields=["requiere_cambio_password"])
+
+        return usuario
+
 
 
 
