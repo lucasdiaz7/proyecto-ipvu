@@ -139,7 +139,7 @@ class ConfirmarResetPasswordSerializer(serializers.Serializer):
         except (TypeError, ValueError, OverflowError, User.DoesNotExist):
             raise serializers.ValidationError("El link de reset no es válido")
 
-        if not default_token_generator.check.token(usuario, attrs['token']):
+        if not default_token_generator.check_token(usuario, attrs['token']):
             raise serializers.ValidationError("El link de reset no es válido o ha expirado")
 
         if attrs ['nueva_password'] != attrs['confirmar_password']:
