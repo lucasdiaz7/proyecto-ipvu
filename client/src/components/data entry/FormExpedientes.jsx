@@ -7,7 +7,7 @@ const FormExpedientes = () => {
 
     const onSubmit = async (data) => {
 
-        const datosParaDjango = {
+        const datos = {
             ddjj: data.ddjj,
             nombre: data.nombre,
             apellido: data.apellido,
@@ -17,10 +17,10 @@ const FormExpedientes = () => {
             email: data.email
         };
 
-        console.log('Enviando formato exacto a Django :>> ', datosParaDjango);
+        console.log('Enviando formato exacto a Django :>> ', datos);
 
         try {
-            const crearPostualnte = await postulanteTitular.crearPostulante(datosParaDjango);
+            const crearPostualnte = await postulanteTitular.crearPostulante(datos);
             alert("¡Postulante Titular registrado con éxito en el IPVU!");
             console.log("Respuesta de Django:", crearPostualnte);
         } catch (error) {
