@@ -13,6 +13,7 @@ import Form1 from "./components/trabajadorSocial/Form/Form1.jsx";
 import Form2 from "./components/trabajadorSocial/Form/Form2.jsx";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router";
 
+
 function App() {
   return (
     <div>
@@ -33,6 +34,7 @@ function App() {
             <Route path="/dataEntry" element={<Home />} />
             <Route path="/nuevoExpediente" element={<FormExpedientes />} />
             <Route path="/DetalleExpediente" element={<DetailExpedientes />} />
+            <Route path="expedientes/:id" element={<DetailExpedientes />} />
           </Route>
         </Routes>
       </BrowserRouter>
