@@ -41,6 +41,28 @@ class ExpedienteSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('fecha_creacion', 'fecha_modificacion')
         
+    def to_representation(self, instance):
+        response = super().to_representation(instance)
+        
+        if instance.postulante_titular:
+            response['postulante_titular'] = {
+                'id': instance.postulante_titular.id,
+                'nombre': instance.postulante_titular.nombre,  
+                'apellido': instance.postulante_titular.apellido,
+                'dni': instance.postulante_titular.dni
+            }
+
+        if instance.usuario_asignado:
+            response['usuario_asignado'] = {
+                'id': instance.usuario_asignado.id,
+                'nombre': instance.usuario_asignado.first_name, 
+                'apellido': instance.usuario_asignado.last_name
+            }
+
+        # 4. Devolvemos el JSON modificado al Frontend
+        return response
+        
+    
 class RolSerializer(serializers.ModelSerializer):
     class Meta:
         model = Rol
