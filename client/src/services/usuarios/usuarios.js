@@ -17,7 +17,6 @@ export const usuarioService = {
     getUsuarios: async () => {
         try {
             const response = await api.get("/usuario/")
-            console.log('response :>> ', response);
             return response.data
         } catch (error) {
             console.log("Error al obtener usuarios:", error)
