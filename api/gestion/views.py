@@ -1,3 +1,5 @@
+import csv
+
 from django.http import HttpResponse
 from django.shortcuts import render
 from rest_framework import viewsets, permissions
@@ -16,6 +18,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.conf import settings
 from django.core.mail import send_mail
 from django.contrib.auth.tokens import default_token_generator
+from django.db.models import Count
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 
@@ -26,19 +29,15 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):   
         ddjj = serializer.validated_data.pop('ddjj')
-        print(f"DDJJ recibida: {ddjj}")
         postulante = serializer.save()
-        print(f"Postulante creado: {postulante.id}")
         estado_inicial = EstadoExpediente.objects.get(nombre='SINI')
-        print(f"Estado inicial: {estado_inicial}")
         trabajadora_social = obtener_siguiente_trabajadora_social()
         Expediente.objects.create(
             postulante_titular=postulante,
             estado_expediente=estado_inicial,
             DDJJ=ddjj,
             usuario_asignado=trabajadora_social
-    )
-    print("Expediente creado")
+        )
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update']:
@@ -108,6 +107,17 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         usuario = self.request.user
+    
+        if (
+            usuario
+            and usuario.is_authenticated
+            and hasattr(usuario, 'usuario')
+            and usuario.usuario.rol.nombre_rol == 'TS'
+        ):
+            return Expediente.objects.filter(usuario_asignado=usuario)
+    
+        return Expediente.objects.all()
+    
 
        
         estado = self.request.query_params.get('estado')
@@ -139,6 +149,31 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
         if self.action in ['destroy', 'update', 'partial_update']:
             return [IsSuperAdmin()]
         return [IsAnyRole()]    
+
+    @action(detail=False, methods=['get'], url_path='reporte-estados')
+    def reporte_estados(self, request):
+        conteos = (
+            Expediente.objects
+            .values('estado_expediente__nombre')
+            .annotate(cantidad=Count('id'))
+        )
+
+        conteos_por_estado = {
+            item['estado_expediente__nombre']: item['cantidad']
+            for item in conteos
+        }
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="reporte_estados_expedientes.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow(['Estado', 'Cantidad'])
+
+        estados = dict(EstadoExpediente.tipo_estado)
+        for codigo_estado, nombre_estado in estados.items():
+            writer.writerow([nombre_estado, conteos_por_estado.get(codigo_estado, 0)])
+
+        return response
     
     
     @action(detail=True, methods=['patch'], permission_classes=[IsLegales])
@@ -146,7 +181,7 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
         expediente= self.get_object()
         nuevo_estado = request.data.get('estado')
         
-        if nuevo_estado in ['AP', 'NoAP']:
+        if nuevo_estado in ['AP', 'NOAP']:
             estado_obj = EstadoExpediente.objects.get(nombre=nuevo_estado)
             expediente.estado_expediente = estado_obj
             expediente.save()
@@ -173,6 +208,12 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
     queryset = DocumentoAdjunto.objects.all()
     permission_classes = [IsAnyRole]
     serializer_class = DocumentoAdjuntoSerializer        
+
+
+class DocumentoExpedienteViewSet(viewsets.ModelViewSet):
+    queryset = DocumentoExpediente.objects.all()
+    permission_classes = [IsAnyRole]
+    serializer_class = DocumentoExpedienteSerializer
 
 class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, GenericViewSet):
     queryset = HistorialPase.objects.all()

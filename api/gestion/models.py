@@ -209,4 +209,17 @@ class DictamenLegal(models.Model):
        return f"Observaciones: {self.texto_observaciones}. Estado: {self.estado_sancion}. Fecha {self.fecha_dictamen}"
 
 
+class DocumentoExpediente(models.Model):
+    archivo = models.FileField(upload_to='expedientes/')
+    fecha_subida = models.DateTimeField(auto_now_add=True)
+    expediente = models.ForeignKey(
+        Expediente,
+        on_delete=models.CASCADE,
+        related_name='documentos'
+    )
+
+    def __str__(self):
+        return self.archivo.name
+
+
     
