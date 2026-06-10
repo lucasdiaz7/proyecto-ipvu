@@ -67,6 +67,7 @@ class Expediente(models.Model):
     fecha_creacion =  models.DateTimeField(auto_now_add=True)
     fecha_limite_ts = models.DateTimeField(null=True, blank=True)
     DDJJ = models.CharField(max_length=50, null=True, blank=True, unique=True) 
+    visto = models.BooleanField(default=False)
     #FK
     postulante_titular = models.ForeignKey(PostulanteTitular, on_delete=models.CASCADE)
     usuario_asignado = models.ForeignKey(User, on_delete= models.SET_NULL, null=True)

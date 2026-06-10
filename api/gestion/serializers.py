@@ -59,7 +59,6 @@ class ExpedienteSerializer(serializers.ModelSerializer):
                 'apellido': instance.usuario_asignado.last_name
             }
 
-        # 4. Devolvemos el JSON modificado al Frontend
         return response
         
     
