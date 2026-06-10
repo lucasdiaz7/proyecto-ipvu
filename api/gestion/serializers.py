@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 from django.utils.http import urlsafe_base64_decode
 from django.utils.encoding import force_str
 from django.contrib.auth.tokens import default_token_generator
-
+from django.utils import timezone
 
 
 class PostulanteTitularSerializer(serializers.ModelSerializer):
@@ -29,7 +29,6 @@ class EstadoExpedienteSerializer(serializers.ModelSerializer):
         fields = ['id', 'nombre']
         read_only_fields = ('nombre',)
 
-
 class ExpedienteSerializer(serializers.ModelSerializer):
     estado_expediente = EstadoExpedienteSerializer(read_only= True)
     estado_expediente_id = serializers.PrimaryKeyRelatedField(
@@ -42,6 +41,39 @@ class ExpedienteSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('fecha_creacion', 'fecha_modificacion')
         
+    def to_representation(self, instance):
+        response = super().to_representation(instance)
+        
+        if instance.fecha_creacion:
+            diferencia = timezone.now() - instance.fecha_creacion
+            response['dias_en_poder'] = diferencia.days
+        else:
+            response['dias_en_poder'] = 0
+        
+        if instance.postulante_titular:
+            response['postulante_titular'] = {
+                'id': instance.postulante_titular.id,
+                'nombre': instance.postulante_titular.nombre,  
+                'apellido': instance.postulante_titular.apellido,
+                'dni': instance.postulante_titular.dni
+            }
+
+        if instance.usuario_asignado:
+            response['usuario_asignado'] = {
+                'id': instance.usuario_asignado.id,
+                'nombre': instance.usuario_asignado.first_name, 
+                'apellido': instance.usuario_asignado.last_name
+            }
+
+        return response
+    
+    def get_dias_en_poder(self, instance):
+        if instance.fecha_creacion:
+            diferencia = timezone.now() - instance.fecha_creacion
+            return diferencia.days
+        return 0
+        
+    
 class RolSerializer(serializers.ModelSerializer):
     class Meta:
         model = Rol
@@ -80,8 +112,56 @@ class UsuarioSerializer(serializers.ModelSerializer):
     
         return ret
     
+class DocumentoAdjuntoSerializer(serializers.ModelSerializer):
+   class Meta:
+        model = DocumentoAdjunto
+        fields = '__all__'
 
-# serializador para cambiar la contraseña en el primer login 
+class HistorialPaseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HistorialPase
+        fields = '__all__'
+        read_only_fields = ('fecha_envio', 'usuario_origen')
+        
+class NotificacionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notificacion
+        fields = '__all__'
+        read_only_fields = ('fecha_creacion', 'leida')
+        
+class HistorialAccionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HistorialAccion
+        fields = '__all__'
+        read_only_fields = ('fecha_accion',)
+        
+class FormularioSocioHabitacionalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FormularioSocioHabitacional
+        fields = '__all__'
+        read_only_fields = ('fecha_creacion', 'fecha_modificacion')
+        
+class DictamenLegalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DictamenLegal
+        fields = '__all__'
+        read_only_fields = ('fecha_dictamen',)
+                
+class MiLoginPersonalizadoSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        
+        try:
+            perfil_ipvu = Usuario.objects.get(usuario=self.user)
+            
+            data['nombre_completo'] = f"{perfil_ipvu.nombre} {perfil_ipvu.apellido}"
+            data['rol_id'] = perfil_ipvu.rol.id
+            data['requiere_cambio_password'] = perfil_ipvu.requiere_cambio_password
+            
+        except Usuario.DoesNotExist:
+            pass
+            
+        return data
 
 class EstablecerPasswordInicialSerializer(serializers.Serializer):
     nueva_password = serializers.CharField(write_only=True)
@@ -164,60 +244,5 @@ class ConfirmarResetPasswordSerializer(serializers.Serializer):
 
         return usuario
 
-
-
-
-class DocumentoAdjuntoSerializer(serializers.ModelSerializer):
-   class Meta:
-        model = DocumentoAdjunto
-        fields = '__all__'
-
-
-class HistorialPaseSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = HistorialPase
-        fields = '__all__'
-        read_only_fields = ('fecha_envio', 'usuario_origen')
-        
-class NotificacionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Notificacion
-        fields = '__all__'
-        read_only_fields = ('fecha_creacion', 'leida')
-        
-class HistorialAccionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = HistorialAccion
-        fields = '__all__'
-        read_only_fields = ('fecha_accion',)
-        
-class FormularioSocioHabitacionalSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = FormularioSocioHabitacional
-        fields = '__all__'
-        read_only_fields = ('fecha_creacion', 'fecha_modificacion')
-        
-class DictamenLegalSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DictamenLegal
-        fields = '__all__'
-        read_only_fields = ('fecha_dictamen',)
-        
-        
-class MiLoginPersonalizadoSerializer(TokenObtainPairSerializer):
-    def validate(self, attrs):
-        data = super().validate(attrs)
-        
-        try:
-            perfil_ipvu = Usuario.objects.get(usuario=self.user)
-            
-            data['nombre_completo'] = f"{perfil_ipvu.nombre} {perfil_ipvu.apellido}"
-            data['rol_id'] = perfil_ipvu.rol.id
-            data['requiere_cambio_password'] = perfil_ipvu.requiere_cambio_password
-            
-        except Usuario.DoesNotExist:
-            pass
-            
-        return data
 
 

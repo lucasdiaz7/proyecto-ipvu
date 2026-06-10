@@ -145,8 +145,9 @@ FRONTEND_URL = 'http://localhost:3000'
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [],
     'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.AllowAny', 
+        'rest_framework.permissions.AllowAny',
     ),
+
     # Opcional pero recomendado: Obligar a que todos tengan token para entrar a cualquier ruta
     # 'DEFAULT_PERMISSION_CLASSES': (
     #     'rest_framework.permissions.IsAuthenticated',
