@@ -1,29 +1,37 @@
 from rest_framework.permissions import BasePermission
 
+
+def usuario_tiene_rol(request, roles):
+    usuario = request.user
+
+    return bool(
+        usuario
+        and usuario.is_authenticated
+        and hasattr(usuario, 'usuario')
+        and usuario.usuario.rol.nombre_rol in roles
+    )
+
+
 class IsSuperAdmin(BasePermission):
     def has_permission(self, request, view):
-        return True #bool(request.user and request.user.is_authenticated and request.user.usuario.rol.nombre_rol == 'SU')
+        return usuario_tiene_rol(request, ['SU'])
 
 class IsDataEntry(BasePermission):
     def has_permission(self, request, view):
-        return True #bool(request.user and request.user.is_authenticated and request.user.usuario.rol.nombre_rol == 'DE')
+        return usuario_tiene_rol(request, ['DE'])
     
 class IsLegales(BasePermission):
     def has_permission(self, request, view):
-        return True #bool(request.user and request.user.is_authenticated and request.user.usuario.rol.nombre_rol == 'LG')
+        return usuario_tiene_rol(request, ['LG'])
     
 class IsTrabajadoraSocial(BasePermission):
     def has_permission(self, request, view):
-        return True #bool(request.user and request.user.is_authenticated and request.user.usuario.rol.nombre_rol == 'TS')
+        return usuario_tiene_rol(request, ['TS'])
 
 class IsAnyRole(BasePermission):
     def has_permission(self, request, view):
-        return True # bool(request.user and request.user.is_authenticated and hasattr(request.user, 'usuario'))
+        return usuario_tiene_rol(request, ['TS', 'SU', 'LG', 'DE'])
     
 class IsDataEntryOrSuperAdmin(BasePermission):
     def has_permission(self, request, view):
-        return True #bool(
-            #request.user and 
-            #request.user.is_authenticated and
-            #request.user.usuario.rol.nombre_rol in ['DE', 'SU']
-        #)
+        return usuario_tiene_rol(request, ['DE', 'SU'])
