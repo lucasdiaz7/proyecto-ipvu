@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 from django.utils.http import urlsafe_base64_decode
 from django.utils.encoding import force_str
 from django.contrib.auth.tokens import default_token_generator
-
+from django.utils import timezone
 
 
 class PostulanteTitularSerializer(serializers.ModelSerializer):
@@ -36,6 +36,7 @@ class ExpedienteSerializer(serializers.ModelSerializer):
         source='estado_expediente',
         write_only=True
     )
+    dias_en_poder = serializers.SerializerMethodField()
     class Meta:
         model = Expediente
         fields = '__all__'
@@ -60,6 +61,12 @@ class ExpedienteSerializer(serializers.ModelSerializer):
             }
 
         return response
+    
+    def get_dias_en_poder(self, instance):
+        if instance.fecha_creacion:
+            diferencia = timezone.now() - instance.fecha_creacion
+            return diferencia.days
+        return 0
         
     
 class RolSerializer(serializers.ModelSerializer):
