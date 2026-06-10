@@ -45,6 +45,12 @@ class ExpedienteSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         response = super().to_representation(instance)
         
+        if instance.fecha_creacion:
+            diferencia = timezone.now() - instance.fecha_creacion
+            response['dias_en_poder'] = diferencia.days
+        else:
+            response['dias_en_poder'] = 0
+        
         if instance.postulante_titular:
             response['postulante_titular'] = {
                 'id': instance.postulante_titular.id,
