@@ -36,7 +36,6 @@ class ExpedienteSerializer(serializers.ModelSerializer):
         source='estado_expediente',
         write_only=True
     )
-    dias_en_poder = serializers.SerializerMethodField()
     class Meta:
         model = Expediente
         fields = '__all__'
