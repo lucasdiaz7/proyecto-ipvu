@@ -2,10 +2,13 @@ import React, { useEffect, useState } from 'react';
 import {
     ChevronDownIcon,
     BellIcon,
+    EyeIcon, // Importamos el ojo para el botón "Ver Todos"
     ChevronDoubleUpIcon,
     ChevronDoubleDownIcon,
     CheckIcon,
-    FunnelIcon
+    FunnelIcon,
+    UserPlusIcon,
+    DocumentPlusIcon
 } from '@heroicons/react/24/outline';
 import { Link } from 'react-router-dom';
 import { expedienteService } from '../../services/expedientes/expediente';
@@ -14,14 +17,18 @@ const Expedientes = () => {
     const [error, setError] = useState(null);
     const [cargando, setCargando] = useState(false);
     const [expedientes, setExpedientes] = useState([]);
+    console.log('expedientes :>> ', expedientes);
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
     const [searchTerm, setSearchTerm] = useState("");
-    const [expId, setexpId] = useState([]);
 
     const [selectedEstado, setSelectedEstado] = useState("TODOS");
     const [menuAbierto, setMenuAbierto] = useState(false);
 
-    const count = 2;
+    const [verSoloNuevos, setVerSoloNuevos] = useState(false);
+
+    const rolId = Number(localStorage.getItem('rol_id'));
+    console.log('rolId :>> ', rolId);
+    const nuevosCount = expedientes.filter(e => e.visto === false).length;
 
     useEffect(() => {
         const Exp = async () => {
@@ -41,7 +48,28 @@ const Expedientes = () => {
         Exp();
     }, []);
 
-    console.log('expedientes :>> ', expedientes);
+    const handleManejarVisto = async (id, yaVisto) => {
+        if (yaVisto) return;
+        try {
+
+            setExpedientes(prevExpedientes =>
+                prevExpedientes.map(exp =>
+                    exp.id === id ? { ...exp, visto: true } : exp
+                )
+            );
+
+            await expedienteService.marcarComoVisto(id);
+        } catch (err) {
+            console.log("No se pudo guardar el estado 'visto' en el servidor", err);
+
+            setExpedientes(prevExpedientes =>
+                prevExpedientes.map(exp =>
+                    exp.id === id ? { ...exp, visto: false } : exp
+                )
+            );
+        }
+    };
+
 
     const CONFIG_ESTADOS = {
         'SINI': { texto: 'Sin Iniciar', color: 'bg-gray-100 text-gray-800 border-gray-300', dot: 'bg-gray-400' },
@@ -89,7 +117,16 @@ const Expedientes = () => {
         return ddjj.includes(term) || nombreTitular.includes(term) || dniTitular.replace(/\./g, '').includes(term) || dniTitular.includes(term);
     });
 
-    const expedientesFinales = [...expedientesFiltrados].sort((a, b) => {
+
+    const expedientesPorVisto = expedientesFiltrados.filter((e) => {
+        if (verSoloNuevos) {
+            return e.visto === false;
+        }
+        return true;
+    });
+
+
+    const expedientesFinales = [...expedientesPorVisto].sort((a, b) => {
         if (!sortConfig.key) return 0;
 
         let valA = a[sortConfig.key];
@@ -132,10 +169,9 @@ const Expedientes = () => {
 
                 <div>
                     <h3 className="text-gray-800 font-bold text-xl">Seguimiento de fichas</h3>
-                    <p className="text-gray-600 font-light">Vista general de todos los expedientes en el sistema</p>
                 </div>
 
-                <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 relative">
+                <div className={`mt-6 grid grid-cols-1 ${rolId === 2 ? 'md:grid-cols-2' : 'md:grid-cols-3'} gap-4 relative`}>
 
                     <div className="relative">
                         <button
@@ -196,15 +232,50 @@ const Expedientes = () => {
                         />
                     </div>
 
-                    <div className="flex items-center justify-between bg-gray-100 p-3 rounded-xl shadow-sm hover:bg-gray-200 transition">
-                        <span className="text-gray-800 font-semibold">Nuevo Expediente</span>
-                        <div className="relative inline-block">
-                            <BellIcon className="w-6 h-6 text-yellow-600" />
-                            <span className={`absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-bold text-white rounded-full ${count === 0 ? "bg-black" : "bg-red-500"}`}>
-                                {count}
+                    {/* adminitrador */}
+                    {rolId === 4 && (
+                        <Link to="/crearUsuario" className="flex items-center justify-between bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl shadow-sm transition">
+                            <span className="font-semibold">Crear Usuario</span>
+                            <UserPlusIcon className="w-5 h-5 text-blue-100" />
+                        </Link>
+                    )}
+
+                    {/* dataentry */}
+                    {rolId === 3 && (
+                        <Link to="/nuevoExpediente" className="flex items-center justify-between bg-green-600 hover:bg-green-700 text-white p-3 rounded-xl shadow-sm transition">
+                            <span className="font-semibold">Crear Expediente</span>
+                            <DocumentPlusIcon className="w-5 h-5 text-green-100" />
+                        </Link>
+                    )}
+
+                    {/* trabajadora social  */}
+                    {rolId === 1 && (
+                        <button
+                            onClick={() => setVerSoloNuevos(!verSoloNuevos)}
+                            className={`flex items-center justify-between p-3 rounded-xl shadow-sm transition focus:outline-none w-full ${verSoloNuevos
+                                ? "bg-slate-800 text-white hover:bg-slate-900" // Diseño oscuro cuando está activo "Ver Todos"
+                                : "bg-gray-100 text-gray-800 hover:bg-gray-200" // Diseño gris estándar
+                                }`}
+                        >
+                            <span className="font-semibold">
+                                {verSoloNuevos ? "Ver Todos" : "Nuevo Expediente"}
                             </span>
-                        </div>
-                    </div>
+
+                            <div className="relative inline-block">
+                                {verSoloNuevos ? (
+                                    <EyeIcon className="w-6 h-6 text-slate-300" />
+                                ) : (
+                                    <>
+                                        <BellIcon className="w-6 h-6 text-yellow-600" />
+                                        <span className={`absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-bold text-white rounded-full ${nuevosCount === 0 ? "bg-black" : "bg-red-500"}`}>
+                                            {nuevosCount}
+                                        </span>
+                                    </>
+                                )}
+                            </div>
+                        </button>
+                    )}
+
                 </div>
 
                 <div className="mt-6 overflow-x-auto">
@@ -224,7 +295,9 @@ const Expedientes = () => {
 
                     {expedientesFinales.length === 0 ? (
                         <div className="text-center py-10 text-gray-500 font-medium border-b">
-                            No se encontraron expedientes que coincidan con los filtros aplicados.
+                            {verSoloNuevos
+                                ? "No tenés nuevos expedientes asignados sin ver."
+                                : "No se encontraron expedientes que coincidan con los filtros aplicados."}
                         </div>
                     ) : (
                         expedientesFinales.map((e) => {
@@ -241,11 +314,12 @@ const Expedientes = () => {
                             return (
                                 <Link
                                     to="/DetalleExpediente"
+                                    onClick={() => handleManejarVisto(e.id, e.visto)}
                                     key={e.id}
                                     className="grid grid-cols-3 md:grid-cols-5 gap-2 items-center w-full text-left p-4 border-b hover:bg-gray-50 transition"
                                 >
                                     <span className="font-bold text-gray-800">{e.DDJJ || "---"}</span>
-                                    <span className="text-gray-700 capitalize">{`${nombre} ${apellido}`}</span>
+                                    <span className="text-gray-700 capitalize">{`${apellido} ${nombre}`}</span>
                                     <span className="text-gray-700 font-mono">{dni}</span>
 
                                     <span>

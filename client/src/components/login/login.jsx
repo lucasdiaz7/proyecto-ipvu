@@ -24,16 +24,18 @@ const Login = () => {
             const userRolId = localStorage.getItem("rol_id");
 
             switch (userRolId) {
+                // trabajadora social
                 case "1":
-                    navigate("/dashboard-admin");
+                    navigate("/expedientes");
                     break;
 
                 case "2":
                     navigate("/expedientes");
                     break;
 
+                // data entry
                 case "3":
-                    navigate("/dictamenes");
+                    navigate("/expedientes");
                     break;
 
                 case "4":
