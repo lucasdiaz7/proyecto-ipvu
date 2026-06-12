@@ -16,6 +16,7 @@ const Expedientes = () => {
     const [expedientes, setExpedientes] = useState([]);
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
     const [searchTerm, setSearchTerm] = useState("");
+    const [expId, setexpId] = useState([]);
 
     const [selectedEstado, setSelectedEstado] = useState("TODOS");
     const [menuAbierto, setMenuAbierto] = useState(false);
@@ -39,6 +40,8 @@ const Expedientes = () => {
 
         Exp();
     }, []);
+
+    console.log('expedientes :>> ', expedientes);
 
     const CONFIG_ESTADOS = {
         'SINI': { texto: 'Sin Iniciar', color: 'bg-gray-100 text-gray-800 border-gray-300', dot: 'bg-gray-400' },

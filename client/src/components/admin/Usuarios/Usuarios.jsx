@@ -1,6 +1,7 @@
 import { UsersIcon } from '@heroicons/react/24/outline';
 import React, { useEffect, useState } from 'react';
 import { usuarioService } from '../../../services/usuarios/usuarios';
+import { Link } from 'react-router';
 
 const Usuarios = () => {
     const [listaUsuarios, setListaUsuarios] = useState([]);
@@ -28,6 +29,7 @@ const Usuarios = () => {
         Usuarios();
     }, []);
 
+    console.log('usuarios :>> ', listaUsuarios);
     return (
         <div className="w-full min-h-screen bg-gray-50 flex justify-center items-center p-4">
             <div className="w-full max-w-6xl bg-white shadow-lg rounded-2xl p-6 md:p-10">
@@ -64,9 +66,10 @@ const Usuarios = () => {
                     </div>
 
                     <div className="flex items-center justify-between bg-gray-100 p-3 rounded-xl shadow-sm hover:bg-gray-200 transition cursor-pointer">
-                        <span className="text-gray-700 font-medium">
+
+                        <Link to="/crearUsuario" className="text-gray-700 font-medium">
                             Crear nuevo usuario
-                        </span>
+                        </Link>
                         <UsersIcon className="w-6 h-6 text-gray-800" />
                     </div>
                 </div>

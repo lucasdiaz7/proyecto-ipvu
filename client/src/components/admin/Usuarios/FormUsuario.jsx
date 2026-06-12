@@ -89,7 +89,9 @@ const FormUsuario = () => {
                         type="text"
                         {...register('dni', {
                             required: "El DNI es obligatorio",
-                            pattern: { value: /^\d+$/, message: "Solo se permiten números" }
+                            pattern: { value: /^\d+$/, message: "Solo se permiten números" },
+                            minLength: { value: 7, message: "El DNI debe tener mas de 7 caracteres" },
+                            maxLength: { value: 9, message: "El DNI debe tener menos de 9 caracteres" },
                         })}
                         className="w-full px-3 py-2 font-normal text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 rounded-md"
                     />
@@ -111,7 +113,7 @@ const FormUsuario = () => {
                 </div>
 
                 <div className='grid grid-cols-1 gap-1.5'>
-                    <label className="text-gray-800 font-semibold text-sm ml-1">Matricula</label>
+                    <label className="text-gray-800 font-semibold text-sm ml-1">Matricula (No es obligatorio)</label>
                     <input
                         type="text"
                         autoComplete="matricula"
