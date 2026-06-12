@@ -12,12 +12,12 @@ export const expedienteService = {
         }
     },
 
-    getExpedienteId: async (id) => {
+    marcarComoVisto: async (id) => {
         try {
-            const response = await api.get(`/expediente/${id}`)
-            return response.data
+            const response = await api.patch(`/expediente/${id}/`, { visto: true });
+            return response.data;
         } catch (error) {
-            console.log(error)
+            console.log("Error al marcar como visto:", error);
         }
     }
 }
