@@ -12,41 +12,33 @@ const Login = () => {
         try {
             setCargando(true);
 
-            // Ejecutamos el inicio de sesión esperando la respuesta del back
+
             const res = await authService.iniciarSesion(data.username, data.password);
 
-            // PRIMER CONTROL: ¿Tiene que cambiar la contraseña obligatoriamente?
             if (res.requiere_cambio_password === true) {
                 alert("Por seguridad, debes cambiar tu contraseña predeterminada.");
                 navigate("/cambiarContraseña");
                 return; // Cortamos la ejecución acá para que no vaya a otra vista
             }
 
-            // SEGUNDO CONTROL: Redirección por Rol de usuario
-            // Traemos el rol_id que guardamos (viene como string desde el localStorage)
             const userRolId = localStorage.getItem("rol_id");
 
             switch (userRolId) {
                 case "1":
-                    // Supongamos que 1 es Administrador
                     navigate("/dashboard-admin");
                     break;
 
                 case "2":
-                    // Supongamos que 2 es Mesa de Entradas
                     navigate("/expedientes");
                     break;
 
                 case "3":
-                    // Supongamos que 3 es Legal / Dictámenes
                     navigate("/dictamenes");
                     break;
 
                 case "4":
-                    // El rol de Laura Diaz en tu captura. 
-                    // Cambiá "/expedientes" por la ruta exacta a donde deba ir este perfil.
                     alert(`¡Bienvenido/a ${res.nombre_completo}!`);
-                    navigate("/expedientes");
+                    navigate("/homeAdmin");
                     break;
             }
 

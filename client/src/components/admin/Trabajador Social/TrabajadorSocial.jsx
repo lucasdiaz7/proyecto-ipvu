@@ -1,6 +1,11 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
+import { usuarioService } from '../../../services/usuarios/usuarios'
 
 const TrabajadorSocial = () => {
+    const [trabajSocial, setTrabajSocial] = useState([])
+
+
+
     const trabajadorSocial = [
         {
             "legajo": "1234",
@@ -46,6 +51,18 @@ const TrabajadorSocial = () => {
         }
     ]
 
+    useEffect(() => {
+        const trabajadoraSocial = async () => {
+            try {
+                const data = await usuarioService.getUsuarios()
+                setTrabajSocial(data)
+            } catch (err) {
+                console.log(err)
+            }
+        }
+    })
+
+    console.log('trabajSocial :>> ', trabajSocial);
 
     return (
         <div className="w-full min-h-screen bg-gray-50 flex justify-center items-center p-4">

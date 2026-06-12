@@ -1,12 +1,15 @@
 import React from 'react'
+import { Link } from 'react-router-dom';
 
 const DetailExpedientes = () => {
     const historial = [
-        { estado: "Sin Iniciar", descripcion: "Recibido por Trabajador Social", fecha: "10/03/2024", responsable: "María López" },
-        { estado: "1ª Visita", descripcion: "Trabajador Social realiza primera visita domiciliaria", fecha: "12/03/2024", responsable: "María López" },
-        { estado: "Legales", descripcion: "Expediente derivado al área de Legales", fecha: "20/03/2024", responsable: "Ana Martínez" },
-        { estado: "2ª Visita", descripcion: "Titular presenta documentación requerida", fecha: "15/03/2024", responsable: "María López" },
-        { estado: "Apto", descripcion: "Expediente aprobado", fecha: "25/03/2024", responsable: "Roberto Díaz" },
+        { estado: "fecha:", descripcion: "Recibido por Trabajador Social", fecha: "10/03/2024", responsable: "María López" },
+        { estado: "Usuario Origen:", descripcion: "Trabajador Social realiza primera visita domiciliaria", fecha: "12/03/2024", responsable: "María López" },
+        { estado: "Usuario Destino:", descripcion: "Trabajador Social realiza primera visita domiciliaria", fecha: "12/03/2024", responsable: "María López" },
+        { estado: "Estado:", descripcion: "Expediente derivado al área de Legales", fecha: "20/03/2024", responsable: "Ana Martínez" },
+        { estado: "Observaciones:", descripcion: "Titular presenta documentación requerida", fecha: "15/03/2024", responsable: "María López" },
+        { estado: "Archivo:", descripcion: "Expediente aprobado", fecha: "25/03/2024", responsable: "Roberto Díaz" },
+        { estado: "Descarga:", descripcion: "Expediente aprobado", fecha: "25/03/2024", responsable: "Roberto Díaz" },
     ]
     return (
         <div className="w-full min-h-screen bg-gray-50 flex justify-center items-center p-4">
@@ -31,6 +34,16 @@ const DetailExpedientes = () => {
                         <p className="text-gray-800 font-semibold">23/04/2024</p>
                     </div>
                 </div>
+                <div>
+                    <p>remitente:Melanie Ibarra</p>
+                    <p>mensaje: Ya se completo el formulario socio habitacional esta todo bien continua con el segundo formulario</p>
+                    <p>fsh : verarchivo descar</p>
+                    <Link to="/form2">
+                        Realizar Tarea
+                    </Link>
+
+
+                </div>
                 <h3 className="text-gray-800 font-bold text-xl">Historial de Movimiento</h3>
                 {historial.map((movimiento) => (
                     <div key={movimiento.estado} className="relative flex gap-4 pb-6">
@@ -40,9 +53,16 @@ const DetailExpedientes = () => {
 
                         </div>
                         <div>
-                            <p className="text-gray-800 font-semibold">{movimiento.estado}</p>
+                            {/* <p className="text-gray-800 font-semibold">{movimiento.estado}</p>
                             <p className="text-gray-600 text-sm">{movimiento.descripcion}</p>
-                            <p className="text-gray-500 text-xs mt-1">{movimiento.fecha} • {movimiento.responsable}</p>
+                            <p className="text-gray-500 text-xs mt-1">{movimiento.fecha} • {movimiento.responsable}</p> */}
+                            <p>Fecha:</p>
+                            <p>Usuario Asignado:</p>
+                            <p>Usuario Destino:</p>
+                            <p>Estado:</p>
+                            <p>Observaciones</p>
+                            <p>Archivo</p>
+                            <p>Descarga</p>
                         </div>
                     </div>
 
