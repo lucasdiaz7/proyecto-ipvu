@@ -136,6 +136,8 @@ class HistorialPase(models.Model):
     def __str__(self):
         return f"Exp {self.expediente.id} - De {self.usuario_origen.username} a {self.usuario_destino.username}"
 
+    class Meta:
+        ordering = ['-id']
 
 class Notificacion(models.Model):
     mensaje = models.CharField(max_length=200)
