@@ -176,6 +176,15 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             return [IsSuperAdmin()]
         return [IsAnyRole()]
     
+    def get_queryset(self):
+        queryset = Usuario.objects.all()
+        rol= self.request.query_params.get('rol')
+
+        if rol:
+            queryset = queryset.filter(rol__nombre_rol=rol)
+            
+        return queryset
+    
     
 class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
     queryset = DocumentoAdjunto.objects.all()
