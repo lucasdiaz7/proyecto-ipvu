@@ -27,7 +27,6 @@ const Expedientes = () => {
     const [verSoloNuevos, setVerSoloNuevos] = useState(false);
 
     const rolId = Number(localStorage.getItem('rol_id'));
-    console.log('rolId :>> ', rolId);
     const nuevosCount = expedientes.filter(e => e.visto === false).length;
 
     useEffect(() => {
