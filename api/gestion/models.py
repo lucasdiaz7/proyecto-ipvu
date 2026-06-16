@@ -75,6 +75,9 @@ class Expediente(models.Model):
     
     def __str__(self):
         return f"Expediente ID: {self.id}"
+    
+    class Meta:
+        ordering = ['-id']
 
 
     

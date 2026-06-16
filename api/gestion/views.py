@@ -131,7 +131,7 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
         if usuario_asignado:
             queryset = queryset.filter(usuario_asignado = usuario_asignado)
             
-        return queryset.order_by('-id')   
+        return queryset   
     
     def get_permissions(self):
         if self.action == 'create':
