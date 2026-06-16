@@ -36,6 +36,7 @@ class ExpedienteSerializer(serializers.ModelSerializer):
         source='estado_expediente',
         write_only=True
     )
+    
     class Meta:
         model = Expediente
         fields = '__all__'
