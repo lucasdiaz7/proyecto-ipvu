@@ -18,6 +18,7 @@ from django.core.mail import send_mail
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
+from django.db.models import Q
 
 
 class PostulanteTitularViewSet(viewsets.ModelViewSet):
@@ -108,10 +109,9 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         usuario = self.request.user
-
-       
+        
+        buscar = self.request.query_params.get('buscars')
         estado = self.request.query_params.get('estado')
-        print(f"ESTADO RECIBIDO: {estado}")
         dni = self.request.query_params.get('dni')
         usuario_asignado = self.request.query_params.get('usuario_asignado')
         
@@ -121,6 +121,14 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
             queryset = Expediente.objects.filter(usuario_asignado= usuario)
         else:
             queryset = Expediente.objects.all()
+
+        if buscar:
+            palabras = buscar.split()
+            for palabra in palabras:
+                queryset = queryset.filter(
+                    Q(postulante_titular__nombre__icontains=palabra)|
+                    Q(postulante_titular__apellido__icontains=palabra)
+                )
 
         if estado:
             queryset = queryset.filter(estado_expediente__nombre = estado)
