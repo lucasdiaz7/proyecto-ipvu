@@ -29,7 +29,7 @@ const Usuarios = () => {
         Usuarios();
     }, []);
 
-    console.log('usuarios :>> ', listaUsuarios);
+
     return (
         <div className="w-full min-h-screen bg-gray-50 flex justify-center items-center p-4">
             <div className="w-full max-w-6xl bg-white shadow-lg rounded-2xl p-6 md:p-10">
@@ -39,9 +39,6 @@ const Usuarios = () => {
                     <h3 className="text-gray-800 font-bold text-xl">
                         Usuarios
                     </h3>
-                    <p className="text-gray-600 font-light">
-                        Vista general de todos los usuarios en el sistema
-                    </p>
                 </div>
 
                 <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -112,7 +109,7 @@ const Usuarios = () => {
 
                                 <span className="font-medium text-gray-800">#{e.id}</span>
 
-                                <span className="text-gray-700 capitalize">{`${e.nombre} ${e.apellido}`}</span>
+                                <span className="text-gray-700 capitalize">{`${e.apellido} ${e.nombre}`}</span>
 
 
                                 <span className="text-gray-700">
