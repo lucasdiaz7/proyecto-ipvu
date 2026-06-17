@@ -19,6 +19,7 @@ from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django.db.models import Q
+from django.db.models import Count
 
 
 class PostulanteTitularViewSet(viewsets.ModelViewSet):
@@ -27,11 +28,8 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):   
         ddjj = serializer.validated_data.pop('ddjj')
-        print(f"DDJJ recibida: {ddjj}")
         postulante = serializer.save()
-        print(f"Postulante creado: {postulante.id}")
         estado_inicial = EstadoExpediente.objects.get(nombre='SINI')
-        print(f"Estado inicial: {estado_inicial}")
         trabajadora_social = obtener_siguiente_trabajadora_social()
         Expediente.objects.create(
             postulante_titular=postulante,
@@ -185,7 +183,36 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             
         return queryset
     
-    
+    @action(detail=False, methods=['get'])
+    def auditoria_usuarios(self, request):
+        usuarios = self.get_queryset()
+        resultado = []
+            
+        for usuario in usuarios:
+            expedientes_del_usuario = usuario.expediente_set.all()
+
+            if not expedientes_del_usuario.exists():
+                continue
+        
+            total_asignados = expedientes_del_usuario.count()
+                
+            desglose_db = expedientes_del_usuario.values('estado_expediente__nombre').annotate(cantidad=Count('id'))
+        
+            estados_limpios = {}
+            for item in desglose_db:
+                nombre = item['estado_expediente__nombre']
+                clave = nombre if nombre else "Sin estado"
+                estados_limpios[clave] = item['cantidad']
+                
+            resultado.append({
+            "usuario_id": usuario.id,
+            "nombre_completo": f"{usuario.last_name}, {usuario.first_name}",
+            "rol": usuario.rol.nombre_rol if hasattr(usuario, 'rol') and usuario.rol else "Sin Rol",
+            "total_asignados": total_asignados,
+            "desglose_estados": estados_limpios
+        })
+        return Response(resultado)
+        
 class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
     queryset = DocumentoAdjunto.objects.all()
     permission_classes = [IsAnyRole]
