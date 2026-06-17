@@ -52,17 +52,20 @@ const DetailExpedientes = () => {
                             <div className="w-0.5 bg-blue-200 flex-1"></div>
 
                         </div>
-                        <div>
-                            {/* <p className="text-gray-800 font-semibold">{movimiento.estado}</p>
-                            <p className="text-gray-600 text-sm">{movimiento.descripcion}</p>
-                            <p className="text-gray-500 text-xs mt-1">{movimiento.fecha} • {movimiento.responsable}</p> */}
-                            <p>Fecha:</p>
-                            <p>Usuario Asignado:</p>
-                            <p>Usuario Destino:</p>
-                            <p>Estado:</p>
-                            <p>Observaciones</p>
-                            <p>Archivo</p>
-                            <p>Descarga</p>
+                        <div className='bg-gray-50 border border-gray-200 rounded-x1 p-4 shadow-sm w-full'>
+                            <p className="text-sm text-gray-500">Fecha: <span className="text-gray-800 font-semibold">{movimiento.fecha}</span></p>
+                            <p className="text-sm text-gray-500 mt-1">Usuario Asignado: <span className="text-gray-800 font-semibold">{movimiento.responsable}</span></p>
+                            <p className="text-sm text-gray-500 mt-1">Usuario Destino: <span className="text-gray-800 font-semibold"></span></p>
+                            <p className="text-sm text-gray-500 mt-1">Estado: <span className="text-gray-800 font-semibold">{movimiento.estado}</span></p>
+                            <p className="text-sm text-gray-500 mt-1">Observaciones: <span className="text-gray-800 font-semibold">{movimiento.descripcion}</span></p>
+                            <div className='flex gap-3 mt3'>
+                                <button className="flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white text-sm px-4 py-1.5 rounded-lg transition">
+                                    Ver Archivo
+                                </button>
+                                <button className="flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-sm px-4 py-1.5 rounded-lg transition">
+                                    Descargar
+                                </button>
+                            </div>
                         </div>
                     </div>
 
