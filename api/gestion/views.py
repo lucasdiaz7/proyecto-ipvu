@@ -191,7 +191,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
 
             for perfil in perfiles:
                 user_nativo = perfil.usuario
-                expedientes_del_usuario = user_nativo.expedientes_set.all()
+                expedientes_del_usuario = user_nativo.expediente_set.all()
                 
                 if not expedientes_del_usuario.exists():
                     continue
