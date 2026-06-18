@@ -190,7 +190,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             resultado = []
 
             for usuario in usuarios:
-                expedientes_del_usuario = usuario.expediente_set.all()
+                expedientes_del_usuario = usuario.expedientes_asignados.all()
                 
                 if not expedientes_del_usuario.exists():
                     continue
