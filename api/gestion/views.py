@@ -186,11 +186,12 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def auditoria_usuarios(self, request):
         try:
-            usuarios = self.get_queryset() 
+            perfiles = self.get_queryset() 
             resultado = []
 
-            for usuario in usuarios:
-                expedientes_del_usuario = usuario.expediente_set.all()
+            for perfil in perfiles:
+                user_nativo = perfil.usuario
+                expedientes_del_usuario = user_nativo.expediente_set.all()
                 
                 total_asignados = expedientes_del_usuario.count()
 
@@ -198,14 +199,14 @@ class UsuarioViewSet(viewsets.ModelViewSet):
 
                 estados_limpios = {}
                 for item in desglose_db:
-                    nombre = item['estado_expediente__nombre']
-                    clave = nombre if nombre else "Sin estado"
+                    codigo_estado = item['estado_expediente__nombre']
+                    clave = codigo_estado if codigo_estado else "Sin estado"
                     estados_limpios[clave] = item['cantidad']
 
                 resultado.append({
-                    "usuario_id": usuario.id,
-                    "nombre_completo": f"{getattr(usuario, 'last_name', '')}, {getattr(usuario, 'first_name', '')}".strip(', '),
-                    "rol": usuario.rol.nombre_rol if hasattr(usuario, 'rol') and usuario.rol else "Sin Rol",
+                    "usuario_id": perfil.id,
+                    "nombre_completo": f"{perfil.apellido}, {perfil.nombre}",
+                    "rol": perfil.rol.nombre_rol if perfil.rol else "Sin Rol",
                     "total_asignados": total_asignados,
                     "desglose_estados": estados_limpios
                 })
@@ -213,8 +214,9 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         
         except Exception as e:
             import traceback
-            error_msg = f"Error exacto: {str(e)}\n\nLínea que falló:\n{traceback.format_exc()}"
-            return Response({"error_fatal": error_msg}, status=500)
+            return Response({"error_fatal": f"Error: {str(e)}",
+                "detalle": traceback.format_exc()
+            }, status=500)
 class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
     queryset = DocumentoAdjunto.objects.all()
     permission_classes = [IsAnyRole]
