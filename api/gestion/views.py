@@ -192,9 +192,6 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             for usuario in usuarios:
                 expedientes_del_usuario = usuario.expediente_set.all()
                 
-                if not expedientes_del_usuario.exists():
-                    continue
-
                 total_asignados = expedientes_del_usuario.count()
 
                 desglose_db = expedientes_del_usuario.values('estado_expediente__nombre').annotate(cantidad=Count('id'))

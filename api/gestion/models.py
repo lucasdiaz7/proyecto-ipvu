@@ -18,6 +18,7 @@ class PostulanteTitular(models.Model):
         return f"{self.nombre} {self.apellido} - DNI: {self.dni}"
 
 
+#borrar este modelo
 class IntegranteFamilia(models.Model): 
     dni = models.CharField(max_length=20)
     nombre = models.CharField(max_length=50)
