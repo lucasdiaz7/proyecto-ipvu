@@ -114,10 +114,9 @@ class Usuario(models.Model):
 
 class DocumentoAdjunto(models.Model):
     tipo_documento = models.CharField(max_length=200)
-
+    archivo = models.FileField(upload_to='documentos_expedientes/', null=True, blank=True)
     #FK
-    id_expediente = models.ForeignKey(Expediente, on_delete= models.PROTECT)
-
+    expediente = models.ForeignKey(Expediente, on_delete=models.PROTECT, related_name='documentos', null=True, blank=True)
     def __str__(self):
         return f"ID Documento: {self.id}"
 
@@ -200,8 +199,6 @@ class FormularioSocioHabitacional(models.Model):
 class DictamenLegal(models.Model):
     texto_observaciones=models.TextField()
 
-    # opciones de estado (sujeto a cambio), el virgo de django quiere si o si q le tires dos alternativas de escritura para la misma
-    # opcion, por eso se repiten
     estado_sancion= models.CharField(max_length=35, choices=[("APTO", "APTO"), ("NO APTO", "NO APTO"), ("EN REVISION", "EN REVISION")])
 
     #fecha
