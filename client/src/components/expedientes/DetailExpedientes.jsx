@@ -33,14 +33,25 @@ const DetailExpedientes = () => {
                         <p className="text-gray-600 text-sm">Fecha De Inicio</p>
                         <p className="text-gray-800 font-semibold">23/04/2024</p>
                     </div>
+
+
                 </div>
                 <div>
                     <p>remitente:Melanie Ibarra</p>
                     <p>mensaje: Ya se completo el formulario socio habitacional esta todo bien continua con el segundo formulario</p>
                     <p>fsh : verarchivo descar</p>
-                    <Link to="/form2">
-                        Realizar Tarea
-                    </Link>
+                    <div className="flex gap-3 items-center mt-2">
+                        <Link to="/form2" className="text-blue-600">Realizar Tarea</Link>
+                        <select className="border border-gray-300 rounded-lg text-sm px-3 py-1.5 text-gray-700 w-48 ml-4">
+                            <option value="">Seleccionar perfil...</option>
+                            <option value="trabajador_social">Trabajador Social</option>
+                            <option value="legales">Legales</option>
+                            <option value="admin">Administrador</option>
+                        </select>
+                        <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-1.5 rounded-lg transition whitespace-nowrap">
+                            Enviar
+                        </button>
+                    </div>
 
 
                 </div>
@@ -65,6 +76,7 @@ const DetailExpedientes = () => {
                                 <button className="flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-sm px-4 py-1.5 rounded-lg transition">
                                     Descargar
                                 </button>
+
                             </div>
                         </div>
                     </div>
