@@ -17,11 +17,7 @@ class PostulanteTitularSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('fecha_creacion', 'fecha_modificacion')
         
-class IntegranteFamiliaSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = IntegranteFamilia
-        fields = '__all__'
-        read_only_fields = ('fecha_creacion', 'fecha_modificacion')
+
         
 class EstadoExpedienteSerializer(serializers.ModelSerializer):
     class Meta:

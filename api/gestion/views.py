@@ -46,9 +46,7 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
             return [IsSuperAdmin()]
         return [IsAnyRole()]
     
-class IntegranteFamiliaViewSet(viewsets.ModelViewSet):
-    queryset = IntegranteFamilia.objects.all()
-    serializer_class = IntegranteFamiliaSerializer
+
  
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update']:

@@ -4,7 +4,6 @@ from .models import *
 # Register your models here.
 
 admin.site.register(PostulanteTitular)
-admin.site.register(IntegranteFamilia)
 admin.site.register(EstadoExpediente)
 admin.site.register(Expediente)
 admin.site.register(Rol)

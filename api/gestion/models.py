@@ -18,19 +18,6 @@ class PostulanteTitular(models.Model):
         return f"{self.nombre} {self.apellido} - DNI: {self.dni}"
 
 
-class IntegranteFamilia(models.Model): 
-    dni = models.CharField(max_length=20)
-    nombre = models.CharField(max_length=50)
-    apellido = models.CharField(max_length=50)
-    parentesco = models.CharField(max_length=50)
-    
-    #fechas
-    fecha_creacion = models.DateTimeField(auto_now_add=True)
-    fecha_modificacion = models.DateTimeField(auto_now_add=True)
-    
-    #FK
-    postulante_titular = models.ForeignKey(PostulanteTitular, on_delete=models.CASCADE, related_name='integrantes')
-
 class EstadoExpediente(models.Model):
     tipo_estado = [
         ('SINI', 'Sin Iniciar'),
