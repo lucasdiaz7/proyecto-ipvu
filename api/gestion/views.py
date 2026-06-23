@@ -175,7 +175,11 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
         
         buscar = self.request.query_params.get('buscar')
         estado = self.request.query_params.get('estado')
-        dni = self.request.query_params.get('dni')
+        dni = self.request.query_params.get('dni') 
+        dni_inicio = self.request.query_params.get('dni_inicio' ) 
+        dni_fin = self.request.query_params.get('dni_fin' ) 
+        dni_contiene = self.request.query_params.get('dni_contiene')
+           
         usuario_asignado = self.request.query_params.get('usuario_asignado')
 
         
@@ -199,6 +203,15 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
             
         if dni:
             queryset = queryset.filter(postulante_titular__dni = dni)
+        
+        if dni_inicio:
+            queryset = queryset.filter(postulante_titular__dni__startswith=dni_inicio)
+
+        if dni_fin:
+            queryset = queryset.filter(postulante_titular__dni__endswith=dni_fin)
+
+        if dni_contiene:
+         queryset = queryset.filter(postulante_titular__dni__contains=dni_contiene)
             
         if usuario_asignado:
             queryset = queryset.filter(usuario_asignado = usuario_asignado)
