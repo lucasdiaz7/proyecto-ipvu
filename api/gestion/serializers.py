@@ -113,7 +113,8 @@ class ExpedienteSerializer(serializers.ModelSerializer):
                 'id': instance.postulante_titular.id,
                 'apellido': instance.postulante_titular.apellido,
                 'nombre': instance.postulante_titular.nombre,  
-                'dni': instance.postulante_titular.dni
+                'dni': instance.postulante_titular.dni,
+                'domicilio_actual': instance.postulante_titular.domicilio_actual
             }
 
         if instance.usuario_asignado:
