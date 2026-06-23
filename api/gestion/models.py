@@ -18,6 +18,7 @@ class PostulanteTitular(models.Model):
         return f"{self.nombre} {self.apellido} - DNI: {self.dni}"
 
 
+#borrar este modelo
 class IntegranteFamilia(models.Model): 
     dni = models.CharField(max_length=20)
     nombre = models.CharField(max_length=50)
@@ -75,6 +76,9 @@ class Expediente(models.Model):
     
     def __str__(self):
         return f"Expediente ID: {self.id}"
+    
+    class Meta:
+        ordering = ['-id']
 
 
     
@@ -133,6 +137,8 @@ class HistorialPase(models.Model):
     def __str__(self):
         return f"Exp {self.expediente.id} - De {self.usuario_origen.username} a {self.usuario_destino.username}"
 
+    class Meta:
+        ordering = ['-id']
 
 class Notificacion(models.Model):
     mensaje = models.CharField(max_length=200)
