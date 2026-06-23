@@ -2,6 +2,16 @@ import { api } from "../../api/axiosConfig";
 
 export const usuarioService = {
 
+    getTS: async () => {
+        try {
+            const response = await api.get("/usuario/?rol=TS")
+            return response.data
+        } catch (err) {
+            console.log("Error al obtener Trabajadores Sociales:", err)
+            throw err;
+        }
+    },
+
     postUsuario: async (data) => {
         try {
             const response = await api.post("/usuario/", data)
@@ -17,11 +27,11 @@ export const usuarioService = {
     getUsuarios: async () => {
         try {
             const response = await api.get("/usuario/")
-            console.log('response :>> ', response);
             return response.data
         } catch (error) {
             console.log("Error al obtener usuarios:", error)
             throw error;
         }
     }
+
 }

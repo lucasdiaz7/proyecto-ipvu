@@ -143,7 +143,9 @@ FRONTEND_URL = 'http://localhost:3000'
 
 
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [],
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.AllowAny',
     ),
@@ -158,3 +160,7 @@ REST_FRAMEWORK = {
 
 #cuando se use el sistema, esto tiene que ir false
 CORS_ALLOW_ALL_ORIGINS = True
+
+# archivos subidos
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'

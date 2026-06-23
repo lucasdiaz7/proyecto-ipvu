@@ -1,111 +1,100 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
+import { usuarioService } from '../../../services/usuarios/usuarios'
 
 const TrabajadorSocial = () => {
-    const trabajadorSocial = [
-        {
-            "legajo": "1234",
-            "nombre": "Emiliano",
-            "apellido": "Epstein",
-            "documento": "45678666",
-            "perfil": "Trabajador social"
-        },
-        {
-            "legajo": "1234",
-            "nombre": "Benjamin",
-            "apellido": "Guerrero",
-            "documento": "34567654",
-            "perfil": "Trabajador social"
-        },
-        {
-            "legajo": "4356",
-            "nombre": "Piero",
-            "apellido": "Guadaña",
-            "documento": "37456987",
-            "perfil": "Trabajador social"
-        },
-        {
-            "legajo": "3428",
-            "nombre": "juan",
-            "apellido": "Perez",
-            "documento": "34578734",
-            "perfil": "Trabajador Social"
-        },
-        {
-            "legajo": "4576",
-            "nombre": "Ricardo",
-            "apellido": "Lopez",
-            "documento": "41456789",
-            "perfil": "Trabajador Social"
-        },
-        {
-            "legajo": "3420",
-            "nombre": "Erika",
-            "apellido": "Zuffellato",
-            "documento": "40756864",
-            "perfil": "Trabajador social"
+    const [listaTS, setListaTS] = useState([])
+    const [cargando, setCargando] = useState(false)
+    const [error, setError] = useState(null)
+
+    useEffect(() => {
+        const cargarTS = async () => {
+            try {
+                setCargando(true)
+                setError(null)
+                const data = await usuarioService.getTS()
+                setListaTS(data)
+            } catch (err) {
+                setError("No se puede cargar la lista de Trabajadoras Sociales")
+            } finally {
+                setCargando(false)
+            }
         }
-    ]
+        cargarTS()
+    }, [])
+
+
+
+    if (cargando) {
+        return (
+            <div className="w-full min-h-screen bg-gray-50 flex justify-center items-center p-4">
+                <div className="text-center py-20 text-gray-600 font-medium">
+                    Cargando equipo de Trabajadoras Sociales...
+                </div>
+            </div>
+        )
+    }
 
 
     return (
         <div className="w-full min-h-screen bg-gray-50 flex justify-center items-center p-4">
-
             <div className="w-full max-w-6xl bg-white shadow-lg rounded-2xl p-6 md:p-10">
 
+                {error && (
+                    <div className="bg-red-100 text-red-700 p-3 rounded-lg mb-4 text-center font-medium">
+                        {error}
+                    </div>
+                )}
 
                 <div>
                     <h3 className="text-gray-800 font-bold text-xl">
-                        Trabajadora Social
+                        Trabajadoras Sociales
                     </h3>
-                    <p className="text-gray-600 font-light">
-                        Vista general de todos las traajadoras sociales en el sistema
-                    </p>
                 </div>
 
                 <div className="mt-6 grid grid-cols-1 md:grid-cols-1 gap-4">
-
-
                     <div className="bg-gray-100 p-3 rounded-xl shadow-sm">
                         <input
                             type="text"
-                            placeholder="Buscar"
+                            placeholder="Buscar por nombre, matrícula o DNI..."
                             className="w-full bg-transparent outline-none text-gray-700"
                         />
                     </div>
-
                 </div>
 
-
                 <div className="mt-6 overflow-x-auto">
-
+                    {/* Encabezado Mobile (3 columnas) */}
                     <div className="grid grid-cols-3 gap-2 md:hidden bg-gray-100 p-3 rounded-lg text-gray-700 font-semibold text-sm">
-                        <span>Legajo</span>
+                        <span>Matrícula</span>
                         <span>Nombre</span>
-                        <span>Perfil</span>
-                    </div>
-
-                    <div className="hidden md:grid grid-cols-4 bg-gray-100 p-3 rounded-lg text-gray-700 font-semibold text-sm">
-                        <span>Legajo</span>
-                        <span>Nombre</span>
-                        <span>Perfil</span>
                         <span>DNI</span>
                     </div>
 
+                    {/* Encabezado Desktop */}
+                    <div className="hidden md:grid grid-cols-4 bg-gray-100 p-3 rounded-lg text-gray-700 font-semibold text-sm">
+                        <span>Matrícula</span>
+                        <span>Nombre</span>
+                        <span>DNI</span>
+                    </div>
 
-                    {trabajadorSocial.map((e) => (
-                        <button
-                            key={e.legajo}
-                            className="grid grid-cols-3 md:grid-cols-4 gap-2 items-center w-full text-left p-4 border-b hover:bg-gray-50 transition"
-                        >
-                            <span className="font-medium text-gray-800">{e.legajo}</span>
-                            <span className="text-gray-700">{`${e.nombre} ${e.apellido}`}</span>
-                            <span className="text-gray-700">{e.perfil}</span>
+                    {!error && listaTS.length === 0 ? (
+                        <div className="text-center py-10 text-gray-500 font-medium border-b">
+                            No se encontraron Trabajadoras Sociales registradas en el sistema.
+                        </div>
+                    ) : (
+
+                        listaTS.map((e) => (
+                            <button
+                                key={e.matricula || e.id}
+                                className="grid grid-cols-3 md:grid-cols-4 gap-2 items-center w-full text-left p-4 border-b hover:bg-gray-50 transition focus:outline-none"
+                            >
+                                <span className="font-medium text-gray-800 font-mono">{e.matricula || "---"}</span>
+                                <span className="text-gray-700 capitalize">{`${e.apellido} ${e.nombre}` || "Sin Nombre"}</span>
+                                <span className="text-gray-700 font-mono">{e.dni || "---"}</span>
 
 
-                            <span className="hidden md:block text-gray-700">{e.documento}</span>
-
-                        </button>
-                    ))}
+                            </button>
+                        ))
+                    )}
                 </div>
             </div>
         </div>
