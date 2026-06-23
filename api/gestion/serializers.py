@@ -122,10 +122,39 @@ class DocumentoExpedienteSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class HistorialPaseSerializer(serializers.ModelSerializer):
+    expediente_info = serializers.SerializerMethodField()
+
     class Meta:
         model = HistorialPase
-        fields = '__all__'
-        read_only_fields = ('fecha_envio', 'usuario_origen')
+        fields = [
+            'id',
+            'expediente',
+            'expediente_info',
+            'usuario_origen',
+            'usuario_destino',
+            'observacion',
+            'fecha_envio',
+        ]
+        read_only_fields = ('fecha_envio', 'usuario_origen', 'expediente_info')
+
+    def get_expediente_info(self, obj):
+        expediente = obj.expediente
+
+        return {
+            'id': expediente.id,
+            'ddjj': expediente.DDJJ,
+            'usuario_asignado': {
+                'id': expediente.usuario_asignado.id,
+                'nombre': expediente.usuario_asignado.first_name,
+                'apellido': expediente.usuario_asignado.last_name,
+            } if expediente.usuario_asignado else None,
+            'postulante_titular': {
+                'id': expediente.postulante_titular.id,
+                'nombre': expediente.postulante_titular.nombre,
+                'apellido': expediente.postulante_titular.apellido,
+                'dni': expediente.postulante_titular.dni,
+            } if expediente.postulante_titular else None
+        }
         
 class NotificacionSerializer(serializers.ModelSerializer):
     # agrega datos resumidos del expediente para mostrar la notificacion sin pedir otro endpoint
