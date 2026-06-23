@@ -41,6 +41,60 @@ class ExpedienteSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         response = super().to_representation(instance)
         
+        if instance.estado_expediente:
+            response['estado_actual'] = instance.estado_expediente.get_nombre_display()
+        
+        if instance.postulante_titular:
+            titular = instance.postulante_titular
+            response['datos_titular'] = {
+                'nombre_completo': f"{titular.nombre} {titular.apellido}",
+                'dni': titular.dni,
+                'telefono': getattr(titular, 'telefono', 'Sin teléfono'),
+                'domicilio': getattr(titular, 'domicilio', 'Sin domicilio'),
+                'email': getattr(titular, 'email', 'Sin email')
+            }
+
+        if instance.usuario_asignado:
+            user = instance.usuario_asignado
+            perfil = getattr(user, 'usuario', None)
+            rol_nombre = perfil.rol.nombre_rol if perfil and perfil.rol else "Sin Rol"
+            
+            response['usuario_asignado_detalle'] = {
+                'nombre_completo': f"{user.first_name} {user.last_name}".strip(),
+                'rol': rol_nombre
+            }
+        else:
+            response['usuario_asignado_detalle'] = None
+
+        pases = instance.historial_pases.all().order_by('-id') 
+        lista_movimientos = []
+        for pase in pases:
+            lista_movimientos.append({
+                "id": pase.id,
+                "fecha": getattr(pase, 'fecha', None), # Ajustá el nombre exacto de tu campo de fecha
+                "usuario_origen": f"{pase.usuario_origen.first_name} {pase.usuario_origen.last_name}" if hasattr(pase, 'usuario_origen') and pase.usuario_origen else "Sistema",
+                "usuario_destino": f"{pase.usuario_destino.first_name} {pase.usuario_destino.last_name}" if hasattr(pase, 'usuario_destino') and pase.usuario_destino else "Sin asignar",
+                "observaciones": getattr(pase, 'observaciones', getattr(pase, 'observacion', 'Sin observaciones'))
+            })
+        response['historial_movimientos'] = lista_movimientos
+
+
+        documentos = instance.documentoadjunto_set.all() 
+        lista_docs = []
+        for doc in documentos:
+            lista_docs.append({
+                "id": doc.id,
+                "tipo_documento": getattr(doc, 'tipo_documento', 'Desconocido'),
+                # Si tenés un FileField/ImageField, .url te da el link directo para el Front
+                "archivo_url": doc.archivo.url if hasattr(doc, 'archivo') and doc.archivo else None
+            })
+        response['documentos_adjuntos'] = lista_docs
+
+        return response    
+    
+    def to_representation(self, instance):
+        response = super().to_representation(instance)
+        
         ultimo_pase = instance.historial_pases.order_by('-fecha_envio').first()
         fecha_referencia = None
 
