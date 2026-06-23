@@ -4,7 +4,7 @@ import { authService } from "../../services/authService/authService";
 const NavBar = () => {
     const navigate = useNavigate();
 
-    const nombreUsuario = localStorage.getItem("username")
+    const nombreUsuario = localStorage.getItem("nombre_completo")
 
     const handleLogout = () => {
         authService.cerrarSesion()
@@ -12,11 +12,40 @@ const NavBar = () => {
         navigate("/login")
     }
 
+    const onClickUsuario = () => {
+        try {
+            const userRolId = localStorage.getItem("rol_id");
+
+            switch (userRolId) {
+                // trabajadora social
+                case "1":
+                    navigate("/expedientes");
+                    break;
+
+                case "2":
+                    navigate("/expedientes");
+                    break;
+
+                // data entry
+                case "3":
+                    navigate("/expedientes");
+                    break;
+
+                case "4":
+                    navigate("/homeAdmin");
+                    break;
+            }
+
+        } catch (err) {
+            console.log(err)
+        }
+    }
+
     return (
-        <nav className=" relative bg-blue-500 w-full h-12 px-4 flex items-center justify-between">
+        <nav className="fixed top-0 left-0 z-50 bg-blue-500 w-full h-12 px-4 flex items-center justify-between">
 
 
-            <div className="flex items-center">
+            <div className="flex items-center cursor-pointer" onClick={onClickUsuario}>
                 <svg
                     xmlns="http://www.w3.org/2000/svg"
                     fill="none"
@@ -55,14 +84,14 @@ const NavBar = () => {
             </div>
             <div className="flex items-center gap-3">
                 <span className="text-white hidden sm:block">
-                    Lucas Diaz
+                    {nombreUsuario}
                 </span>
 
                 <span className="text-white sm:hidden">
-                    Lucas
+                    {nombreUsuario}
                 </span>
 
-                <button onClick={handleLogout} className="hidden sm:block text-white px-3 py-1 bg-blue-800 hover:bg-blue-950 rounded-lg font-semibold transition-colors">
+                <button onClick={handleLogout} className="hidden sm:block text-white px-3 py-1 bg-blue-800 hover:bg-blue-950 rounded-lg font-semibold transition-colors cursor-pointer">
                     Salir
                 </button>
 

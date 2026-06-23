@@ -32,6 +32,7 @@ class ExpedienteSerializer(serializers.ModelSerializer):
         source='estado_expediente',
         write_only=True
     )
+    
     class Meta:
         model = Expediente
         fields = '__all__'
@@ -40,35 +41,36 @@ class ExpedienteSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         response = super().to_representation(instance)
         
-        if instance.fecha_creacion:
-            diferencia = timezone.now() - instance.fecha_creacion
+        ultimo_pase = instance.historial_pases.order_by('-fecha_envio').first()
+        fecha_referencia = None
+
+        if ultimo_pase and ultimo_pase.fecha_envio:
+            fecha_referencia = ultimo_pase.fecha_envio
+        elif instance.fecha_creacion:
+            fecha_referencia = instance.fecha_creacion
+
+        if fecha_referencia:
+            diferencia = timezone.now() - fecha_referencia
             response['dias_en_poder'] = diferencia.days
         else:
             response['dias_en_poder'] = 0
-        
         if instance.postulante_titular:
             response['postulante_titular'] = {
                 'id': instance.postulante_titular.id,
-                'nombre': instance.postulante_titular.nombre,  
                 'apellido': instance.postulante_titular.apellido,
+                'nombre': instance.postulante_titular.nombre,  
                 'dni': instance.postulante_titular.dni
             }
 
         if instance.usuario_asignado:
             response['usuario_asignado'] = {
                 'id': instance.usuario_asignado.id,
-                'nombre': instance.usuario_asignado.first_name, 
-                'apellido': instance.usuario_asignado.last_name
+                'apellido': instance.usuario_asignado.last_name,
+                'nombre': instance.usuario_asignado.first_name 
             }
 
         return response
     
-    def get_dias_en_poder(self, instance):
-        if instance.fecha_creacion:
-            diferencia = timezone.now() - instance.fecha_creacion
-            return diferencia.days
-        return 0
-        
     
 class RolSerializer(serializers.ModelSerializer):
     class Meta:

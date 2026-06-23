@@ -21,6 +21,8 @@ from django.contrib.auth.tokens import default_token_generator
 from django.db.models import Count
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
+from django.db.models import Q
+from django.db.models import Count
 
 
 # Notificaciones automaticas. meensajes posibles al recibir un expediente
@@ -170,30 +172,27 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         usuario = self.request.user
-    
-        if (
-            usuario
-            and usuario.is_authenticated
-            and hasattr(usuario, 'usuario')
-            and usuario.usuario.rol.nombre_rol == 'TS'
-        ):
-            return Expediente.objects.filter(usuario_asignado=usuario)
-    
-        return Expediente.objects.all()
-    
-
-       
+        
+        buscar = self.request.query_params.get('buscar')
         estado = self.request.query_params.get('estado')
-        print(f"ESTADO RECIBIDO: {estado}")
         dni = self.request.query_params.get('dni')
         usuario_asignado = self.request.query_params.get('usuario_asignado')
+
         
         if not usuario.is_authenticated:
             queryset = Expediente.objects.all()
-        elif usuario.usuario.rol.nombre_rol == 'TS':
+        elif hasattr(usuario, 'usuario') and usuario.usuario.rol.nombre_rol == 'TS':
             queryset = Expediente.objects.filter(usuario_asignado= usuario)
         else:
             queryset = Expediente.objects.all()
+
+        if buscar:
+            palabras = buscar.split()
+            for palabra in palabras:
+                queryset = queryset.filter(
+                    Q(postulante_titular__nombre__icontains=palabra)|
+                    Q(postulante_titular__apellido__icontains=palabra)
+                )
 
         if estado:
             queryset = queryset.filter(estado_expediente__nombre = estado)
@@ -204,7 +203,7 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
         if usuario_asignado:
             queryset = queryset.filter(usuario_asignado = usuario_asignado)
             
-        return queryset    
+        return queryset   
     
     def get_permissions(self):
         if self.action == 'create':
@@ -266,7 +265,49 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             return [IsSuperAdmin()]
         return [IsAnyRole()]
     
+    def get_queryset(self):
+        queryset = Usuario.objects.all()
+        rol= self.request.query_params.get('rol')
+
+        if rol:
+            queryset = queryset.filter(rol__nombre_rol=rol)
+            
+        return queryset
     
+    @action(detail=False, methods=['get'])
+    def auditoria_usuarios(self, request):
+        try:
+            perfiles = self.get_queryset() 
+            resultado = []
+
+            for perfil in perfiles:
+                user_nativo = perfil.usuario
+                expedientes_del_usuario = user_nativo.expediente_set.all()
+                
+                total_asignados = expedientes_del_usuario.count()
+
+                desglose_db = expedientes_del_usuario.values('estado_expediente__nombre').annotate(cantidad=Count('id'))
+
+                estados_limpios = {}
+                for item in desglose_db:
+                    codigo_estado = item['estado_expediente__nombre']
+                    clave = codigo_estado if codigo_estado else "Sin estado"
+                    estados_limpios[clave] = item['cantidad']
+
+                resultado.append({
+                    "usuario_id": perfil.id,
+                    "nombre_completo": f"{perfil.apellido}, {perfil.nombre}",
+                    "rol": perfil.rol.nombre_rol if perfil.rol else "Sin Rol",
+                    "total_asignados": total_asignados,
+                    "desglose_estados": estados_limpios
+                })
+            return Response(resultado)
+        
+        except Exception as e:
+            import traceback
+            return Response({"error_fatal": f"Error: {str(e)}",
+                "detalle": traceback.format_exc()
+            }, status=500)
 class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
     queryset = DocumentoAdjunto.objects.all()
     permission_classes = [IsAnyRole]
