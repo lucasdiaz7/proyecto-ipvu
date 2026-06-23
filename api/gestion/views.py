@@ -327,11 +327,6 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
     serializer_class = DocumentoAdjuntoSerializer        
 
 
-class DocumentoExpedienteViewSet(viewsets.ModelViewSet):
-    queryset = DocumentoExpediente.objects.all()
-    permission_classes = [IsAnyRole]
-    serializer_class = DocumentoExpedienteSerializer
-
 class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, GenericViewSet):
     queryset = HistorialPase.objects.all()
     permission_classes = [IsAnyRole]

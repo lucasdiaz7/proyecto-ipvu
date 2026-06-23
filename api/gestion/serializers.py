@@ -170,11 +170,6 @@ class DocumentoAdjuntoSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class DocumentoExpedienteSerializer(serializers.ModelSerializer):
-   class Meta:
-        model = DocumentoExpediente
-        fields = '__all__'
-
 class HistorialPaseSerializer(serializers.ModelSerializer):
     expediente_info = serializers.SerializerMethodField()
 
