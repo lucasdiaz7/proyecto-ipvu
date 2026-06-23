@@ -17,11 +17,7 @@ class PostulanteTitularSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('fecha_creacion', 'fecha_modificacion')
         
-class IntegranteFamiliaSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = IntegranteFamilia
-        fields = '__all__'
-        read_only_fields = ('fecha_creacion', 'fecha_modificacion')
+
         
 class EstadoExpedienteSerializer(serializers.ModelSerializer):
     class Meta:
@@ -132,10 +128,41 @@ class HistorialPaseSerializer(serializers.ModelSerializer):
         read_only_fields = ('fecha_envio', 'usuario_origen')
         
 class NotificacionSerializer(serializers.ModelSerializer):
+    # agrega datos resumidos del expediente para mostrar la notificacion sin pedir otro endpoint
+    expediente = serializers.SerializerMethodField()
+
     class Meta:
         model = Notificacion
-        fields = '__all__'
-        read_only_fields = ('fecha_creacion', 'leida')
+        fields = [
+            'id',
+            'mensaje',
+            'fecha_creacion',
+            'leida',
+            'usuario_destino',
+            'expediente_relacionado',
+            'expediente',
+        ]
+        read_only_fields = ('fecha_creacion', 'leida', 'expediente')
+
+    # version compacta del expediente relacionado para que el frontend pueda listar el caso recibido
+    def get_expediente(self, obj):
+        if not obj.expediente_relacionado:
+            return None
+
+        expediente = obj.expediente_relacionado
+        postulante = expediente.postulante_titular
+
+        return {
+            'id': expediente.id,
+            'ddjj': expediente.DDJJ,
+            'estado': expediente.estado_expediente.nombre,
+            'postulante': {
+                'id': postulante.id,
+                'nombre': postulante.nombre,
+                'apellido': postulante.apellido,
+                'dni': postulante.dni,
+            }
+        }
         
 class HistorialAccionSerializer(serializers.ModelSerializer):
     class Meta:

@@ -18,20 +18,6 @@ class PostulanteTitular(models.Model):
         return f"{self.nombre} {self.apellido} - DNI: {self.dni}"
 
 
-#borrar este modelo
-class IntegranteFamilia(models.Model): 
-    dni = models.CharField(max_length=20)
-    nombre = models.CharField(max_length=50)
-    apellido = models.CharField(max_length=50)
-    parentesco = models.CharField(max_length=50)
-    
-    #fechas
-    fecha_creacion = models.DateTimeField(auto_now_add=True)
-    fecha_modificacion = models.DateTimeField(auto_now_add=True)
-    
-    #FK
-    postulante_titular = models.ForeignKey(PostulanteTitular, on_delete=models.CASCADE, related_name='integrantes')
-
 class EstadoExpediente(models.Model):
     tipo_estado = [
         ('SINI', 'Sin Iniciar'),
@@ -46,12 +32,12 @@ class EstadoExpediente(models.Model):
     nombre = models.CharField(max_length=10, choices=tipo_estado, unique=True)
     
     def __str__(self):
-        # Magia de Django: get_FOO_display() muestra el texto legible ("Apto") y no el código ("AP")
+        #get_FOO_display() muestra el texto legible ("Apto") y no el código ("AP")
         return self.get_nombre_display()
     
     @property
     def color(self):
-        # Asociamos cada código con un color (Ideales para usar con Bootstrap o CSS en el HTML que te dio Claude)
+        # asocia cada codigo a un color
         colores = {
             'SINI': 'gray',       # Sin Iniciar -> Gris
             '1V': 'blue',       # 1ra Visita -> Azul
@@ -83,7 +69,7 @@ class Expediente(models.Model):
 
     
 class Rol(models.Model):
-     #django exige dos opciones, una abreviación y un string legible
+     #django exige dos opciones, una abreviacion y un string legible
      tipo_rol = [('TS','TRABAJADORA SOCIAL'),
         ('SU', 'SUPERUSUARIO'),
         ('LG','LEGALES'),
@@ -148,9 +134,11 @@ class Notificacion(models.Model):
      
     leida = models.BooleanField (default=False)
     
-    #FK
-    usuario_destimo = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notificaciones_recibidas')
-    expediente_relacionado = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    # suario que recibe la notificacion dentro del sistema
+    usuario_destino = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notificaciones_recibidas')
+
+    # expediente que origina la notificacion para poder abrir el caso desde la interfa
+    expediente_relacionado = models.ForeignKey(Expediente, on_delete=models.SET_NULL, null=True, blank=True)
     
     def __str__(self):
         return f"Notificación para {self.usuario_destino.username}"

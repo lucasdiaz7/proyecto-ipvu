@@ -11,7 +11,6 @@ from django.conf.urls.static import static
 router = DefaultRouter()
 
 router.register(r'postulantetitular', PostulanteTitularViewSet)
-router.register(r'integrantefamilia', IntegranteFamiliaViewSet)
 router.register(r'estadoexpediente', EstadoExpedienteViewSet)
 router.register(r'expediente', ExpedienteViewSet, basename='expediente')
 router.register(r'rol', RolViewSet)

@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+from datetime import timedelta
 import os
 import dj_database_url
 from dotenv import load_dotenv
@@ -156,6 +157,11 @@ REST_FRAMEWORK = {
     # )
 }
 
+
+# para el timeout de sesión al cabo de 5 min de inactividad  
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
+}
 
 
 #cuando se use el sistema, esto tiene que ir false

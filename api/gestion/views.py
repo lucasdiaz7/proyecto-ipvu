@@ -25,6 +25,65 @@ from django.db.models import Q
 from django.db.models import Count
 
 
+# Notificaciones automaticas. meensajes posibles al recibir un expediente
+MENSAJE_NUEVO_CASO = "Nuevo caso recibido"
+MENSAJE_CASO_RECIBIDO = "Caso recibido"
+ROLES_CON_NOTIFICACION_DE_CASO = ['TS', 'LG']
+
+
+# verifica si el usuario destino pertenece a un rol que debe recibir notificaciones de expedientes, o sea, LG y TS
+def usuario_puede_recibir_notificacion_caso(usuario_destino):
+    if not usuario_destino:
+        return False
+
+    perfil_destino = getattr(usuario_destino, 'usuario', None)
+
+    if not perfil_destino:
+        return False
+
+    return perfil_destino.rol.nombre_rol in ROLES_CON_NOTIFICACION_DE_CASO
+
+
+# determina si el usuario ya habia recibido antes el mismo expediente para que el la notificacion no diga NUEVO
+# se revisan notificaciones previas y pases anteriores el pase actual se excluye para no contarlo como antecedente 
+def usuario_recibio_expediente_antes(usuario_destino, expediente, pase_actual=None):
+    notificacion_previa = Notificacion.objects.filter(
+        usuario_destino=usuario_destino,
+        expediente_relacionado=expediente
+    ).exists()
+
+    pases_previos = HistorialPase.objects.filter(
+        expediente=expediente,
+        usuario_destino=usuario_destino
+    )
+    # evita contar el pase actual como un pase previo
+    if pase_actual:
+        pases_previos = pases_previos.exclude(id=pase_actual.id)
+
+    return notificacion_previa or pases_previos.exists()
+
+
+# crea la notificacion cuando un usuario de TS o Legales recibe un expediente
+# si es la primera vez q recibe muestra Nuevo caso recibido. si ya lo recibio antes muestra Caso recibido
+def crear_notificacion_recepcion_expediente(usuario_destino, expediente, pase_actual=None):
+    if not usuario_puede_recibir_notificacion_caso(usuario_destino):
+        return
+
+    recibio_antes = usuario_recibio_expediente_antes(
+        usuario_destino=usuario_destino,
+        expediente=expediente,
+        pase_actual=pase_actual
+    )
+
+    mensaje = MENSAJE_CASO_RECIBIDO if recibio_antes else MENSAJE_NUEVO_CASO
+
+    Notificacion.objects.create(
+        mensaje=mensaje,
+        usuario_destino=usuario_destino,
+        expediente_relacionado=expediente
+    )
+
+
 class PostulanteTitularViewSet(viewsets.ModelViewSet):
     queryset = PostulanteTitular.objects.all()
     serializer_class = PostulanteTitularSerializer
@@ -34,12 +93,15 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
         postulante = serializer.save()
         estado_inicial = EstadoExpediente.objects.get(nombre='SINI')
         trabajadora_social = obtener_siguiente_trabajadora_social()
-        Expediente.objects.create(
+        # crea el expediente inicial y conserva la instancia para generar la notificacion al usuario asignado
+        expediente = Expediente.objects.create(
             postulante_titular=postulante,
             estado_expediente=estado_inicial,
             DDJJ=ddjj,
             usuario_asignado=trabajadora_social
         )
+        # notifica a la trabajadora social cuando recibe el expediente por primera vez
+        crear_notificacion_recepcion_expediente(trabajadora_social, expediente)
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update']:
@@ -48,9 +110,7 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
             return [IsSuperAdmin()]
         return [IsAnyRole()]
     
-class IntegranteFamiliaViewSet(viewsets.ModelViewSet):
-    queryset = IntegranteFamilia.objects.all()
-    serializer_class = IntegranteFamiliaSerializer
+
  
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update']:
@@ -105,7 +165,10 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         trabajadora_social = obtener_siguiente_trabajadora_social()
-        serializer.save(usuario_asignado=trabajadora_social)
+        # Guarda el expediente creado manualmente y conserva la instancia para notificar al usuario asignado.
+        expediente = serializer.save(usuario_asignado=trabajadora_social)
+        # Notifica a la Trabajadora Social cuando recibe el expediente creado desde este endpoint.
+        crear_notificacion_recepcion_expediente(trabajadora_social, expediente)
 
     def get_queryset(self):
         usuario = self.request.user
@@ -266,9 +329,11 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
         pase = serializer.save(usuario_origen=self.request.user)
         
         expediente = pase.expediente
+        # Obtiene el perfil del usuario destino para decidir el nuevo estado del expediente segun su rol.
+        perfil_destino = getattr(pase.usuario_destino, 'usuario', None)
         
-        if expediente.estado_expediente.nombre != 'AP':
-            rol_destino = pase.usuario_destino.usuario.rol.nombre_rol
+        if expediente.estado_expediente.nombre != 'AP' and perfil_destino:
+            rol_destino = perfil_destino.rol.nombre_rol
             
             if rol_destino == 'LG':
                 nuevo_estado = EstadoExpediente.objects.get(nombre='LEG')
@@ -276,7 +341,13 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
                 nuevo_estado = EstadoExpediente.objects.get(nombre='1V')
             
             expediente.estado_expediente = nuevo_estado
+            # Actualiza el usuario asignado para que el expediente quede en poder de quien lo recibe.
+            expediente.usuario_asignado = pase.usuario_destino
             expediente.save()
+
+        # Notifica al usuario destino cuando recibe el expediente por pase.
+        # Si ya lo habia recibido antes, el helper usa el mensaje "Caso recibido".
+        crear_notificacion_recepcion_expediente(pase.usuario_destino, expediente, pase_actual=pase)
         
         #HistorialAccion.objects.create(
             #mensaje_accion=f"Expediente transferido a {pase.usuario_destino.username}. Motivo: {pase.observacion}",
@@ -290,10 +361,24 @@ class NotificacionViewSet(viewsets.ModelViewSet):
     queryset = Notificacion.objects.all()
     serializer_class = NotificacionSerializer
 
+    # Devuelve solo las notificaciones del usuario autenticado, ordenadas desde la mas reciente.
+    def get_queryset(self):
+        return Notificacion.objects.filter(
+            usuario_destino=self.request.user
+        ).order_by('-fecha_creacion')
+
     def get_permissions(self):
         if self.action == 'create':
             return [IsSuperAdmin()]
         return [IsAnyRole()]
+
+    # Permite que el frontend marque como leida una notificacion ya mostrada al usuario.
+    @action(detail=True, methods=['patch'], url_path='marcar-leida')
+    def marcar_leida(self, request, pk=None):
+        notificacion = self.get_object()
+        notificacion.leida = True
+        notificacion.save(update_fields=['leida'])
+        return Response({'mensaje': 'Notificacion marcada como leida'})
 
 class HistorialAccionViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
     queryset = HistorialAccion.objects.all()
