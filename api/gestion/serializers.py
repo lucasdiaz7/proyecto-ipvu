@@ -41,11 +41,27 @@ class ExpedienteSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         response = super().to_representation(instance)
         
+        ultimo_pase = instance.historial_pases.order_by('-fecha_envio').first()
+        fecha_referencia = None
+
+        if ultimo_pase and ultimo_pase.fecha_envio:
+            fecha_referencia = ultimo_pase.fecha_envio
+        elif instance.fecha_creacion:
+            fecha_referencia = instance.fecha_creacion
+
+        if fecha_referencia:
+            diferencia = timezone.now() - fecha_referencia
+            response['dias_en_poder'] = diferencia.days
+        else:
+            response['dias_en_poder'] = 0
+            
+           #estado del expediente
         if instance.estado_expediente:
             response['estado_expediente'] = instance.estado_expediente.get_nombre_display()
         else:
             response['estado_expediente'] = "Sin estado"
 
+            #postulante titular
         if instance.postulante_titular:
             titular = instance.postulante_titular
             response['postulante_titular'] = {
@@ -60,6 +76,7 @@ class ExpedienteSerializer(serializers.ModelSerializer):
         else:
             response['postulante_titular'] = None
 
+            #usuario asignado
         if instance.usuario_asignado:
             user = instance.usuario_asignado
             perfil = getattr(user, 'usuario', None)
@@ -74,6 +91,7 @@ class ExpedienteSerializer(serializers.ModelSerializer):
         else:
             response['usuario_asignado'] = None
 
+        #historial de pases
         pases = instance.historial_pases.all().order_by('-fecha_envio') 
         lista_movimientos = []
         for pase in pases:
@@ -86,6 +104,7 @@ class ExpedienteSerializer(serializers.ModelSerializer):
             })
         response['historial_pases'] = lista_movimientos
 
+        #documentos adjuntos
         documentos = instance.documentos.all()
         lista_docs = []
         for doc in documentos:
@@ -95,40 +114,6 @@ class ExpedienteSerializer(serializers.ModelSerializer):
                 "archivo_url": doc.archivo.url if doc.archivo else None
             })
         response['documentos_adjuntos'] = lista_docs
-
-        return response
-    
-    def to_representation(self, instance):
-        response = super().to_representation(instance)
-        
-        ultimo_pase = instance.historial_pases.order_by('-fecha_envio').first()
-        fecha_referencia = None
-
-        if ultimo_pase and ultimo_pase.fecha_envio:
-            fecha_referencia = ultimo_pase.fecha_envio
-        elif instance.fecha_creacion:
-            fecha_referencia = instance.fecha_creacion
-
-        if fecha_referencia:
-            diferencia = timezone.now() - fecha_referencia
-            response['dias_en_poder'] = diferencia.days
-        else:
-            response['dias_en_poder'] = 0
-        if instance.postulante_titular:
-            response['postulante_titular'] = {
-                'id': instance.postulante_titular.id,
-                'apellido': instance.postulante_titular.apellido,
-                'nombre': instance.postulante_titular.nombre,  
-                'dni': instance.postulante_titular.dni,
-                'domicilio_actual': instance.postulante_titular.domicilio_actual
-            }
-
-        if instance.usuario_asignado:
-            response['usuario_asignado'] = {
-                'id': instance.usuario_asignado.id,
-                'apellido': instance.usuario_asignado.last_name,
-                'nombre': instance.usuario_asignado.first_name 
-            }
 
         return response
     
