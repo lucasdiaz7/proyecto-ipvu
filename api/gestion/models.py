@@ -159,13 +159,15 @@ class HistorialAccion(models.Model):
     
     
 class FormularioSocioHabitacional(models.Model): 
-    grupo_familiar=models.TextField()
-    situacion_habitacional=models.TextField()
-    aspecto_economico=models.TextField()
-    situacion_salud=models.TextField()
-    nivel_estudios=models.CharField(max_length=100)
-    relevamiento_vecinal=models.TextField()
-    observaciones=models.TextField()
+    # Campos completados por la Trabajadora Social. Se permiten vacios para que el formulario pueda existir
+    # en estado "sin iniciar" o "en progreso" antes de que todos los datos esten cargados.
+    grupo_familiar=models.TextField(blank=True)
+    situacion_habitacional=models.TextField(blank=True)
+    aspecto_economico=models.TextField(blank=True)
+    situacion_salud=models.TextField(blank=True)
+    nivel_estudios=models.CharField(max_length=100, blank=True)
+    relevamiento_vecinal=models.TextField(blank=True)
+    observaciones=models.TextField(blank=True)
     
 
     #FK
@@ -173,6 +175,37 @@ class FormularioSocioHabitacional(models.Model):
     #fechas
     fecha_creacion=models.DateTimeField(auto_now_add=True)
     fecha_modificacion=models.DateTimeField(auto_now=True)
+
+    # Lista centralizada de campos que se usan para calcular automaticamente el estado del formulario.
+    CAMPOS_DE_ESTADO = [
+        'grupo_familiar',
+        'situacion_habitacional',
+        'aspecto_economico',
+        'situacion_salud',
+        'nivel_estudios',
+        'relevamiento_vecinal',
+        'observaciones',
+    ]
+
+    @property
+    def estado(self):
+        # Calcula cuantos campos tienen contenido real, ignorando espacios en blanco.
+        campos_completados = sum(
+            1
+            for campo in self.CAMPOS_DE_ESTADO
+            if str(getattr(self, campo, '') or '').strip()
+        )
+
+        # Si no hay ningun campo cargado, el formulario todavia no fue iniciado.
+        if campos_completados == 0:
+            return 'sin iniciar'
+
+        # Si todos los campos estan cargados, el formulario esta completo.
+        if campos_completados == len(self.CAMPOS_DE_ESTADO):
+            return 'completado'
+
+        # Si tiene al menos un campo cargado pero no todos, sigue en progreso.
+        return 'en progreso'
 
     def __str__(self):
       return (
