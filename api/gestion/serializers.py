@@ -250,10 +250,26 @@ class HistorialAccionSerializer(serializers.ModelSerializer):
         read_only_fields = ('fecha_accion',)
         
 class FormularioSocioHabitacionalSerializer(serializers.ModelSerializer):
+    # Estado calculado automaticamente segun la cantidad de campos completados del formulario.
+    estado = serializers.ReadOnlyField()
+
     class Meta:
         model = FormularioSocioHabitacional
-        fields = '__all__'
-        read_only_fields = ('fecha_creacion', 'fecha_modificacion')
+        fields = [
+            'id',
+            'grupo_familiar',
+            'situacion_habitacional',
+            'aspecto_economico',
+            'situacion_salud',
+            'nivel_estudios',
+            'relevamiento_vecinal',
+            'observaciones',
+            'expediente',
+            'fecha_creacion',
+            'fecha_modificacion',
+            'estado',
+        ]
+        read_only_fields = ('fecha_creacion', 'fecha_modificacion', 'estado')
         
 class DictamenLegalSerializer(serializers.ModelSerializer):
     class Meta:
