@@ -176,6 +176,8 @@ class UsuarioSerializer(serializers.ModelSerializer):
         
         if instance.rol:
             ret['rol_display'] = instance.rol.nombre_rol
+        
+        ret['nombre_completo'] = f"{instance.nombre} {instance.apellido}"
     
         return ret
     
