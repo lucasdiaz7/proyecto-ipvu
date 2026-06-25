@@ -301,6 +301,8 @@ class MiLoginPersonalizadoSerializer(TokenObtainPairSerializer):
             data['nombre_completo'] = f"{perfil_ipvu.nombre} {perfil_ipvu.apellido}"
             data['rol_id'] = perfil_ipvu.rol.id
             data['requiere_cambio_password'] = perfil_ipvu.requiere_cambio_password
+            data['username'] = self.user.username
+
             
         except Usuario.DoesNotExist:
             pass
