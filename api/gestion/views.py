@@ -161,6 +161,7 @@ def obtener_siguiente_trabajadora_social():
     return trabajadoras[siguiente_indice]
 
 class ExpedienteViewSet(viewsets.ModelViewSet):
+    queryset = Expediente.objects.all().order_by('-id')[:5]
     serializer_class = ExpedienteSerializer
 
     def perform_create(self, serializer):

@@ -41,11 +41,28 @@ class ExpedienteSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         response = super().to_representation(instance)
         
+         #calculo de dias en poder
+        ultimo_pase = instance.historial_pases.order_by('-fecha_envio').first()
+        fecha_referencia = None
+
+        if ultimo_pase and ultimo_pase.fecha_envio:
+            fecha_referencia = ultimo_pase.fecha_envio
+        elif instance.fecha_creacion:
+            fecha_referencia = instance.fecha_creacion
+
+        if fecha_referencia:
+            diferencia = timezone.now() - fecha_referencia
+            response['dias_en_poder'] = diferencia.days
+        else:
+            response['dias_en_poder'] = 0
+            
+           #estado del expediente
         if instance.estado_expediente:
-            response['estado_expediente'] = instance.estado_expediente.get_nombre_display()
+            response['estado_expediente'] = instance.estado_expediente.nombre
         else:
             response['estado_expediente'] = "Sin estado"
 
+            #postulante titular
         if instance.postulante_titular:
             titular = instance.postulante_titular
             response['postulante_titular'] = {
@@ -60,32 +77,57 @@ class ExpedienteSerializer(serializers.ModelSerializer):
         else:
             response['postulante_titular'] = None
 
+            #usuario asignado
         if instance.usuario_asignado:
             user = instance.usuario_asignado
             perfil = getattr(user, 'usuario', None)
             rol_nombre = perfil.rol.nombre_rol if perfil and perfil.rol else "Sin Rol"
             
+            nombre_real = getattr(perfil, 'nombre', user.first_name) if perfil else user.first_name
+            apellido_real = getattr(perfil, 'apellido', user.last_name) if perfil else user.last_name
+            
             response['usuario_asignado'] = {
                 'id': user.id,
-                'nombre': user.first_name,
-                'apellido': user.last_name,
+                'nombre': nombre_real,
+                'apellido': apellido_real,
                 'rol': rol_nombre
             }
         else:
             response['usuario_asignado'] = None
 
+        #historial de pases
         pases = instance.historial_pases.all().order_by('-fecha_envio') 
         lista_movimientos = []
         for pase in pases:
+            u_origen = pase.usuario_origen
+            if u_origen:
+                p_origen = getattr(u_origen, 'usuario', None)
+                nom_origen = getattr(p_origen, 'nombre', u_origen.first_name) if p_origen else u_origen.first_name
+                ape_origen = getattr(p_origen, 'apellido', u_origen.last_name) if p_origen else u_origen.last_name
+                str_origen = f"{nom_origen} {ape_origen}".strip()
+            else:
+                str_origen = "Sistema"
+
+            # Y para el usuario de destino
+            u_destino = pase.usuario_destino
+            if u_destino:
+                p_destino = getattr(u_destino, 'usuario', None)
+                nom_destino = getattr(p_destino, 'nombre', u_destino.first_name) if p_destino else u_destino.first_name
+                ape_destino = getattr(p_destino, 'apellido', u_destino.last_name) if p_destino else u_destino.last_name
+                str_destino = f"{nom_destino} {ape_destino}".strip()
+            else:
+                str_destino = "Sin asignar"
+
             lista_movimientos.append({
                 "id": pase.id,
                 "fecha_envio": pase.fecha_envio,
-                "usuario_origen": f"{pase.usuario_origen.first_name} {pase.usuario_origen.last_name}".strip() if pase.usuario_origen else "Sistema",
-                "usuario_destino": f"{pase.usuario_destino.first_name} {pase.usuario_destino.last_name}".strip() if pase.usuario_destino else "Sin asignar",
+                "usuario_origen": str_origen,
+                "usuario_destino": str_destino,
                 "observacion": pase.observacion
             })
         response['historial_pases'] = lista_movimientos
 
+        #documentos adjuntos
         documentos = instance.documentos.all()
         lista_docs = []
         for doc in documentos:
@@ -95,40 +137,6 @@ class ExpedienteSerializer(serializers.ModelSerializer):
                 "archivo_url": doc.archivo.url if doc.archivo else None
             })
         response['documentos_adjuntos'] = lista_docs
-
-        return response
-    
-    def to_representation(self, instance):
-        response = super().to_representation(instance)
-        
-        ultimo_pase = instance.historial_pases.order_by('-fecha_envio').first()
-        fecha_referencia = None
-
-        if ultimo_pase and ultimo_pase.fecha_envio:
-            fecha_referencia = ultimo_pase.fecha_envio
-        elif instance.fecha_creacion:
-            fecha_referencia = instance.fecha_creacion
-
-        if fecha_referencia:
-            diferencia = timezone.now() - fecha_referencia
-            response['dias_en_poder'] = diferencia.days
-        else:
-            response['dias_en_poder'] = 0
-        if instance.postulante_titular:
-            response['postulante_titular'] = {
-                'id': instance.postulante_titular.id,
-                'apellido': instance.postulante_titular.apellido,
-                'nombre': instance.postulante_titular.nombre,  
-                'dni': instance.postulante_titular.dni,
-                'domicilio_actual': instance.postulante_titular.domicilio_actual
-            }
-
-        if instance.usuario_asignado:
-            response['usuario_asignado'] = {
-                'id': instance.usuario_asignado.id,
-                'apellido': instance.usuario_asignado.last_name,
-                'nombre': instance.usuario_asignado.first_name 
-            }
 
         return response
     
@@ -293,6 +301,8 @@ class MiLoginPersonalizadoSerializer(TokenObtainPairSerializer):
             data['nombre_completo'] = f"{perfil_ipvu.nombre} {perfil_ipvu.apellido}"
             data['rol_id'] = perfil_ipvu.rol.id
             data['requiere_cambio_password'] = perfil_ipvu.requiere_cambio_password
+            data['username'] = self.user.username
+
             
         except Usuario.DoesNotExist:
             pass
