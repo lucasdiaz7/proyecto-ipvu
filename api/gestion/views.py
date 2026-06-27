@@ -254,12 +254,12 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
         return response
     
     
-    @action(detail=True, methods=['patch'], permission_classes=[IsLegales])
+    @action(detail=True, methods=['patch'], permission_classes=[IsDataEntry])
     def cambiar_estado(self, request, pk=None):
         expediente= self.get_object()
         nuevo_estado = request.data.get('estado')
         
-        if nuevo_estado in ['AP', 'NOAP']:
+        if nuevo_estado in ['AP', 'NOAP', 'NUEVAV']:
             estado_obj = EstadoExpediente.objects.get(nombre=nuevo_estado)
             expediente.estado_expediente = estado_obj
             expediente.save()
@@ -410,15 +410,6 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
     def get_permissions(self):
         if self.action == 'create':
             return [IsTrabajadoraSocial()]
-        return [IsAnyRole()]
-    
-class DictamenLegalViewSet(viewsets.ModelViewSet):
-    queryset = DictamenLegal.objects.all()
-    serializer_class = DictamenLegalSerializer
-    
-    def get_permissions(self):
-        if self.action in ['create', 'destroy']:
-            return [IsLegales()]
         return [IsAnyRole()]
     
 class MiLoginPersonalizadoView(TokenObtainPairView):

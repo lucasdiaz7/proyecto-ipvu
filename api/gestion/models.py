@@ -216,20 +216,3 @@ class FormularioSocioHabitacional(models.Model):
         f"Relevamiento Vecinal: {self.relevamiento_vecinal},\n "
         f"Observaciones: {self.observaciones}"
     )
-
-class DictamenLegal(models.Model):
-    texto_observaciones=models.TextField()
-
-    estado_sancion= models.CharField(max_length=35, choices=[("APTO", "APTO"), ("NO APTO", "NO APTO"), ("EN REVISION", "EN REVISION")])
-
-    #fecha
-    fecha_dictamen=models.DateTimeField(auto_now_add=True)
-
-    #FK 
-    id_usuario=models.ForeignKey(Usuario, on_delete=models.PROTECT)
-    id_expediente=models.ForeignKey(Expediente, on_delete=models.PROTECT, null=True, blank=True)
-    
-    def __str__(self):
-       return f"Observaciones: {self.texto_observaciones}. Estado: {self.estado_sancion}. Fecha {self.fecha_dictamen}"
-
-
