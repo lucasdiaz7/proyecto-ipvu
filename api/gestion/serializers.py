@@ -287,11 +287,7 @@ class FormularioSocioHabitacionalSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ('fecha_creacion', 'fecha_modificacion', 'estado')
         
-class DictamenLegalSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DictamenLegal
-        fields = '__all__'
-        read_only_fields = ('fecha_dictamen',)
+
                 
 class MiLoginPersonalizadoSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
