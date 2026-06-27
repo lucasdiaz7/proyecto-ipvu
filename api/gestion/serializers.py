@@ -140,6 +140,15 @@ class ExpedienteSerializer(serializers.ModelSerializer):
 
         return response
     
+    def update(self, instance, validated_data):
+        # Obligamos a que sí o sí usen tu @action "cambiar_estado"
+        validated_data.pop('estado_expediente', None)
+        
+        # Obligamos a que usen el HistorialPase para transferir expedientes.
+        validated_data.pop('usuario_asignado', None)
+
+        return super().update(instance, validated_data)
+    
     
 class RolSerializer(serializers.ModelSerializer):
     class Meta:
