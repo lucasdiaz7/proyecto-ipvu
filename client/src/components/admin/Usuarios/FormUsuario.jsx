@@ -14,8 +14,8 @@ const FormUsuario = () => {
         setPerfilSeleccionado(perfilNombre);
 
         setValue("rol_id", rolId, {
-            shouldValidate: true,  // ESTO borra el mensaje rojo de error
-            shouldDirty: true      // ESTO le avisa al form que el campo fue tocado
+            shouldValidate: true,
+            shouldDirty: true
         });
 
         setOpen(false);
@@ -34,10 +34,8 @@ const FormUsuario = () => {
                 rol: data.rol_id
             };
 
-            console.log('Payload para crear usuario:', payload);
 
-            // Aquí llamarías a tu servicio:
-            // await usuarioService.crearUsuario(payload);
+
             const crearUsuario = await usuarioService.postUsuario(payload)
             console.log('crearUsuario :>> ', crearUsuario);
             alert("¡Usuario creado con éxito!");
@@ -125,7 +123,7 @@ const FormUsuario = () => {
                 <div className="relative grid grid-cols-1 gap-1.5">
                     <label className="text-gray-800 font-semibold text-sm ml-1">Perfil</label>
 
-                    {/* Campo oculto para que react-hook-form controle el valor del rol */}
+
                     <input type="hidden" {...register('rol_id', { required: "Debes seleccionar un perfil" })} />
 
                     <button
