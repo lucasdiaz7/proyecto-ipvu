@@ -95,49 +95,6 @@ class ExpedienteSerializer(serializers.ModelSerializer):
         else:
             response['usuario_asignado'] = None
 
-        #historial de pases
-        pases = instance.historial_pases.all().order_by('-fecha_envio') 
-        lista_movimientos = []
-        for pase in pases:
-            u_origen = pase.usuario_origen
-            if u_origen:
-                p_origen = getattr(u_origen, 'usuario', None)
-                nom_origen = getattr(p_origen, 'nombre', u_origen.first_name) if p_origen else u_origen.first_name
-                ape_origen = getattr(p_origen, 'apellido', u_origen.last_name) if p_origen else u_origen.last_name
-                str_origen = f"{nom_origen} {ape_origen}".strip()
-            else:
-                str_origen = "Sistema"
-
-            # Y para el usuario de destino
-            u_destino = pase.usuario_destino
-            if u_destino:
-                p_destino = getattr(u_destino, 'usuario', None)
-                nom_destino = getattr(p_destino, 'nombre', u_destino.first_name) if p_destino else u_destino.first_name
-                ape_destino = getattr(p_destino, 'apellido', u_destino.last_name) if p_destino else u_destino.last_name
-                str_destino = f"{nom_destino} {ape_destino}".strip()
-            else:
-                str_destino = "Sin asignar"
-
-            lista_movimientos.append({
-                "id": pase.id,
-                "fecha_envio": pase.fecha_envio,
-                "usuario_origen": str_origen,
-                "usuario_destino": str_destino,
-                "observacion": pase.observacion
-            })
-        response['historial_pases'] = lista_movimientos
-
-        #documentos adjuntos
-        documentos = instance.documentos.all()
-        lista_docs = []
-        for doc in documentos:
-            lista_docs.append({
-                "id": doc.id,
-                "tipo_documento": doc.tipo_documento,
-                "archivo_url": doc.archivo.url if doc.archivo else None
-            })
-        response['documentos_adjuntos'] = lista_docs
-
         return response
     
     def update(self, instance, validated_data):
@@ -191,10 +148,15 @@ class UsuarioSerializer(serializers.ModelSerializer):
         return ret
     
 class DocumentoAdjuntoSerializer(serializers.ModelSerializer):
-   class Meta:
+    archivo_url = serializers.SerializerMethodField()
+    class Meta:
         model = DocumentoAdjunto
         fields = '__all__'
-
+        
+    def get_archivo_url(self, obj):
+        if obj.archivo:
+            return obj.archivo.url
+        return None
 
 class HistorialPaseSerializer(serializers.ModelSerializer):
     expediente_info = serializers.SerializerMethodField()
@@ -230,6 +192,30 @@ class HistorialPaseSerializer(serializers.ModelSerializer):
                 'dni': expediente.postulante_titular.dni,
             } if expediente.postulante_titular else None
         }
+    
+    def to_representation(self, instance):
+        response = super().to_representation(instance)
+        
+        usuario_origen = instance.usuario_origen
+        if usuario_origen:
+            p_origen = getattr(usuario_origen, 'usuario', None)
+            nombre_origen = getattr(p_origen, 'nombre', usuario_origen.first_name) if p_origen else usuario_origen.first_name
+            apellido_origen = getattr(p_origen, 'apellido', usuario_origen.last_name) if p_origen else usuario_origen.last_name
+            response['usuario_origen_display'] = f"{nombre_origen} {apellido_origen}".strip()
+        else:
+            response['usuario_origen_display'] = "Sistema"
+            
+        usuario_destino = instance.usuario_destino
+        if usuario_destino:
+            p_destino = getattr(usuario_destino, 'usuario', None)
+            nombre_destino = getattr(p_destino, 'nombre', usuario_destino.first_name) if p_destino else usuario_destino.first_name
+            apellido_destino = getattr(p_destino, 'apellido', usuario_destino.last_name) if p_destino else usuario_destino.last_name
+            response['usuario_destino_display'] = f"{nombre_destino} {apellido_destino}".strip()
+        else:
+            response['usuario_destino_display'] = "Sin asignar"
+            
+        return response
+    
         
 class NotificacionSerializer(serializers.ModelSerializer):
     # agrega datos resumidos del expediente para mostrar la notificacion sin pedir otro endpoint
