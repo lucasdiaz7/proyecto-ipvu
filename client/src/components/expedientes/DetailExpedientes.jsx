@@ -4,6 +4,8 @@ import { expedienteService } from '../../services/expedientes/expediente';
 import { form1Service } from '../../services/Formularios/form1Service';
 import { usuarioService } from '../../services/usuarios/usuarios';
 import { historial } from '../../services/historial/historial';
+import { AdjuntarArchivos } from '../Archivos/AdjuntarArchivo';
+
 const DetailExpedientes = () => {
     const { id } = useParams()
     const navigate = useNavigate()
@@ -17,6 +19,7 @@ const DetailExpedientes = () => {
     const [rolSeleccionado, setRolSeleccionado] = useState('');
     const [usuarioDestino, setUsuarioDestino] = useState('');
     const [historialPases, setHistorialPases] = useState([]);
+    const [archivosAdjuntos, setArchivosAdjuntos] = useState([]);
 
     console.log('historialPases :>> ', historialPases);
     console.log('usuarioDestino :>> ', usuarioDestino);
@@ -81,7 +84,6 @@ const DetailExpedientes = () => {
     }, [rolSeleccionado, listaUsuario]);
 
 
-
     //boton Enviar POST
     const handleEnviarPase = async (e) => {
         e.preventDefault();
@@ -99,30 +101,30 @@ const DetailExpedientes = () => {
             return;
         }
 
-        // estructura requerida por el backend
-        const datosPase = {
-            expediente: Number(id),
-            observacion: mensajePase.trim(),
-            usuario_destino: Number(usuarioDestino)
-        };
+        //  CREACIÓN DEL FORMDATA (Reemplaza al JSON plano para soportar los archivos)
+        const formData = new FormData();
+        formData.append('expediente', Number(id));
+        formData.append('observacion', mensajePase.trim());
+        formData.append('usuario_destino', Number(usuarioDestino));
+
+        // Adjuntamos los archivos acumulados en el array
+        // archivosAdjuntos.forEach((archivo) => {
+        //     formData.append('adjuntos', archivo);
+        // });
 
         try {
-            console.log("Enviando pase con datos:", datosPase);
+            console.log("Enviando pase...");
 
-            // 4. Ejecutamos el POST
-            const nuevoPase = await historial.postHistorialPase(datosPase);
+            // Enviamos el formData completo al servicio
+            const nuevoPase = await historial.postHistorialPase(formData);
 
             alert("Pase del expediente realizado correctamente.");
-
 
             setMensajePase('');
             setRolSeleccionado('');
             setUsuarioDestino('');
+            setArchivosAdjuntos([]);
             navigate("/expedientes")
-
-
-            // 6. OPCIONAL: Actualizar el feed del historial al instante sin recargar la página
-            // setHistorialPases((prevPases) => [nuevoPase, ...prevPases]);
 
         } catch (error) {
             console.error("Error al enviar el pase:", error);
@@ -228,6 +230,13 @@ const DetailExpedientes = () => {
                         </div>
                     )}
 
+                    {/*  Legales */}
+                    {rolId === 2 && (
+                        <div className="mb-4 p-2 bg-white rounded-xl border border-gray-200/60">
+                            <AdjuntarArchivos onArchivosChange={(archivos) => setArchivosAdjuntos(archivos)} />
+                        </div>
+                    )}
+
                     <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mt-2 pt-2 border-t border-gray-200 w-full">
                         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end flex-grow">
 
@@ -245,15 +254,6 @@ const DetailExpedientes = () => {
                                     className="inline-flex items-center justify-center bg-white border border-blue-600 text-blue-600 hover:bg-blue-50 font-semibold text-sm px-4 py-1.5 h-9 rounded-lg transition w-full sm:w-auto whitespace-nowrap"
                                 >
                                     {textoBotonTarea}
-                                </Link>
-                            )}
-
-                            {rolId === 2 && (
-                                <Link
-                                    to=""
-                                    className="inline-flex items-center justify-center bg-white border border-blue-600 text-blue-600 hover:bg-blue-50 font-semibold text-sm px-4 py-1.5 h-9 rounded-lg transition w-full sm:w-auto whitespace-nowrap"
-                                >
-                                    Adjuntar archivo
                                 </Link>
                             )}
 
