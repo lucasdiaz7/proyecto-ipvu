@@ -163,8 +163,10 @@ class HistorialPaseSerializer(serializers.ModelSerializer):
     usuario_destino_id = serializers.IntegerField(write_only=True)
     estado_expediente = serializers.SerializerMethodField()
 
-    def get_estado_expediente(self, obj):
-        return obj.expediente.estado_expediente.nombre
+    def get_estado_actual(self, obj):
+        if obj.expediente and obj.expediente.estado_expediente:
+            return obj.expediente.estado_expediente.get_nombre_display()
+        return "Sin estado"
     
     class Meta:
         model = HistorialPase
