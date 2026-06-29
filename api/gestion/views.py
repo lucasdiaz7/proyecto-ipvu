@@ -335,17 +335,7 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
     serializer_class = HistorialPaseSerializer
     
     def perform_create(self, serializer):
-        # Agarramos el id del usuario destino y buscamos el User de Django
-        id_destino = serializer.validated_data.pop('usuario_destino_id')
-        perfil_destino = Usuario.objects.get(id=id_destino)
-        usuario_destino = perfil_destino.usuario
-
-        # Guardamos el pase con usuario origen y destino automáticos
-        pase = serializer.save(
-            usuario_origen=self.request.user,
-            usuario_destino=usuario_destino
-        )
-        
+        pase = serializer.save(usuario_origen = self.request.user)
         expediente = pase.expediente
         #Obtiene el perfil del usuario destino para decidir el nuevo estado del expediente segun su rol.
         perfil_destino = getattr(pase.usuario_destino, 'usuario', None)
