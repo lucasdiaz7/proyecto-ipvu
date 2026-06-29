@@ -56,12 +56,12 @@ const Form1 = () => {
             };
 
             if (isEditMode) {
-                // Modo Edición / Completar parciales
+                // patch
                 console.log('Enviando PATCH con id:', idFormulario, payload);
                 await form1Service.actualizarFormulario(idFormulario, payload);
                 alert("¡Formulario actualizado exitosamente!");
             } else {
-                // Modo Creación (POST)
+                // post
                 console.log('Enviando POST:', payload);
                 await form1Service.crearFormulario(payload);
                 alert("¡Formulario creado!");
