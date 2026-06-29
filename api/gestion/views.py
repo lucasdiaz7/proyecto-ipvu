@@ -1,5 +1,4 @@
 import csv
-
 from django.http import HttpResponse
 from django.shortcuts import render
 from rest_framework import viewsets, permissions
@@ -10,7 +9,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from .permissions import *
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin
+from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin
 from rest_framework.viewsets import GenericViewSet
 from django.contrib.auth.models import User
 from rest_framework.views import APIView
@@ -394,7 +393,7 @@ class HistorialAccionViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet)
     permission_classes = [IsAnyRole]
     serializer_class = HistorialAccionSerializer
     
-class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, GenericViewSet):
+class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin, GenericViewSet):
     queryset = FormularioSocioHabitacional.objects.all()
     serializer_class = FormularioSocioHabitacionalSerializer
     
