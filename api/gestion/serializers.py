@@ -162,10 +162,7 @@ class HistorialPaseSerializer(serializers.ModelSerializer):
     expediente_info = serializers.SerializerMethodField()
     estado_expediente = serializers.SerializerMethodField()
 
-    def get_estado_actual(self, obj):
-        if obj.expediente and obj.expediente.estado_expediente:
-            return obj.expediente.estado_expediente.get_nombre_display()
-        return "Sin estado"
+ 
     
     class Meta:
         model = HistorialPase
@@ -177,9 +174,15 @@ class HistorialPaseSerializer(serializers.ModelSerializer):
             'usuario_destino',
             'observacion',
             'fecha_envio',
+            'estado_expediente'
         ]
         read_only_fields = ('fecha_envio', 'usuario_origen', 'expediente_info')
-
+        
+    def get_estado_actual(self, obj):
+        if obj.expediente and obj.expediente.estado_expediente:
+            return obj.expediente.estado_expediente.get_nombre_display()
+        return "Sin estado"
+    
     def get_expediente_info(self, obj):
         expediente = obj.expediente
 
