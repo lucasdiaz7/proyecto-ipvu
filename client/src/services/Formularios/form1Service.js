@@ -14,9 +14,9 @@ export const form1Service = {
         return response.data;
     },
 
-    // Guardar cambios sobre uno existente (PUT o PATCH)
-    // actualizarFormulario: async (id, datos) => {
-    //     const response = await api.patch(`/forulario/${id}/`, datos);
-    //     return response.data;
-    // }
+    //  PATCH
+    actualizarFormulario: async (id, datos) => {
+        const response = await api.put(`/formulario/${id}/`, datos);
+        return response.data;
+    }
 };

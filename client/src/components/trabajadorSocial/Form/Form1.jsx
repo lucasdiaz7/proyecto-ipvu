@@ -1,19 +1,51 @@
 import { Link, useLocation, useNavigate } from "react-router";
 import { useForm } from "react-hook-form";
+import { useEffect } from "react";
 import { form1Service } from "../../../services/Formularios/form1Service";
 
 const Form1 = () => {
     const location = useLocation();
-    const { idExpediente, ddjj, nombreCompletoUsuario, domicilio } = location.state || {};
-    const { register, handleSubmit, watch, formState: { errors } } = useForm();
     const navigate = useNavigate();
 
+    // Desestructuramos el estado de la ruta sumando 'idFormulario' y los campos cargados previamente si existen
+    const {
+        idExpediente,
+        ddjj,
+        nombreCompletoUsuario,
+        domicilio,
+        idFormulario, // <-- ID único del formulario guardado para saber si es PATCH
+        datosPrevios   // <-- Objeto opcional con los campos ya guardados en el Back
+    } = location.state || {};
 
+    console.log('idFormulario :>> ', idFormulario);
+
+    // Traemos 'reset' para cargar los datos dinámicamente cuando el componente monte
+    const { register, handleSubmit, reset, formState: { errors } } = useForm();
+
+    const isEditMode = Boolean(idFormulario);
+
+    // Cargar los campos guardados si estamos en modo edición
+    useEffect(() => {
+        if (isEditMode && datosPrevios) {
+            reset({
+                casoDeReferencia: datosPrevios.caso_referencia || "",
+                grupoFamiliarConstituyente: datosPrevios.grupo_familiar || "",
+                situacionHabitacional: datosPrevios.situacion_habitacional || "",
+                aspectoEconomico: datosPrevios.aspecto_economico || "",
+                situacionDeSalud: datosPrevios.situacion_salud || "",
+                nivelDeEstudios: datosPrevios.nivel_estudios || "",
+                relevamientoVecinal: datosPrevios.relevamiento_vecinal || "",
+                observacionesParticularidades: datosPrevios.observaciones || ""
+            });
+        }
+    }, [isEditMode, datosPrevios, reset]);
 
     const onSubmit = async (data) => {
         try {
+            // Mapeamos los nombres de React Hook Form a lo que espera tu Backend
             const payload = {
                 expediente: idExpediente,
+                caso_referencia: data.casoDeReferencia,
                 grupo_familiar: data.grupoFamiliarConstituyente,
                 situacion_habitacional: data.situacionHabitacional,
                 aspecto_economico: data.aspectoEconomico,
@@ -23,18 +55,45 @@ const Form1 = () => {
                 observaciones: data.observacionesParticularidades
             };
 
+            if (isEditMode) {
+                // Modo Edición / Completar parciales
+                console.log('Enviando PATCH con id:', idFormulario, payload);
+                await form1Service.actualizarFormulario(idFormulario, payload);
+                alert("¡Formulario actualizado exitosamente!");
+            } else {
+                // Modo Creación (POST)
+                console.log('Enviando POST:', payload);
+                await form1Service.crearFormulario(payload);
+                alert("¡Formulario creado!");
+            }
 
-            console.log('Payload final listo para el Back:', payload);
-
-            const crearFormulario = await form1Service.crearFormulario(payload);
-            alert("¡Formulario creado!");
-            navigate(`/expediente/${idExpediente}`)
+            navigate(`/expediente/${idExpediente}`);
 
         } catch (error) {
-            console.error(error);
-            alert("Error al crear el formulario.");
+            console.error("❌ Error completo capturado:", error);
+
+            // Si el backend respondió con un error (ej: 400 Bad Request)
+            if (error.response) {
+                console.error("Detalles del error del Backend:", error.response.data);
+                console.error("Código de estado HTTP:", error.response.status);
+
+                // Convertimos el objeto de error a un texto legible para el alert
+                const erroresBackend = JSON.stringify(error.response.data, null, 2);
+
+                alert(
+                    `Error del servidor (${error.response.status}):\n${erroresBackend}`
+                );
+            } else if (error.request) {
+                // La petición se hizo pero el servidor no respondió nada (error de red/timeout)
+                console.error("No se recibió respuesta del servidor:", error.request);
+                alert("No se recibió respuesta del servidor. Verifica tu conexión.");
+            } else {
+                // Ocurrió un error al configurar la petición
+                console.error("Error al configurar la petición:", error.message);
+                alert(`Error: ${error.message}`);
+            }
         }
-    }
+    };
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4 md:p-12">
@@ -42,7 +101,7 @@ const Form1 = () => {
                 <form onSubmit={handleSubmit(onSubmit)}>
                     <div className="flex justify-center">
                         <h2 className="text-gray-800 font-bold text-[18px] tracking-tight text-center">
-                            INFORME SOCIO HABITACIONAL
+                            "INFORME SOCIO HABITACIONAL"
                         </h2>
                     </div>
 
@@ -137,7 +196,7 @@ const Form1 = () => {
 
                     <div className="flex flex-col items-center mt-6 gap-3">
                         <button type="submit" className="w-full md:w-72 bg-blue-500 hover:bg-blue-600 text-white font-bold text-[13px] py-2.5 rounded-lg shadow-sm transition-colors duration-200">
-                            Guardar cambios
+                            {isEditMode ? "Actualizar informe" : "Guardar cambios"}
                         </button>
                     </div>
                 </form>
