@@ -357,12 +357,14 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
         # Si ya lo habia recibido antes, el helper usa el mensaje "Caso recibido".
         crear_notificacion_recepcion_expediente(pase.usuario_destino, expediente, pase_actual=pase)
         
-        #HistorialAccion.objects.create(
-            #mensaje_accion=f"Expediente transferido a {pase.usuario_destino.username}. Motivo: {pase.observacion}",
-            #id_usuario_accion=self.request.user.usuario,
-            #id_expediente=expediente
-        #)
+    def get_queryset(self):
+        queryset = HistorialPase.objects.all()
+        expediente_id = self.request.query_params.get('expediente')
         
+        if expediente_id:
+            queryset = queryset.filter(expediente_id=expediente_id)
+            
+        return queryset
         
             
 class NotificacionViewSet(viewsets.ModelViewSet):
