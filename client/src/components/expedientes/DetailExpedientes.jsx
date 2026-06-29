@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { expedienteService } from '../../services/expedientes/expediente';
 import { form1Service } from '../../services/Formularios/form1Service';
 import { usuarioService } from '../../services/usuarios/usuarios';
+import { historial, historialMov } from '../../services/historial/historial';
 
 const DetailExpedientes = () => {
     const { id } = useParams()
@@ -15,6 +16,9 @@ const DetailExpedientes = () => {
     const [listaUsuario, setlistaUsuario] = useState(null)
     const [rolSeleccionado, setRolSeleccionado] = useState('');
     const [usuarioDestino, setUsuarioDestino] = useState('');
+    const [historialPases, setHistorialPases] = useState([]);
+
+    console.log('historialPases :>> ', historialPases);
 
     const rolId = Number(localStorage.getItem('rol_id'));
     const usuarioLogueado = String(localStorage.getItem('usuarioLogueado'))
@@ -26,14 +30,14 @@ const DetailExpedientes = () => {
                 setCargando(true);
                 setError(null);
 
-                // 1. Traemos el expediente actual en el que está parado el usuario
+
                 const dataExpediente = await expedienteService.getExpedienteId(id);
                 setExpediente(dataExpediente);
 
-                // 2. Traemos la lista completa de todos los formularios del sistema
+                //  Traemos la lista completa de todos los formularios del sistema (esto hay que cambiar)
                 const todosLosFormularios = await form1Service.obtenerTodosLosFormularios();
 
-                // 3. Buscamos el formulario específico de ESTE expediente
+                //  Buscamos el formulario específico de ESTE expediente
                 if (Array.isArray(todosLosFormularios)) {
                     const formularioFiltrado = todosLosFormularios.find(
                         (form) => Number(form.expediente) === Number(id)
@@ -46,6 +50,14 @@ const DetailExpedientes = () => {
                 const usuarios = await usuarioService.getUsuarios()
                 const usuarioFiltr = usuarios.filter((u) => String(u.username_display) !== String(usuarioLogueado))
                 setlistaUsuario(usuarioFiltr)
+
+                const pasesFiltrados = await historial.obtenerPasesPorExpediente(id)
+
+                if (Array.isArray(pasesFiltrados)) {
+                    setHistorialPases(pasesFiltrados);
+                } else {
+                    setHistorialPases([]);
+                }
 
             } catch (error) {
                 console.error("Error al procesar la información:", error);
@@ -196,11 +208,24 @@ const DetailExpedientes = () => {
                                         idExpediente: expediente?.id,
                                         ddjj: expediente?.DDJJ,
                                         nombreCompletoUsuario: `${expediente?.usuario_asignado?.apellido || ''} ${expediente?.usuario_asignado?.nombre || ''}`.trim() || 'Sin usuario',
-                                        domicilio: expediente?.postulante_titular?.domicilio_actual
+                                        domicilio: expediente?.postulante_titular?.domicilio_actual,
+
+
+                                        idFormulario: formulario?.id || null,
+                                        datosPrevios: formulario || null
                                     }}
                                     className="inline-flex items-center justify-center bg-white border border-blue-600 text-blue-600 hover:bg-blue-50 font-semibold text-sm px-4 py-1.5 h-9 rounded-lg transition w-full sm:w-auto whitespace-nowrap"
                                 >
                                     {textoBotonTarea}
+                                </Link>
+                            )}
+
+                            {rolId === 2 && (
+                                <Link
+                                    to=""
+                                    className="inline-flex items-center justify-center bg-white border border-blue-600 text-blue-600 hover:bg-blue-50 font-semibold text-sm px-4 py-1.5 h-9 rounded-lg transition w-full sm:w-auto whitespace-nowrap"
+                                >
+                                    Adjuntar archivo
                                 </Link>
                             )}
 
@@ -254,39 +279,42 @@ const DetailExpedientes = () => {
 
 
 
-                <div>
+                <h3 className="text-gray-800 font-bold text-xl mt-8">Historial de Movimiento</h3>
 
-                    <h3 className="text-gray-800 font-bold text-xl mt-8">Historial de Movimiento</h3>
-                    {expediente.historial_pases === [] ? null :
-                        expediente.historial_pases.map((movimiento, index) => (
-                            <div>
-
-                                <div key={index} className="relative flex gap-4 pb-6">
-                                    <div className="flex flex-col items-center">
-                                        <div className="w-3 h-3 rounded-full bg-blue-500 shrink-0"></div>
-                                        <div className="w-0.5 bg-blue-200 flex-1"></div>
-                                    </div>
-                                    <div className='bg-gray-50 border border-gray-200 rounded-xl p-4 shadow-sm w-full'>
-                                        <p className="text-sm text-gray-500">Fecha: <span className="text-gray-800 font-semibold">{movimiento.fecha_envio
+                {!historialPases || historialPases.length === 0 ? (
+                    <p className="text-gray-500 text-sm mt-2 italic">Este expediente aún no registra pases en el historial.</p>
+                ) : (
+                    historialPases.map((movimiento, index) => (
+                        <div key={movimiento.id || index} className="relative flex gap-4 pb-6">
+                            <div className="flex flex-col items-center">
+                                <div className="w-3 h-3 rounded-full bg-blue-500 shrink-0"></div>
+                                <div className="w-0.5 bg-blue-200 flex-1"></div>
+                            </div>
+                            <div className='bg-gray-50 border border-gray-200 rounded-xl p-4 shadow-sm w-full'>
+                                <p className="text-sm text-gray-500">
+                                    Fecha: <span className="text-gray-800 font-semibold">
+                                        {movimiento.fecha_envio
                                             ? new Date(movimiento.fecha_envio).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })
-                                            : '---'}</span></p>
-                                        <p className="text-sm text-gray-500 mt-1">Usuario Origen: <span className="text-gray-800 font-semibold">{movimiento.usuario_origen}</span></p>
-                                        <p className="text-sm text-gray-500 mt-1">Usuario Destino: <span className="text-gray-800 font-semibold">{movimiento.usuario_destino}</span></p>
-                                        {/* <p className="text-sm text-gray-500 mt-1">Estado: <span className="text-gray-800 font-semibold">{movimiento.u}</span></p> */}
-                                        <p className="text-sm text-gray-500 mt-1">Observaciones: <span className="text-gray-800 font-semibold">{movimiento.observacion}</span></p>
-                                        <div className='flex gap-3 mt-3'>
-                                            <button className="flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white text-sm px-4 py-1.5 rounded-lg transition">
-                                                Ver Archivo
-                                            </button>
-                                            <button className="flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-sm px-4 py-1.5 rounded-lg transition">
-                                                Descargar
-                                            </button>
-                                        </div>
-                                    </div>
+                                            : '---'}
+                                    </span>
+                                </p>
+                                {/* Usamos las nuevas propiedades _display para que muestre el nombre real */}
+                                <p className="text-sm text-gray-500 mt-1">Usuario Origen: <span className="text-gray-800 font-semibold">{movimiento.usuario_origen_display || '---'}</span></p>
+                                <p className="text-sm text-gray-500 mt-1">Usuario Destino: <span className="text-gray-800 font-semibold">{movimiento.usuario_destino_display || '---'}</span></p>
+                                <p className="text-sm text-gray-500 mt-1">Observaciones: <span className="text-gray-800 font-semibold">{movimiento.observacion || 'Sin observaciones'}</span></p>
+
+                                <div className='flex gap-3 mt-3'>
+                                    <button className="flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white text-sm px-4 py-1.5 rounded-lg transition">
+                                        Ver Archivo
+                                    </button>
+                                    <button className="flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-sm px-4 py-1.5 rounded-lg transition">
+                                        Descargar
+                                    </button>
                                 </div>
                             </div>
-                        ))}
-                </div>
+                        </div>
+                    ))
+                )}
             </div>
         </div >
     )
