@@ -406,7 +406,7 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
         expediente.save()
     
     def get_permissions(self):
-        if self.action == 'create':
+        if self.action in ['create', 'update', 'partial_update']:
             return [IsTrabajadoraSocial()]
         return [IsAnyRole()]
     
