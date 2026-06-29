@@ -1,49 +1,48 @@
 import React, { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { expedienteService } from '../../services/expedientes/expediente';
 import { form1Service } from '../../services/Formularios/form1Service';
 import { usuarioService } from '../../services/usuarios/usuarios';
-import { historial, historialMov } from '../../services/historial/historial';
-
+import { historial } from '../../services/historial/historial';
 const DetailExpedientes = () => {
     const { id } = useParams()
+    const navigate = useNavigate()
     const [expediente, setExpediente] = useState(null)
     const [error, setError] = useState(null)
     const [cargando, setCargando] = useState(true)
     const [formulario, setFormulario] = useState(null)
-    const [mensajePase, setMensajePase] = useState('') // <-- Estado para el textarea obligatorio
-    const [errorMensaje, setErrorMensaje] = useState(false) // <-- Estado para la alerta en rojo
+    const [mensajePase, setMensajePase] = useState('')
+    const [errorMensaje, setErrorMensaje] = useState(false)
     const [listaUsuario, setlistaUsuario] = useState(null)
     const [rolSeleccionado, setRolSeleccionado] = useState('');
     const [usuarioDestino, setUsuarioDestino] = useState('');
     const [historialPases, setHistorialPases] = useState([]);
 
     console.log('historialPases :>> ', historialPases);
+    console.log('usuarioDestino :>> ', usuarioDestino);
 
     const rolId = Number(localStorage.getItem('rol_id'));
     const usuarioLogueado = String(localStorage.getItem('usuarioLogueado'))
     console.log('usuarioLogueado :>> ', usuarioLogueado);
     console.log('expediente :>> ', expediente);
+
     useEffect(() => {
         const obtenerDatos = async () => {
             try {
                 setCargando(true);
                 setError(null);
 
-
                 const dataExpediente = await expedienteService.getExpedienteId(id);
                 setExpediente(dataExpediente);
 
-                //  Traemos la lista completa de todos los formularios del sistema (esto hay que cambiar)
+                // Traemos la lista completa de todos los formularios del sistema
                 const todosLosFormularios = await form1Service.obtenerTodosLosFormularios();
 
-                //  Buscamos el formulario específico de ESTE expediente
+                // Buscamos el formulario específico de ESTE expediente
                 if (Array.isArray(todosLosFormularios)) {
                     const formularioFiltrado = todosLosFormularios.find(
                         (form) => Number(form.expediente) === Number(id)
                     );
-
-                    // Si existe lo guarda (con su estado real), si no existe pone null
                     setFormulario(formularioFiltrado || null);
                 }
 
@@ -51,6 +50,7 @@ const DetailExpedientes = () => {
                 const usuarioFiltr = usuarios.filter((u) => String(u.username_display) !== String(usuarioLogueado))
                 setlistaUsuario(usuarioFiltr)
 
+                // Usamos el servicio optimizado inyectándole el ID del expediente
                 const pasesFiltrados = await historial.obtenerPasesPorExpediente(id)
 
                 if (Array.isArray(pasesFiltrados)) {
@@ -70,28 +70,64 @@ const DetailExpedientes = () => {
         if (id) {
             obtenerDatos();
         }
-    }, [id]);
+    }, [id, usuarioLogueado]);
 
     console.log('listaUsuario :>> ', listaUsuario);
 
     const usuariosFiltrados = React.useMemo(() => {
-        if (!rolSeleccionado) return [];
+        if (!rolSeleccionado || !listaUsuario) return [];
         // Filtramos los usuarios cuyo rol coincida numéricamente con el seleccionado
         return listaUsuario.filter(user => Number(user.rol) === Number(rolSeleccionado));
     }, [rolSeleccionado, listaUsuario]);
 
 
-    // Manejador del botón Enviar
-    const handleEnviarPase = (e) => {
+
+    //boton Enviar POST
+    const handleEnviarPase = async (e) => {
         e.preventDefault();
+
+        // Validación del mensaje
         if (!mensajePase.trim()) {
-            setErrorMensaje(true); // Activa el mensaje rojo si está vacío
+            setErrorMensaje(true);
             return;
         }
         setErrorMensaje(false);
 
-        // Acá iría la llamada a tu servicio para enviar el expediente con el mensaje
-        console.log("Enviando pase con mensaje:", mensajePase);
+        // Validación de selección de usuario destino
+        if (!usuarioDestino) {
+            alert("Por favor, selecciona un perfil y un usuario de destino antes de enviar.");
+            return;
+        }
+
+        // estructura requerida por el backend
+        const datosPase = {
+            expediente: Number(id),
+            observacion: mensajePase.trim(),
+            usuario_destino: Number(usuarioDestino)
+        };
+
+        try {
+            console.log("Enviando pase con datos:", datosPase);
+
+            // 4. Ejecutamos el POST
+            const nuevoPase = await historial.postHistorialPase(datosPase);
+
+            alert("Pase del expediente realizado correctamente.");
+
+
+            setMensajePase('');
+            setRolSeleccionado('');
+            setUsuarioDestino('');
+            navigate("/expedientes")
+
+
+            // 6. OPCIONAL: Actualizar el feed del historial al instante sin recargar la página
+            // setHistorialPases((prevPases) => [nuevoPase, ...prevPases]);
+
+        } catch (error) {
+            console.error("Error al enviar el pase:", error);
+            alert("Hubo un error al procesar el pase en el servidor. Revisa los datos.");
+        }
     };
 
     if (cargando) {
@@ -114,10 +150,9 @@ const DetailExpedientes = () => {
     }
 
     // LÓGICA DE CONTROL DE ESTADOS
-    const estadoGlobal = expediente?.estado_expediente?.nombre; // 'SINI', '1V', etc.
-    const estadoInternoForm = formulario?.estado; // 'completado', 'en_progreso', o undefined
+    const estadoGlobal = expediente?.estado_expediente?.nombre;
+    const estadoInternoForm = formulario?.estado;
 
-    // Definimos el texto del botón según el estado interno del formulario
     let textoBotonTarea = "📋 Realizar Tarea";
     if (estadoInternoForm === "en progreso") {
         textoBotonTarea = "📋 Continuar Tarea";
@@ -155,13 +190,11 @@ const DetailExpedientes = () => {
                 {/* ─── SECCIÓN DE ACCIONES ─── */}
                 <div className="mt-5 bg-gray-50 border border-gray-100 rounded-xl p-5 shadow-sm">
 
-
                     {(estadoGlobal === 'SINI' || estadoGlobal === '1V') && (
                         <div className="mb-4 p-3 bg-blue-50 text-blue-800 rounded-lg text-sm font-medium">
                             Tenés este expediente asignado. Podés gestionar el informe técnico utilizando las acciones de abajo.
                         </div>
                     )}
-
 
                     <div className="flex flex-col gap-1.5 mb-4">
                         <label className="text-sm font-semibold text-gray-700 flex items-center gap-1">
@@ -195,10 +228,7 @@ const DetailExpedientes = () => {
                         </div>
                     )}
 
-
-
                     <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mt-2 pt-2 border-t border-gray-200 w-full">
-
                         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end flex-grow">
 
                             {rolId === 1 && (
@@ -209,8 +239,6 @@ const DetailExpedientes = () => {
                                         ddjj: expediente?.DDJJ,
                                         nombreCompletoUsuario: `${expediente?.usuario_asignado?.apellido || ''} ${expediente?.usuario_asignado?.nombre || ''}`.trim() || 'Sin usuario',
                                         domicilio: expediente?.postulante_titular?.domicilio_actual,
-
-
                                         idFormulario: formulario?.id || null,
                                         datosPrevios: formulario || null
                                     }}
@@ -258,7 +286,7 @@ const DetailExpedientes = () => {
                                         >
                                             <option value="">Seleccionar usuario...</option>
                                             {usuariosFiltrados.map((user) => (
-                                                <option key={user.id} value={user.id}>
+                                                <option key={user.id} value={user.usuario}>
                                                     {user.nombre_completo || `${user.nombre} ${user.apellido}`}
                                                 </option>
                                             ))}
@@ -277,8 +305,7 @@ const DetailExpedientes = () => {
                     </div>
                 </div>
 
-
-
+                {/* HISTORIAL DE MOVIMIENTOS */}
                 <h3 className="text-gray-800 font-bold text-xl mt-8">Historial de Movimiento</h3>
 
                 {!historialPases || historialPases.length === 0 ? (
@@ -298,7 +325,6 @@ const DetailExpedientes = () => {
                                             : '---'}
                                     </span>
                                 </p>
-                                {/* Usamos las nuevas propiedades _display para que muestre el nombre real */}
                                 <p className="text-sm text-gray-500 mt-1">Usuario Origen: <span className="text-gray-800 font-semibold">{movimiento.usuario_origen_display || '---'}</span></p>
                                 <p className="text-sm text-gray-500 mt-1">Usuario Destino: <span className="text-gray-800 font-semibold">{movimiento.usuario_destino_display || '---'}</span></p>
                                 <p className="text-sm text-gray-500 mt-1">Observaciones: <span className="text-gray-800 font-semibold">{movimiento.observacion || 'Sin observaciones'}</span></p>
@@ -316,8 +342,8 @@ const DetailExpedientes = () => {
                     ))
                 )}
             </div>
-        </div >
+        </div>
     )
 }
 
-export default DetailExpedientes
+export default DetailExpedientes;
