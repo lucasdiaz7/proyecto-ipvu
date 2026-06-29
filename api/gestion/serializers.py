@@ -160,6 +160,7 @@ class DocumentoAdjuntoSerializer(serializers.ModelSerializer):
 
 class HistorialPaseSerializer(serializers.ModelSerializer):
     expediente_info = serializers.SerializerMethodField()
+    usuario_destino_id = serializers.IntegerField(write_only=True)
 
     class Meta:
         model = HistorialPase

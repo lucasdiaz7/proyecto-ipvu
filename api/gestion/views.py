@@ -321,6 +321,8 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             return Response({"error_fatal": f"Error: {str(e)}",
                 "detalle": traceback.format_exc()
             }, status=500)
+        
+        
 class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
     queryset = DocumentoAdjunto.objects.all()
     permission_classes = [IsAnyRole]
@@ -333,11 +335,19 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
     serializer_class = HistorialPaseSerializer
     
     def perform_create(self, serializer):
-        # 1. Guardamos el pase con el usuario origen automático
-        pase = serializer.save(usuario_origen=self.request.user)
+        # Agarramos el id del usuario destino y buscamos el User de Django
+        id_destino = serializer.validated_data.pop('usuario_destino_id')
+        perfil_destino = Usuario.objects.get(id=id_destino)
+        usuario_destino = perfil_destino.usuario
+
+        # Guardamos el pase con usuario origen y destino automáticos
+        pase = serializer.save(
+            usuario_origen=self.request.user,
+            usuario_destino=usuario_destino
+        )
         
         expediente = pase.expediente
-        # Obtiene el perfil del usuario destino para decidir el nuevo estado del expediente segun su rol.
+        #Obtiene el perfil del usuario destino para decidir el nuevo estado del expediente segun su rol.
         perfil_destino = getattr(pase.usuario_destino, 'usuario', None)
         
         if expediente.estado_expediente.nombre != 'AP' and perfil_destino:
