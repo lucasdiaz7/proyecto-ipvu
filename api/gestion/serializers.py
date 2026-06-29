@@ -160,7 +160,7 @@ class DocumentoAdjuntoSerializer(serializers.ModelSerializer):
 
 class HistorialPaseSerializer(serializers.ModelSerializer):
     expediente_info = serializers.SerializerMethodField()
-    estado_expediente = serializers.SerializerMethodField()
+    estado_actual = serializers.SerializerMethodField()
 
  
     
@@ -174,7 +174,7 @@ class HistorialPaseSerializer(serializers.ModelSerializer):
             'usuario_destino',
             'observacion',
             'fecha_envio',
-            'estado_expediente'
+            'estado_actual'
         ]
         read_only_fields = ('fecha_envio', 'usuario_origen', 'expediente_info')
         
