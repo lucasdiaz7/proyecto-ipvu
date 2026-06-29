@@ -161,7 +161,11 @@ class DocumentoAdjuntoSerializer(serializers.ModelSerializer):
 class HistorialPaseSerializer(serializers.ModelSerializer):
     expediente_info = serializers.SerializerMethodField()
     usuario_destino_id = serializers.IntegerField(write_only=True)
+    estado_expediente = serializers.SerializerMethodField()
 
+    def get_estado_expediente(self, obj):
+        return obj.expediente.estado_expediente.nombre
+    
     class Meta:
         model = HistorialPase
         fields = [
