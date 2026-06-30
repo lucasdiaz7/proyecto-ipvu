@@ -122,7 +122,7 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
             return [IsSuperAdmin()]
         return [IsAnyRole()]
  
-class EstadoExpedienteViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
+class EstadoExpedienteViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet, UpdateModelMixin):
     queryset = EstadoExpediente.objects.all()
     permission_classes = [IsAnyRole]
     serializer_class = EstadoExpedienteSerializer
