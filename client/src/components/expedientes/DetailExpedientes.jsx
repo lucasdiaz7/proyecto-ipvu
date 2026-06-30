@@ -12,7 +12,7 @@ const DetailExpedientes = () => {
     const [expediente, setExpediente] = useState(null)
     const [error, setError] = useState(null)
     const [cargando, setCargando] = useState(true)
-    const [formulario, setFormulario] = useState(null)
+    const [formulario, setFormulario] = useState([])
     const [mensajePase, setMensajePase] = useState('')
     const [errorMensaje, setErrorMensaje] = useState(false)
     const [listaUsuario, setlistaUsuario] = useState(null)
@@ -37,6 +37,7 @@ const DetailExpedientes = () => {
 
     console.log('historialPases :>> ', historialPases);
     console.log('usuarioDestino :>> ', usuarioDestino);
+    console.log('formulario :>> ', formulario);
 
     const rolId = Number(localStorage.getItem('rol_id'));
     const usuarioLogueado = String(localStorage.getItem('usuarioLogueado'))
@@ -52,13 +53,19 @@ const DetailExpedientes = () => {
                 const dataExpediente = await expedienteService.getExpedienteId(id);
                 setExpediente(dataExpediente);
 
-                const todosLosFormularios = await form1Service.obtenerTodosLosFormularios();
-
-                if (Array.isArray(todosLosFormularios)) {
-                    const formularioFiltrado = todosLosFormularios.find(
+                //  Traemos el formulario por expediente optimizado
+                const formularioPorExp = await form1Service.getFormularioPorExpediente(id);
+                if (Array.isArray(formularioPorExp) && formularioPorExp.length > 0) {
+                    // Filtramos todos los que pertenecen a este expediente
+                    const formulariosDelExpediente = formularioPorExp.filter(
                         (form) => Number(form.expediente) === Number(id)
                     );
-                    setFormulario(formularioFiltrado || null);
+
+                    // Nos quedamos con el ÚLTIMO del array (el más nuevo)
+                    const ultimoFormulario = formulariosDelExpediente[formulariosDelExpediente.length - 1];
+                    setFormulario(ultimoFormulario || null);
+                } else {
+                    setFormulario(null);
                 }
 
                 const usuarios = await usuarioService.getUsuarios()
