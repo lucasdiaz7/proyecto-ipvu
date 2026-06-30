@@ -295,6 +295,12 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     def auditoria_usuarios(self, request):
         try:
             perfiles = self.get_queryset() 
+            
+            #filtro para mostrar solo trabajadoras sociales
+            solo_ts = request.query_params.get('solo_ts')
+            if solo_ts == 'true':
+                perfiles = perfiles.filter(rol__nombre_rol= 'TS')
+                
             resultado = []
 
             for perfil in perfiles:
