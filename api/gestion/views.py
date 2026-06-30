@@ -379,19 +379,8 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
     def perform_create(self, serializer):
         pase = serializer.save(usuario_origen = self.request.user)
         expediente = pase.expediente
-        #Obtiene el perfil del usuario destino para decidir el nuevo estado del expediente segun su rol.
-        perfil_destino = getattr(pase.usuario_destino, 'usuario', None)
         
-        if expediente.estado_expediente.nombre != 'AP' and perfil_destino:
-            rol_destino = perfil_destino.rol.nombre_rol
-            
-            if rol_destino == 'LG':
-                nuevo_estado = EstadoExpediente.objects.get(nombre='LEG')
-            else:
-                nuevo_estado = EstadoExpediente.objects.get(nombre='1V')
-            
-            expediente.estado_expediente = nuevo_estado
-            # Actualiza el usuario asignado para que el expediente quede en poder de quien lo recibe.
+        if pase.usuario_destino:
             expediente.usuario_asignado = pase.usuario_destino
             expediente.save()
 
