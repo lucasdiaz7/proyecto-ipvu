@@ -5,7 +5,7 @@ const TrabajadorSocial = () => {
     const [listaTS, setListaTS] = useState([])
     const [cargando, setCargando] = useState(false)
     const [error, setError] = useState(null)
-
+    const [busqueda, setBusqueda] = useState('')
     useEffect(() => {
         const cargarTS = async () => {
             try {
@@ -22,6 +22,16 @@ const TrabajadorSocial = () => {
         cargarTS()
     }, [])
 
+
+    const tsFiltrados = listaTS.filter((ts) => {
+        const textoBusqueda = busqueda.toLowerCase();
+        return (
+            ts.nombre?.toLowerCase().includes(textoBusqueda) ||
+            ts.apellido?.toLowerCase().includes(textoBusqueda) ||
+            ts.dni?.includes(textoBusqueda) ||
+            ts.matricula?.toLowerCase().includes(textoBusqueda)
+        );
+    });
 
 
     if (cargando) {
@@ -56,6 +66,8 @@ const TrabajadorSocial = () => {
                         <input
                             type="text"
                             placeholder="Buscar por nombre, matrícula o DNI..."
+                            value={busqueda}
+                            onChange={(e) => setBusqueda(e.target.value)}
                             className="w-full bg-transparent outline-none text-gray-700"
                         />
                     </div>
@@ -76,13 +88,13 @@ const TrabajadorSocial = () => {
                         <span>DNI</span>
                     </div>
 
-                    {!error && listaTS.length === 0 ? (
+                    {!error && tsFiltrados.length === 0 ? (
                         <div className="text-center py-10 text-gray-500 font-medium border-b">
                             No se encontraron Trabajadoras Sociales registradas en el sistema.
                         </div>
                     ) : (
 
-                        listaTS.map((e) => (
+                        tsFiltrados.map((e) => (
                             <button
                                 key={e.matricula || e.id}
                                 className="grid grid-cols-3 md:grid-cols-4 gap-2 items-center w-full text-left p-4 border-b hover:bg-gray-50 transition focus:outline-none"
