@@ -21,6 +21,20 @@ const DetailExpedientes = () => {
     const [historialPases, setHistorialPases] = useState([]);
     const [archivosAdjuntos, setArchivosAdjuntos] = useState([]);
 
+
+    const [estadoSeleccionado, setEstadoSeleccionado] = useState('SINI');
+
+    // Opciones para el select de estados del expediente
+    const tipo_estado = [
+        { value: 'SINI', label: 'Sin Iniciar' },
+        { value: '1V', label: '1ra Visita' },
+        { value: 'LEG', label: 'Legales' },
+        { value: 'DOCP', label: 'Doc Presentada' },
+        { value: 'AP', label: 'Apto' },
+        { value: 'NOAP', label: 'No Apto' },
+        { value: 'NUEVAV', label: 'Nueva Visita' },
+    ];
+
     console.log('historialPases :>> ', historialPases);
     console.log('usuarioDestino :>> ', usuarioDestino);
 
@@ -38,10 +52,8 @@ const DetailExpedientes = () => {
                 const dataExpediente = await expedienteService.getExpedienteId(id);
                 setExpediente(dataExpediente);
 
-                // Traemos la lista completa de todos los formularios del sistema
                 const todosLosFormularios = await form1Service.obtenerTodosLosFormularios();
 
-                // Buscamos el formulario específico de ESTE expediente
                 if (Array.isArray(todosLosFormularios)) {
                     const formularioFiltrado = todosLosFormularios.find(
                         (form) => Number(form.expediente) === Number(id)
@@ -53,7 +65,6 @@ const DetailExpedientes = () => {
                 const usuarioFiltr = usuarios.filter((u) => String(u.username_display) !== String(usuarioLogueado))
                 setlistaUsuario(usuarioFiltr)
 
-                // Usamos el servicio optimizado inyectándole el ID del expediente
                 const pasesFiltrados = await historial.obtenerPasesPorExpediente(id)
 
                 if (Array.isArray(pasesFiltrados)) {
@@ -79,7 +90,6 @@ const DetailExpedientes = () => {
 
     const usuariosFiltrados = React.useMemo(() => {
         if (!rolSeleccionado || !listaUsuario) return [];
-        // Filtramos los usuarios cuyo rol coincida numéricamente con el seleccionado
         return listaUsuario.filter(user => Number(user.rol) === Number(rolSeleccionado));
     }, [rolSeleccionado, listaUsuario]);
 
@@ -101,13 +111,17 @@ const DetailExpedientes = () => {
             return;
         }
 
-        //  CREACIÓN DEL FORMDATA (Reemplaza al JSON plano para soportar los archivos)
         const formData = new FormData();
         formData.append('expediente', Number(id));
         formData.append('observacion', mensajePase.trim());
         formData.append('usuario_destino', Number(usuarioDestino));
 
-        // Adjuntamos los archivos acumulados en el array
+        //  BACKEND AGREGADO: Si es rolId === 3, enviamos el estado seleccionado en el FormData final
+        // if (rolId === 3) {
+        //     formData.append('nuevo_estado', estadoSeleccionado);
+        // }
+
+        // Adjuntamos los archivos acumulados en el array (se mantiene comentado tal cual lo tenías)
         // archivosAdjuntos.forEach((archivo) => {
         //     formData.append('adjuntos', archivo);
         // });
@@ -115,7 +129,6 @@ const DetailExpedientes = () => {
         try {
             console.log("Enviando pase...");
 
-            // Enviamos el formData completo al servicio
             const nuevoPase = await historial.postHistorialPase(formData);
 
             alert("Pase del expediente realizado correctamente.");
@@ -124,6 +137,7 @@ const DetailExpedientes = () => {
             setRolSeleccionado('');
             setUsuarioDestino('');
             setArchivosAdjuntos([]);
+            setEstadoSeleccionado('SINI'); // Reseteamos al valor inicial
             navigate("/expedientes")
 
         } catch (error) {
@@ -151,7 +165,6 @@ const DetailExpedientes = () => {
         );
     }
 
-    // LÓGICA DE CONTROL DE ESTADOS
     const estadoGlobal = expediente?.estado_expediente?.nombre;
     const estadoInternoForm = formulario?.estado;
 
@@ -224,14 +237,14 @@ const DetailExpedientes = () => {
                     </div>
 
                     {/* FORMULARIO COMPLETADO */}
-                    {estadoInternoForm === "completado" && (
+                    {estadoInternoForm === "completado" && rolId === 1 && (
                         <div className="mb-4 inline-flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-800 px-3 py-1.5 rounded-lg text-xs font-semibold">
                             <span>✓ Ya completaste el formulario socio-habitacional</span>
                         </div>
                     )}
 
-                    {/*  Legales */}
-                    {rolId === 2 && (
+                    {/* Legales o Administrativa */}
+                    {((rolId === 2 || rolId === 3)) && (
                         <div className="mb-4 p-2 bg-white rounded-xl border border-gray-200/60">
                             <AdjuntarArchivos onArchivosChange={(archivos) => setArchivosAdjuntos(archivos)} />
                         </div>
@@ -257,7 +270,28 @@ const DetailExpedientes = () => {
                                 </Link>
                             )}
 
+                            {/* Contenedor de Selects flexibles */}
                             <div className="flex flex-col sm:flex-row gap-3 items-end w-full sm:w-auto">
+
+                                {/*  rolId === 3 data entry */}
+                                {rolId === 3 && (
+                                    <div className="flex flex-col gap-1 w-full sm:w-48 animate-fade-in">
+                                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Estado de Expediente</label>
+                                        <select
+                                            value={estadoSeleccionado}
+                                            onChange={(e) => setEstadoSeleccionado(e.target.value)}
+                                            className="w-full border border-gray-300 rounded-lg text-sm px-3 py-1.5 h-9 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition cursor-pointer font-medium"
+                                        >
+                                            {tipo_estado.map((estado) => (
+                                                <option key={estado.value} value={estado.value}>
+                                                    {estado.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                {/* Enviar a Perfil */}
                                 <div className="flex flex-col gap-1 w-full sm:w-48">
                                     <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Enviar a Perfil</label>
                                     <select
@@ -276,6 +310,7 @@ const DetailExpedientes = () => {
                                     </select>
                                 </div>
 
+                                {/*  Usuario Destino */}
                                 {rolSeleccionado && (
                                     <div className="flex flex-col gap-1 w-full sm:w-56 animate-fade-in">
                                         <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Usuario Destino</label>
@@ -296,6 +331,7 @@ const DetailExpedientes = () => {
                             </div>
                         </div>
 
+                        {/* BOTÓN ENVIAR */}
                         <button
                             onClick={handleEnviarPase}
                             className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-5 py-1.5 h-9 rounded-lg transition font-medium shadow-sm w-full md:w-auto whitespace-nowrap self-stretch sm:self-end"
