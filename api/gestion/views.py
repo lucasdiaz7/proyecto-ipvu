@@ -10,7 +10,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from .permissions import *
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin
+from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin
 from rest_framework.viewsets import GenericViewSet
 from django.contrib.auth.models import User
 from rest_framework.views import APIView
@@ -164,6 +164,7 @@ def obtener_siguiente_trabajadora_social():
     return trabajadoras[siguiente_indice]
 
 class ExpedienteViewSet(viewsets.ModelViewSet):
+    queryset = Expediente.objects.all().order_by('-id')[:5]
     serializer_class = ExpedienteSerializer
 
     def perform_create(self, serializer):
@@ -224,7 +225,7 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action == 'create':
             return [IsDataEntry()]
-        if self.action in ['destroy', 'update', 'partial_update']:
+        if self.action in ['destroy']:
             return [IsSuperAdmin()]
         return [IsAnyRole()]    
 
@@ -254,12 +255,12 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
         return response
     
     
-    @action(detail=True, methods=['patch'], permission_classes=[IsLegales])
+    @action(detail=True, methods=['patch'], permission_classes=[IsDataEntry])
     def cambiar_estado(self, request, pk=None):
         expediente= self.get_object()
         nuevo_estado = request.data.get('estado')
         
-        if nuevo_estado in ['AP', 'NOAP']:
+        if nuevo_estado in ['AP', 'NOAP', 'NUEVAV']:
             estado_obj = EstadoExpediente.objects.get(nombre=nuevo_estado)
             expediente.estado_expediente = estado_obj
             expediente.save()
@@ -324,16 +325,13 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             return Response({"error_fatal": f"Error: {str(e)}",
                 "detalle": traceback.format_exc()
             }, status=500)
+        
+        
 class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
     queryset = DocumentoAdjunto.objects.all()
     permission_classes = [IsAnyRole]
     serializer_class = DocumentoAdjuntoSerializer        
 
-
-class DocumentoExpedienteViewSet(viewsets.ModelViewSet):
-    queryset = DocumentoExpediente.objects.all()
-    permission_classes = [IsAnyRole]
-    serializer_class = DocumentoExpedienteSerializer
 
 class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, GenericViewSet):
     queryset = HistorialPase.objects.all()
@@ -341,11 +339,9 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
     serializer_class = HistorialPaseSerializer
     
     def perform_create(self, serializer):
-        # 1. Guardamos el pase con el usuario origen automático
-        pase = serializer.save(usuario_origen=self.request.user)
-        
+        pase = serializer.save(usuario_origen = self.request.user)
         expediente = pase.expediente
-        # Obtiene el perfil del usuario destino para decidir el nuevo estado del expediente segun su rol.
+        #Obtiene el perfil del usuario destino para decidir el nuevo estado del expediente segun su rol.
         perfil_destino = getattr(pase.usuario_destino, 'usuario', None)
         
         if expediente.estado_expediente.nombre != 'AP' and perfil_destino:
@@ -365,12 +361,14 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
         # Si ya lo habia recibido antes, el helper usa el mensaje "Caso recibido".
         crear_notificacion_recepcion_expediente(pase.usuario_destino, expediente, pase_actual=pase)
         
-        #HistorialAccion.objects.create(
-            #mensaje_accion=f"Expediente transferido a {pase.usuario_destino.username}. Motivo: {pase.observacion}",
-            #id_usuario_accion=self.request.user.usuario,
-            #id_expediente=expediente
-        #)
+    def get_queryset(self):
+        queryset = HistorialPase.objects.all()
+        expediente_id = self.request.query_params.get('expediente')
         
+        if expediente_id:
+            queryset = queryset.filter(expediente_id=expediente_id)
+            
+        return queryset
         
             
 class NotificacionViewSet(viewsets.ModelViewSet):
@@ -401,7 +399,7 @@ class HistorialAccionViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet)
     permission_classes = [IsAnyRole]
     serializer_class = HistorialAccionSerializer
     
-class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, GenericViewSet):
+class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin, GenericViewSet):
     queryset = FormularioSocioHabitacional.objects.all()
     serializer_class = FormularioSocioHabitacionalSerializer
 
@@ -413,7 +411,7 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
         expediente.save()
 
     def get_permissions(self):
-        if self.action == 'create':
+        if self.action in ['create', 'update', 'partial_update']:
             return [IsTrabajadoraSocial()]
         return [IsAnyRole()]
 
@@ -453,15 +451,6 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
 
     
     
-    
-class DictamenLegalViewSet(viewsets.ModelViewSet):
-    queryset = DictamenLegal.objects.all()
-    serializer_class = DictamenLegalSerializer
-    
-    def get_permissions(self):
-        if self.action in ['create', 'destroy']:
-            return [IsLegales()]
-        return [IsAnyRole()]
     
 class MiLoginPersonalizadoView(TokenObtainPairView):
     serializer_class = MiLoginPersonalizadoSerializer

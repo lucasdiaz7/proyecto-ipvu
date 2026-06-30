@@ -7,6 +7,8 @@ const Usuarios = () => {
     const [listaUsuarios, setListaUsuarios] = useState([]);
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState(null);
+    const [perfilSeleccionado, setPerfilSeleccionado] = useState('Todos');
+    const [busqueda, setBusqueda] = useState('');
 
     useEffect(() => {
         const Usuarios = async () => {
@@ -29,7 +31,16 @@ const Usuarios = () => {
         Usuarios();
     }, []);
 
+    const usuariosFiltrados = listaUsuarios.filter((u) => {
+        const pasaPerfil = perfilSeleccionado === 'Todos' || u.rol_display === perfilSeleccionado;
+        const textoBusqueda = busqueda.toLowerCase();
+        const pasaBusqueda =
+            u.nombre?.toLowerCase().includes(textoBusqueda) ||
+            u.apellido?.toLowerCase().includes(textoBusqueda) ||
+            u.dni?.includes(textoBusqueda);
 
+        return pasaPerfil && pasaBusqueda;
+    });
     return (
         <div className="w-full min-h-screen bg-gray-50 flex justify-center items-center p-4">
             <div className="w-full max-w-6xl bg-white shadow-lg rounded-2xl p-6 md:p-10">
@@ -42,22 +53,26 @@ const Usuarios = () => {
                 </div>
 
                 <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="flex items-center justify-between bg-gray-100 p-3 rounded-xl shadow-sm hover:bg-gray-200 transition cursor-pointer">
-                        <span className="text-gray-700 font-medium">
-                            Todos los perfiles
-                        </span>
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none"
-                            viewBox="0 0 24 24" strokeWidth={1.5}
-                            stroke="currentColor" className="w-5 h-5">
-                            <path strokeLinecap="round" strokeLinejoin="round"
-                                d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                        </svg>
+                    <div className="bg-gray-100 p-3 rounded-xl shadow-sm hover:bg-gray-200 transition">
+                        <select
+                            value={perfilSeleccionado}
+                            onChange={(e) => setPerfilSeleccionado(e.target.value)}
+                            className="w-full bg-transparent outline-none text-gray-700 font-medium cursor-pointer pr-2"
+                        >
+                            <option value="Todos">Todos los perfiles</option>
+                            <option value="SU">Administrador</option>
+                            <option value="TS">Trabajadora Social</option>
+                            <option value="DE">Administrativa</option>
+                            <option value="LG">Legales</option>
+                        </select>
                     </div>
 
                     <div className="bg-gray-100 p-3 rounded-xl shadow-sm">
                         <input
                             type="text"
-                            placeholder="Buscar"
+                            placeholder="Buscar..."
+                            value={busqueda}
+                            onChange={(e) => setBusqueda(e.target.value)}
                             className="w-full bg-transparent outline-none text-gray-700"
                         />
                     </div>
@@ -101,7 +116,7 @@ const Usuarios = () => {
                         </div>
                     ) : (
 
-                        listaUsuarios.map((e) => (
+                        usuariosFiltrados.map((e) => (
                             <button
                                 key={e.id}
                                 className="grid grid-cols-3 md:grid-cols-4 gap-2 items-center w-full text-left p-4 border-b hover:bg-gray-50 transition"

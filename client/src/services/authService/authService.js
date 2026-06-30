@@ -13,7 +13,7 @@ export const authService = {
             if (response.data.access) {
                 // Guardamos el token JWT (usamos el .access que manda tu back)
                 localStorage.setItem("token", response.data.access);
-                localStorage.setItem("usuario", username);
+                localStorage.setItem("usuarioLogueado", String(response.data.username));
                 localStorage.setItem("nombre_completo", response.data.nombre_completo);
 
                 // Guardamos el ID del rol (como es un número, lo convertimos a string para el localStorage)

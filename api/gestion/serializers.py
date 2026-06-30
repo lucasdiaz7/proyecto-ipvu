@@ -41,6 +41,7 @@ class ExpedienteSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         response = super().to_representation(instance)
         
+         #calculo de dias en poder
         ultimo_pase = instance.historial_pases.order_by('-fecha_envio').first()
         fecha_referencia = None
 
@@ -54,22 +55,56 @@ class ExpedienteSerializer(serializers.ModelSerializer):
             response['dias_en_poder'] = diferencia.days
         else:
             response['dias_en_poder'] = 0
-        if instance.postulante_titular:
-            response['postulante_titular'] = {
-                'id': instance.postulante_titular.id,
-                'apellido': instance.postulante_titular.apellido,
-                'nombre': instance.postulante_titular.nombre,  
-                'dni': instance.postulante_titular.dni
-            }
+            
+           #estado del expediente
+        if instance.estado_expediente:
+            response['estado_expediente'] = instance.estado_expediente.nombre
+        else:
+            response['estado_expediente'] = "Sin estado"
 
-        if instance.usuario_asignado:
-            response['usuario_asignado'] = {
-                'id': instance.usuario_asignado.id,
-                'apellido': instance.usuario_asignado.last_name,
-                'nombre': instance.usuario_asignado.first_name 
+            #postulante titular
+        if instance.postulante_titular:
+            titular = instance.postulante_titular
+            response['postulante_titular'] = {
+                'id': titular.id,
+                'nombre': titular.nombre,
+                'apellido': titular.apellido,
+                'dni': titular.dni,
+                'domicilio': getattr(titular, 'domicilio_actual', getattr(titular, 'domicilio', 'Sin domicilio')),
+                'telefono': getattr(titular, 'telefono', 'Sin teléfono'),
+                'email': getattr(titular, 'email', 'Sin email')
             }
+        else:
+            response['postulante_titular'] = None
+
+            #usuario asignado
+        if instance.usuario_asignado:
+            user = instance.usuario_asignado
+            perfil = getattr(user, 'usuario', None)
+            rol_nombre = perfil.rol.nombre_rol if perfil and perfil.rol else "Sin Rol"
+            
+            nombre_real = getattr(perfil, 'nombre', user.first_name) if perfil else user.first_name
+            apellido_real = getattr(perfil, 'apellido', user.last_name) if perfil else user.last_name
+            
+            response['usuario_asignado'] = {
+                'id': user.id,
+                'nombre': nombre_real,
+                'apellido': apellido_real,
+                'rol': rol_nombre
+            }
+        else:
+            response['usuario_asignado'] = None
 
         return response
+    
+    def update(self, instance, validated_data):
+        # Obligamos a que sí o sí usen tu @action "cambiar_estado"
+        validated_data.pop('estado_expediente', None)
+        
+        # Obligamos a que usen el HistorialPase para transferir expedientes.
+        validated_data.pop('usuario_asignado', None)
+
+        return super().update(instance, validated_data)
     
     
 class RolSerializer(serializers.ModelSerializer):
@@ -107,23 +142,28 @@ class UsuarioSerializer(serializers.ModelSerializer):
         
         if instance.rol:
             ret['rol_display'] = instance.rol.nombre_rol
+        
+        ret['nombre_completo'] = f"{instance.nombre} {instance.apellido}"
     
         return ret
     
 class DocumentoAdjuntoSerializer(serializers.ModelSerializer):
-   class Meta:
+    archivo_url = serializers.SerializerMethodField()
+    class Meta:
         model = DocumentoAdjunto
         fields = '__all__'
-
-
-class DocumentoExpedienteSerializer(serializers.ModelSerializer):
-   class Meta:
-        model = DocumentoExpediente
-        fields = '__all__'
+        
+    def get_archivo_url(self, obj):
+        if obj.archivo:
+            return obj.archivo.url
+        return None
 
 class HistorialPaseSerializer(serializers.ModelSerializer):
     expediente_info = serializers.SerializerMethodField()
+    estado_actual = serializers.SerializerMethodField()
 
+ 
+    
     class Meta:
         model = HistorialPase
         fields = [
@@ -134,9 +174,15 @@ class HistorialPaseSerializer(serializers.ModelSerializer):
             'usuario_destino',
             'observacion',
             'fecha_envio',
+            'estado_actual'
         ]
         read_only_fields = ('fecha_envio', 'usuario_origen', 'expediente_info')
-
+        
+    def get_estado_actual(self, obj):
+        if obj.expediente and obj.expediente.estado_expediente:
+            return obj.expediente.estado_expediente.get_nombre_display()
+        return "Sin estado"
+    
     def get_expediente_info(self, obj):
         expediente = obj.expediente
 
@@ -155,6 +201,30 @@ class HistorialPaseSerializer(serializers.ModelSerializer):
                 'dni': expediente.postulante_titular.dni,
             } if expediente.postulante_titular else None
         }
+    
+    def to_representation(self, instance):
+        response = super().to_representation(instance)
+        
+        usuario_origen = instance.usuario_origen
+        if usuario_origen:
+            p_origen = getattr(usuario_origen, 'usuario', None)
+            nombre_origen = getattr(p_origen, 'nombre', usuario_origen.first_name) if p_origen else usuario_origen.first_name
+            apellido_origen = getattr(p_origen, 'apellido', usuario_origen.last_name) if p_origen else usuario_origen.last_name
+            response['usuario_origen_display'] = f"{nombre_origen} {apellido_origen}".strip()
+        else:
+            response['usuario_origen_display'] = "Sistema"
+            
+        usuario_destino = instance.usuario_destino
+        if usuario_destino:
+            p_destino = getattr(usuario_destino, 'usuario', None)
+            nombre_destino = getattr(p_destino, 'nombre', usuario_destino.first_name) if p_destino else usuario_destino.first_name
+            apellido_destino = getattr(p_destino, 'apellido', usuario_destino.last_name) if p_destino else usuario_destino.last_name
+            response['usuario_destino_display'] = f"{nombre_destino} {apellido_destino}".strip()
+        else:
+            response['usuario_destino_display'] = "Sin asignar"
+            
+        return response
+    
         
 class NotificacionSerializer(serializers.ModelSerializer):
     # agrega datos resumidos del expediente para mostrar la notificacion sin pedir otro endpoint
@@ -229,11 +299,7 @@ class FormularioSocioHabitacionalSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ('fecha_creacion', 'fecha_modificacion', 'estado')
         
-class DictamenLegalSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DictamenLegal
-        fields = '__all__'
-        read_only_fields = ('fecha_dictamen',)
+
                 
 class MiLoginPersonalizadoSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
@@ -245,6 +311,8 @@ class MiLoginPersonalizadoSerializer(TokenObtainPairSerializer):
             data['nombre_completo'] = f"{perfil_ipvu.nombre} {perfil_ipvu.apellido}"
             data['rol_id'] = perfil_ipvu.rol.id
             data['requiere_cambio_password'] = perfil_ipvu.requiere_cambio_password
+            data['username'] = self.user.username
+
             
         except Usuario.DoesNotExist:
             pass
