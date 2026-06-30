@@ -257,21 +257,39 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
     
     @action(detail=True, methods=['patch'], permission_classes=[IsDataEntry])
     def cambiar_estado(self, request, pk=None):
-        expediente= self.get_object()
-        nuevo_estado = request.data.get('estado')
+        print("\n--- 🟢 ENTRÓ A LA FUNCIÓN CAMBIAR ESTADO ---")
+        print(f"Data cruda recibida del Front: {request.data}")
         
-        print(f"--- DEBUG: El front mandó el estado -> {nuevo_estado} ---")
+        try:
+            expediente = self.get_object()
+            nuevo_estado = request.data.get('estado')
+            print(f"Estado extraído: {nuevo_estado}")
+            
+            if nuevo_estado in ['AP', 'NOAP', 'NUEVAV']:
+                # 2. Intentamos buscar el estado en la base de datos
+                estado_obj = EstadoExpediente.objects.get(nombre=nuevo_estado)
+                print(f"Objeto estado encontrado en DB: {estado_obj}")
+                
+                # 3. Asignamos y guardamos
+                expediente.estado_expediente = estado_obj
+                expediente.save()
+                print("--- ✅ ÉXITO: Expediente guardado en DB ---")
+                
+                return Response({'mensaje': 'Estado actualizado'}, status=200)
+            else:
+                print("--- 🟡 ADVERTENCIA: Cayó en el else (estado no válido) ---")
+                return Response({'error': 'Estado no válido'}, status=400)
+                
+        except EstadoExpediente.DoesNotExist:
+            print(f"--- 🔴 ERROR: El estado '{nuevo_estado}' NO EXISTE en tu tabla EstadoExpediente ---")
+            return Response({'error': 'El estado no existe en la base de datos. Crealo primero.'}, status=404)
+            
+        except Exception as e:
+            print(f"--- 🔴 ERROR FATAL: {str(e)} ---")
+            return Response({'error': str(e)}, status=500)
         
-        if nuevo_estado in ['AP', 'NOAP', 'NUEVAV']:
-            estado_obj = EstadoExpediente.objects.get(nombre=nuevo_estado)
-            expediente.estado_expediente = estado_obj
-            expediente.save()
-            return Response ({'mensaje': 'Estado actualizado'})
-        else:
-            return Response(
-                {'error': f'Estado no válido. El servidor recibió: "{nuevo_estado}"'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        
+        
 class RolViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
     queryset = Rol.objects.all()
     permission_classes = [IsAnyRole]
