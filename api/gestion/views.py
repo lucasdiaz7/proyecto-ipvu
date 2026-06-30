@@ -326,7 +326,17 @@ class UsuarioViewSet(viewsets.ModelViewSet):
 class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
     queryset = DocumentoAdjunto.objects.all()
     permission_classes = [IsAnyRole]
-    serializer_class = DocumentoAdjuntoSerializer        
+    serializer_class = DocumentoAdjuntoSerializer   
+    
+    def get_queryset(self):
+        queryset = DocumentoAdjunto.objects.all()
+        expediente_id = self.request.query_params.get('expediente')
+        
+        if expediente_id:
+            queryset = queryset.filter(expediente_id=expediente_id)
+            
+        return queryset
+             
 
 
 class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, GenericViewSet):
@@ -398,6 +408,16 @@ class HistorialAccionViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet)
 class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin, GenericViewSet):
     queryset = FormularioSocioHabitacional.objects.all()
     serializer_class = FormularioSocioHabitacionalSerializer
+    
+    def get_queryset(self):
+        queryset = FormularioSocioHabitacional.objects.all()
+        expediente_id = self.request.query_params.get('expediente') 
+        
+        if expediente_id:
+            queryset = queryset.filter(expediente_id = expediente_id)
+            
+        return queryset
+            
     
     def perform_create(self, serializer):
         formulario = serializer.save()
