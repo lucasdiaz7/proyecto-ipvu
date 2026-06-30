@@ -161,8 +161,7 @@ class DocumentoAdjuntoSerializer(serializers.ModelSerializer):
 class HistorialPaseSerializer(serializers.ModelSerializer):
     expediente_info = serializers.SerializerMethodField()
     estado_actual = serializers.SerializerMethodField()
-
- 
+    documentos_adjuntos = serializers.SerializerMethodField()
     
     class Meta:
         model = HistorialPase
@@ -174,9 +173,10 @@ class HistorialPaseSerializer(serializers.ModelSerializer):
             'usuario_destino',
             'observacion',
             'fecha_envio',
-            'estado_actual'
+            'estado_actual',
+            'documentos_adjuntos'
         ]
-        read_only_fields = ('fecha_envio', 'usuario_origen', 'expediente_info')
+        read_only_fields = ('fecha_envio', 'usuario_origen', 'expediente_info', 'estado_actual', 'documentos_adjuntos')
         
     def get_estado_actual(self, obj):
         if obj.expediente and obj.expediente.estado_expediente:
@@ -201,6 +201,19 @@ class HistorialPaseSerializer(serializers.ModelSerializer):
                 'dni': expediente.postulante_titular.dni,
             } if expediente.postulante_titular else None
         }
+        
+    def get_documentos_adjuntos(self,obj):
+        if obj.expediente:
+            documentos = obj.epxeidente.documentos.all()
+            return [
+            {
+                "id": doc.id,
+                "tipo_documento": doc.tipo_documento,
+                "archivo_url": doc.archivo.url if doc.archivo else None
+            }
+            for doc in documentos
+                ]
+        return []
     
     def to_representation(self, instance):
         response = super().to_representation(instance)
