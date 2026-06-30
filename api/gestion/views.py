@@ -163,7 +163,7 @@ def obtener_siguiente_trabajadora_social():
 
     return trabajadoras[siguiente_indice]
 
-class ExpedienteViewSet(viewsets.ModelViewSet):
+class ExpedienteViewSet(viewsets.ModelViewSet,):
     queryset = Expediente.objects.all().order_by('-id')[:5]
     serializer_class = ExpedienteSerializer
 
@@ -260,14 +260,18 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
         expediente= self.get_object()
         nuevo_estado = request.data.get('estado')
         
+        print(f"--- DEBUG: El front mandó el estado -> {nuevo_estado} ---")
+        
         if nuevo_estado in ['AP', 'NOAP', 'NUEVAV']:
             estado_obj = EstadoExpediente.objects.get(nombre=nuevo_estado)
             expediente.estado_expediente = estado_obj
             expediente.save()
             return Response ({'mensaje': 'Estado actualizado'})
         else:
-            return Response ({'mensaje': 'Estado no válido'})
-
+            return Response(
+                {'error': f'Estado no válido. El servidor recibió: "{nuevo_estado}"'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 class RolViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
     queryset = Rol.objects.all()
     permission_classes = [IsAnyRole]
