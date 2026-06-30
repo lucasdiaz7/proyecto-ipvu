@@ -20,7 +20,6 @@ router.register(r'historialpase', HistorialPaseViewSet)
 router.register(r'notificacion', NotificacionViewSet)
 router.register(r'historialaccion', HistorialAccionViewSet)
 router.register(r'formulario', FormularioSocioHabitacionalViewSet)
-router.register(r'dictamen', DictamenLegalViewSet)
 
 urlpatterns = [
     path('api/', include(router.urls)),
