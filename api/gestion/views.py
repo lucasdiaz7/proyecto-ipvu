@@ -1,4 +1,5 @@
 import csv
+import os
 from django.http import HttpResponse
 from django.shortcuts import render
 from rest_framework import viewsets, permissions
@@ -22,6 +23,9 @@ from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django.db.models import Q
 from django.db.models import Count
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import cm
 
 
 # Notificaciones automaticas. meensajes posibles al recibir un expediente
@@ -425,11 +429,48 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
         estado_1v = EstadoExpediente.objects.get(nombre='1V')
         expediente.estado_expediente = estado_1v
         expediente.save()
-    
+
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update']:
             return [IsTrabajadoraSocial()]
         return [IsAnyRole()]
+
+    @action(detail=True, methods=['get'], url_path='pdf')
+    def generar_pdf(self, request, pk=None):
+
+        formulario = self.get_object()
+
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = (
+            f'attachment; filename="Formulario_{formulario.id}.pdf"'
+        )
+
+        pdf = canvas.Canvas(response, pagesize=A4)
+
+        ancho, alto = A4
+
+        pagina1 = os.path.join(
+            settings.BASE_DIR,
+            "ipvu_backend",
+            "imagenespdf_formsociohabitacional",
+            "pagina1.jpg"
+        )
+
+        pdf.drawImage(
+            pagina1,
+            0,
+            0,
+            width=ancho,
+            height=alto
+        )
+   
+        pdf.save()
+
+        return response
+        
+
+    
+    
     
 class MiLoginPersonalizadoView(TokenObtainPairView):
     serializer_class = MiLoginPersonalizadoSerializer
@@ -493,4 +534,5 @@ class ConfirmarResetPasswordView(APIView):
         return Response({
             "mensaje": "Contraseña actualizada correctamente."
         })
+
 

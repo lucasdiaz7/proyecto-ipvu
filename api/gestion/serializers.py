@@ -270,6 +270,14 @@ class HistorialAccionSerializer(serializers.ModelSerializer):
         read_only_fields = ('fecha_accion',)
         
 class FormularioSocioHabitacionalSerializer(serializers.ModelSerializer):
+    grupo_familiar = serializers.CharField(allow_blank=True, required=False)
+    situacion_habitacional = serializers.CharField(allow_blank=True, required=False)
+    aspecto_economico = serializers.CharField(allow_blank=True, required=False)
+    situacion_salud = serializers.CharField(allow_blank=True, required=False)
+    nivel_estudios = serializers.CharField(allow_blank=True, required=False)
+    relevamiento_vecinal = serializers.CharField(allow_blank=True, required=False)
+    observaciones = serializers.CharField(allow_blank=True, required=False)
+
     # Estado calculado automaticamente segun la cantidad de campos completados del formulario.
     estado = serializers.ReadOnlyField()
 
