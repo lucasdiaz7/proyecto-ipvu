@@ -223,7 +223,7 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
         return queryset   
     
     def get_permissions(self):
-        if self.action == 'create':
+        if self.action in ['create', 'update', 'partial_update']:
             return [IsDataEntry()]
         if self.action in ['destroy']:
             return [IsSuperAdmin()]
