@@ -379,6 +379,8 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
             queryset = queryset.filter(expediente_id=expediente_id)
             
         return queryset
+    
+    # hacer para que los archivos adjuntos tambien puedan verse
         
             
 class NotificacionViewSet(viewsets.ModelViewSet):

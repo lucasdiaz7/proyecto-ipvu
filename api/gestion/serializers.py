@@ -204,7 +204,7 @@ class HistorialPaseSerializer(serializers.ModelSerializer):
         
     def get_documentos_adjuntos(self,obj):
         if obj.expediente:
-            documentos = obj.epxeidente.documentos.all()
+            documentos = obj.expediente.documentos.all()
             return [
             {
                 "id": doc.id,
