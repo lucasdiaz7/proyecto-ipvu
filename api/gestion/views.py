@@ -372,19 +372,7 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
             
         return queryset
     
-    def destroy(self, request, *args, **kwargs):
-        documento = self.get_object()
-
-        # REGLA DE ORO: Si el que intenta borrar NO es el que lo subió, se rechaza.
-        if documento.subido_por != request.user:
-            return Response(
-                {"error": "Acción denegada. Solo el usuario que adjuntó el archivo puede eliminarlo. Solicite la devolución del pase."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # Si pasa la validación (es el dueño), procedemos al borrado (físico o lógico)
-        documento.delete() 
-        return Response(status=status.HTTP_204_NO_CONTENT)
+    
              
 
 
