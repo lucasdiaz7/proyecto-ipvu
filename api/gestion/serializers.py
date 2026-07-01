@@ -28,6 +28,7 @@ class EstadoExpedienteSerializer(serializers.ModelSerializer):
 class ExpedienteSerializer(serializers.ModelSerializer):
     estado_expediente = EstadoExpedienteSerializer(read_only= True)
     estado_expediente_id = serializers.PrimaryKeyRelatedField(queryset=EstadoExpediente.objects.all(), source='estado_expediente',write_only=True)
+    documentos_adjuntos = serializers.SerializerMethodField()
     
     class Meta:
         model = Expediente
@@ -102,6 +103,20 @@ class ExpedienteSerializer(serializers.ModelSerializer):
         ]
 
         return response
+    
+    def get_documentos_adjuntos(self, obj):
+        documentos = DocumentoAdjunto.objects.filter(expediente=obj)
+        
+        if documentos.exists():
+            return [
+                {
+                    "id": doc.id,
+                    "tipo_documento": doc.tipo_documento,
+                    "archivo": doc.archivo.name if doc.archivo else None,
+                    "archivo_url": doc.archivo.url if doc.archivo else None,
+                } for doc in documentos
+            ]
+        return []
     
     def update(self, instance, validated_data):
         # Obligamos a que sí o sí usen tu @action "cambiar_estado"
