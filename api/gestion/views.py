@@ -456,8 +456,17 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
 
     @action(detail=True, methods=['get'], url_path='pdf')
     def generar_pdf(self, request, pk=None):
-
         formulario = self.get_object()
+        expediente = formulario.expediente
+        
+        # Intentamos obtener el perfil detallado del usuario asignado (Trabajadora Social)
+        profesional = ""
+        if expediente.usuario_asignado:
+            try:
+                perfil = expediente.usuario_asignado.usuario  # relación OneToOneField
+                profesional = f"{perfil.apellido}, {perfil.nombre} (Mat. {perfil.matricula})"
+            except Exception:
+                profesional = f"{expediente.usuario_asignado.last_name}, {expediente.usuario_asignado.first_name}"
 
         response = HttpResponse(content_type='application/pdf')
         response['Content-Disposition'] = (
@@ -465,29 +474,104 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
         )
 
         pdf = canvas.Canvas(response, pagesize=A4)
+        ancho, alto = A4  # A4: ~595.27 x 841.89 puntos
 
-        ancho, alto = A4
-
+        # --- PÁGINA 1 ---
         pagina1 = os.path.join(
             settings.BASE_DIR,
             "ipvu_backend",
             "imagenespdf_formsociohabitacional",
             "pagina1.jpg"
         )
+        pdf.drawImage(pagina1, 0, 0, width=ancho, height=alto)
 
-        pdf.drawImage(
-            pagina1,
-            0,
-            0,
-            width=ancho,
-            height=alto
-        )
-   
-        pdf.save()
+        # Configuración de texto
+        pdf.setFont("Helvetica", 10)
 
-        return response
+        # Datos Generales del Encabezado
+        pdf.drawString(160, 708, profesional)
+        pdf.drawString(140, 693, f"Expediente N° {expediente.id}")
+        pdf.drawString(550, 693, str(expediente.DDJJ or ''))
         
+        if expediente.postulante_titular:
+            titular = expediente.postulante_titular
+            domicilio_str = f"{titular.domicilio_actual} | Titular: {titular.apellido}, {titular.nombre} - DNI: {titular.dni}"
+            pdf.drawString(110, 678, domicilio_str)
 
+        # Bloques de texto largo usando textobjects para soportar saltos de línea (\n)
+        # 1. Grupo Familiar Constituyente
+        text_fam = pdf.beginText(70, 620)
+        text_fam.setFont("Helvetica", 9)
+        text_fam.setLineSpacing(14)
+        text_fam.textLines(formulario.grupo_familiar or '')
+        pdf.drawText(text_fam)
+
+        # 2. Situación Habitacional
+        text_hab = pdf.beginText(70, 475)
+        text_hab.setFont("Helvetica", 9)
+        text_hab.setLineSpacing(14)
+        text_hab.textLines(formulario.situacion_habitacional or '')
+        pdf.drawText(text_hab)
+
+        # 3. Aspecto Económico
+        text_eco = pdf.beginText(70, 330)
+        text_eco.setFont("Helvetica", 9)
+        text_eco.setLineSpacing(14)
+        text_eco.textLines(formulario.aspecto_economico or '')
+        pdf.drawText(text_eco)
+
+        # 4. Situación de Salud
+        text_sal = pdf.beginText(70, 190)
+        text_sal.setFont("Helvetica", 9)
+        text_sal.setLineSpacing(14)
+        text_sal.textLines(formulario.situacion_salud or '')
+        pdf.drawText(text_sal)
+
+        # 5. Nivel de Estudios (Es un CharField de una sola línea)
+        pdf.drawString(160, 93, str(formulario.nivel_estudios or ''))
+        
+        # Pasamos a la hoja de reverso
+        pdf.showPage()
+
+        # --- PÁGINA 2 ---
+        pagina2 = os.path.join(
+            settings.BASE_DIR,
+            "ipvu_backend",
+            "imagenespdf_formsociohabitacional",
+            "pagina2.jpg"
+        )
+        pdf.drawImage(pagina2, 0, 0, width=ancho, height=alto)
+
+        # 6. Relevamiento Vecinal
+        text_vec = pdf.beginText(70, 710)
+        text_vec.setFont("Helvetica", 9)
+        text_vec.setLineSpacing(14)
+        text_vec.textLines(formulario.relevamiento_vecinal or '')
+        pdf.drawText(text_vec)
+
+        # 7. Observaciones y/o Particularidades
+        text_obs = pdf.beginText(70, 420)
+        text_obs.setFont("Helvetica", 9)
+        text_obs.setLineSpacing(14)
+        text_obs.textLines(formulario.observaciones or '')
+        pdf.drawText(text_obs)
+
+        # 8. Renderizado Dinámico de Fecha actual de modificación
+        # (Santiago del Estero, _____ de ____________ de 20___)
+        fecha = formulario.fecha_modificacion if formulario.fecha_modificacion else formulario.fecha_creacion
+        
+        meses = [
+            "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+            "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+        ]
+        
+        if fecha:
+            pdf.drawString(175, 298, str(fecha.day))
+            pdf.drawString(240, 298, meses[fecha.month - 1])
+            pdf.drawString(335, 298, str(fecha.year)[-2:]) # Los últimos 2 dígitos (ej: "26")
+
+        pdf.save()
+        return response
     
     
     
