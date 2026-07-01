@@ -157,7 +157,8 @@ class DocumentoAdjuntoSerializer(serializers.ModelSerializer):
     archivo_url = serializers.SerializerMethodField()
     class Meta:
         model = DocumentoAdjunto
-        fields = '__all__'
+        fields = ['id', 'archivo', 'tipo_documento', 'subido_por']
+        read_only_fields = ['subido_por']
         
     def get_archivo_url(self, obj):
         if obj.archivo:

@@ -360,6 +360,9 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAnyRole]
     serializer_class = DocumentoAdjuntoSerializer   
     
+    def perform_create(self, serializer):
+        serializer.save(subido_por = self.request.user)
+    
     def get_queryset(self):
         queryset = DocumentoAdjunto.objects.all()
         expediente_id = self.request.query_params.get('expediente')
@@ -368,6 +371,20 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(expediente_id=expediente_id)
             
         return queryset
+    
+    def destroy(self, request, *args, **kwargs):
+        documento = self.get_object()
+
+        # REGLA DE ORO: Si el que intenta borrar NO es el que lo subió, se rechaza.
+        if documento.subido_por != request.user:
+            return Response(
+                {"error": "Acción denegada. Solo el usuario que adjuntó el archivo puede eliminarlo. Solicite la devolución del pase."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Si pasa la validación (es el dueño), procedemos al borrado (físico o lógico)
+        documento.delete() 
+        return Response(status=status.HTTP_204_NO_CONTENT)
              
 
 
