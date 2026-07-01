@@ -14,7 +14,8 @@ const Form1 = () => {
         nombreCompletoUsuario,
         domicilio,
         idFormulario, // <-- ID único del formulario guardado para saber si es PATCH
-        datosPrevios   // <-- Objeto opcional con los campos ya guardados en el Back
+        datosPrevios,   // <-- Objeto opcional con los campos ya guardados en el Back
+        soloLectura = false
     } = location.state || {};
 
     console.log('idFormulario :>> ', idFormulario);
@@ -41,6 +42,11 @@ const Form1 = () => {
     }, [isEditMode, datosPrevios, reset]);
 
     const onSubmit = async (data) => {
+        if (soloLectura) {
+            navigate(`/expediente/${idExpediente}`);
+            return;
+        }
+
         try {
             // Mapeamos los nombres de React Hook Form a lo que espera tu Backend
             const payload = {
@@ -115,6 +121,7 @@ const Form1 = () => {
                             <label className="text-gray-800 font-semibold text-base">Caso de referencia</label>
                             <input
                                 type="text"
+                                readOnly={soloLectura}
                                 className="w-full px-3 py-2 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200"
                                 {...register("casoDeReferencia")}
                             />
@@ -136,6 +143,7 @@ const Form1 = () => {
                             <h2 className="text-gray-800 font-semibold text-base">GRUPO FAMILIAR CONSTITUYENTE</h2>
                             <p className="text-gray-600 text-sm">Tipo y Dinamia Familiar. Conflictos</p>
                             <textarea
+                                readOnly={soloLectura}
                                 className="w-full mt-2 px-3 py-3 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 resize-none"
                                 {...register("grupoFamiliarConstituyente")}
                             />
@@ -145,6 +153,7 @@ const Form1 = () => {
                             <h2 className="text-gray-800 font-semibold text-base">SITUACION HABITACIONAL</h2>
                             <p className="text-gray-600 text-sm">Tipo de posesion y tiempo de habitabilidad</p>
                             <textarea
+                                readOnly={soloLectura}
                                 className="w-full mt-2 px-3 py-3 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 resize-none"
                                 {...register("situacionHabitacional")}
                             />
@@ -154,6 +163,7 @@ const Form1 = () => {
                             <h2 className="text-gray-800 font-semibold text-base">ASPECTO ECONOMICO</h2>
                             <p className="text-gray-600 text-sm">Ingresos y Calidad de Vida</p>
                             <textarea
+                                readOnly={soloLectura}
                                 className="w-full mt-2 px-3 py-3 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 resize-none"
                                 {...register("aspectoEconomico")}
                             />
@@ -163,6 +173,7 @@ const Form1 = () => {
                             <h2 className="text-gray-800 font-semibold text-base">SITUACION DE SALUD</h2>
                             <p className="text-gray-600 text-sm">Discapacidad. Invalidez</p>
                             <textarea
+                                readOnly={soloLectura}
                                 className="w-full mt-2 px-3 py-3 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 resize-none"
                                 {...register("situacionDeSalud")}
                             />
@@ -172,6 +183,7 @@ const Form1 = () => {
                             <h2 className="text-gray-800 font-semibold text-base">NIVEL DE ESTUDIOS</h2>
                             <input
                                 type="text"
+                                readOnly={soloLectura}
                                 className="w-full mt-2 px-3 py-2 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200"
                                 {...register("nivelDeEstudios")}
                             />
@@ -180,6 +192,7 @@ const Form1 = () => {
                         <div className="mt-5">
                             <h2 className="text-gray-800 font-semibold text-base">RELEVAMIENTO VECINAL</h2>
                             <textarea
+                                readOnly={soloLectura}
                                 className="w-full mt-2 px-3 py-3 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 resize-none"
                                 {...register("relevamientoVecinal")}
                             />
@@ -188,6 +201,7 @@ const Form1 = () => {
                         <div className="mt-5">
                             <h2 className="text-gray-800 font-semibold text-base">OBSERVACIONES Y/O PARTICULARIDADES</h2>
                             <textarea
+                                readOnly={soloLectura}
                                 className="w-full mt-2 px-3 py-3 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 resize-none"
                                 {...register("observacionesParticularidades")}
                             />
@@ -195,9 +209,18 @@ const Form1 = () => {
                     </div>
 
                     <div className="flex flex-col items-center mt-6 gap-3">
-                        <button type="submit" className="w-full md:w-72 bg-blue-500 hover:bg-blue-600 text-white font-bold text-[13px] py-2.5 rounded-lg shadow-sm transition-colors duration-200">
-                            {isEditMode ? "Actualizar informe" : "Guardar cambios"}
-                        </button>
+                        {soloLectura ? (
+                            <Link
+                                to={`/expediente/${idExpediente}`}
+                                className="w-full md:w-72 bg-gray-600 hover:bg-gray-700 text-white font-bold text-[13px] py-2.5 rounded-lg shadow-sm transition-colors duration-200 text-center"
+                            >
+                                Volver al expediente
+                            </Link>
+                        ) : (
+                            <button type="submit" className="w-full md:w-72 bg-blue-500 hover:bg-blue-600 text-white font-bold text-[13px] py-2.5 rounded-lg shadow-sm transition-colors duration-200">
+                                {isEditMode ? "Actualizar informe" : "Guardar cambios"}
+                            </button>
+                        )}
                     </div>
                 </form>
             </div>

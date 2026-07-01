@@ -35,6 +35,11 @@ export const expedienteService = {
         } catch (error) {
             console.log("Error al marcar como visto:", error);
         }
+    },
+
+    estadoExpediente: async (id, datos) => {
+        const response = await api.patch(`/expediente/${id}/`, datos);
+        return response.data;
     }
 }
 

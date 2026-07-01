@@ -1,5 +1,7 @@
 import csv
 import os
+import logging
+
 from django.http import HttpResponse
 from django.shortcuts import render
 from rest_framework import viewsets, permissions
@@ -26,6 +28,18 @@ from django.db.models import Count
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import cm
+from django.core.exceptions import ObjectDoesNotExist
+from django.http import HttpResponse
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import cm
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+)
+from reportlab.lib import colors
+
+
 
 
 # Notificaciones automaticas. meensajes posibles al recibir un expediente
@@ -122,7 +136,7 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
             return [IsSuperAdmin()]
         return [IsAnyRole()]
  
-class EstadoExpedienteViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
+class EstadoExpedienteViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet, UpdateModelMixin):
     queryset = EstadoExpediente.objects.all()
     permission_classes = [IsAnyRole]
     serializer_class = EstadoExpedienteSerializer
@@ -163,7 +177,7 @@ def obtener_siguiente_trabajadora_social():
 
     return trabajadoras[siguiente_indice]
 
-class ExpedienteViewSet(viewsets.ModelViewSet):
+class ExpedienteViewSet(viewsets.ModelViewSet,):
     queryset = Expediente.objects.all().order_by('-id')[:5]
     serializer_class = ExpedienteSerializer
 
@@ -189,7 +203,7 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
         
         if not usuario.is_authenticated:
             queryset = Expediente.objects.all()
-        elif hasattr(usuario, 'usuario') and usuario.usuario.rol.nombre_rol == 'TS':
+        elif hasattr(usuario, 'usuario') and usuario.usuario.rol.nombre_rol in ['TS', 'LG', 'DE']:
             queryset = Expediente.objects.filter(usuario_asignado= usuario)
         else:
             queryset = Expediente.objects.all()
@@ -223,7 +237,7 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
         return queryset   
     
     def get_permissions(self):
-        if self.action == 'create':
+        if self.action in ['create', 'update', 'partial_update']:
             return [IsDataEntry()]
         if self.action in ['destroy']:
             return [IsSuperAdmin()]
@@ -257,17 +271,39 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['patch'], permission_classes=[IsDataEntry])
     def cambiar_estado(self, request, pk=None):
-        expediente= self.get_object()
-        nuevo_estado = request.data.get('estado')
+        print("\n--- 🟢 ENTRÓ A LA FUNCIÓN CAMBIAR ESTADO ---")
+        print(f"Data cruda recibida del Front: {request.data}")
         
-        if nuevo_estado in ['AP', 'NOAP', 'NUEVAV']:
-            estado_obj = EstadoExpediente.objects.get(nombre=nuevo_estado)
-            expediente.estado_expediente = estado_obj
-            expediente.save()
-            return Response ({'mensaje': 'Estado actualizado'})
-        else:
-            return Response ({'mensaje': 'Estado no válido'})
-
+        try:
+            expediente = self.get_object()
+            nuevo_estado = request.data.get('estado')
+            print(f"Estado extraído: {nuevo_estado}")
+            
+            if nuevo_estado in ['AP', 'NOAP', 'NUEVAV']:
+                # 2. Intentamos buscar el estado en la base de datos
+                estado_obj = EstadoExpediente.objects.get(nombre=nuevo_estado)
+                print(f"Objeto estado encontrado en DB: {estado_obj}")
+                
+                # 3. Asignamos y guardamos
+                expediente.estado_expediente = estado_obj
+                expediente.save()
+                print("--- ✅ ÉXITO: Expediente guardado en DB ---")
+                
+                return Response({'mensaje': 'Estado actualizado'}, status=200)
+            else:
+                print("--- 🟡 ADVERTENCIA: Cayó en el else (estado no válido) ---")
+                return Response({'error': 'Estado no válido'}, status=400)
+                
+        except EstadoExpediente.DoesNotExist:
+            print(f"--- 🔴 ERROR: El estado '{nuevo_estado}' NO EXISTE en tu tabla EstadoExpediente ---")
+            return Response({'error': 'El estado no existe en la base de datos. Crealo primero.'}, status=404)
+            
+        except Exception as e:
+            print(f"--- 🔴 ERROR FATAL: {str(e)} ---")
+            return Response({'error': str(e)}, status=500)
+        
+        
+        
 class RolViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
     queryset = Rol.objects.all()
     permission_classes = [IsAnyRole]
@@ -295,6 +331,12 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     def auditoria_usuarios(self, request):
         try:
             perfiles = self.get_queryset() 
+            
+            #filtro para mostrar solo trabajadoras sociales
+            solo_ts = request.query_params.get('solo_ts')
+            if solo_ts == 'true':
+                perfiles = perfiles.filter(rol__nombre_rol= 'TS')
+                
             resultado = []
 
             for perfil in perfiles:
@@ -332,7 +374,28 @@ class UsuarioViewSet(viewsets.ModelViewSet):
 class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
     queryset = DocumentoAdjunto.objects.all()
     permission_classes = [IsAnyRole]
-    serializer_class = DocumentoAdjuntoSerializer        
+    serializer_class = DocumentoAdjuntoSerializer   
+    
+    def perform_create(self, serializer):
+        serializer.save(subido_por = self.request.user)
+    
+    def get_queryset(self):
+        queryset = DocumentoAdjunto.objects.all()
+        expediente_id = self.request.query_params.get('expediente')
+        
+        if expediente_id:
+            queryset = queryset.filter(expediente_id=expediente_id)
+            
+        return queryset
+    
+    def perform_destroy(self, instance):
+        archivo = instance.archivo
+        instance.delete()
+        
+        if archivo:
+            archivo.delete(save=False)
+    
+             
 
 
 class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, GenericViewSet):
@@ -343,19 +406,16 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
     def perform_create(self, serializer):
         pase = serializer.save(usuario_origen = self.request.user)
         expediente = pase.expediente
-        #Obtiene el perfil del usuario destino para decidir el nuevo estado del expediente segun su rol.
-        perfil_destino = getattr(pase.usuario_destino, 'usuario', None)
+
+        documentos_pendientes = DocumentoAdjunto.objects.filter(
+            expediente=expediente,
+            historial_pases__isnull=True
+        )
+        if documentos_pendientes.exists():
+            pase.documentos_adjuntos.add(*list(documentos_pendientes))
+            serializer.instance = HistorialPase.objects.prefetch_related('documentos_adjuntos').get(id=pase.id)
         
-        if expediente.estado_expediente.nombre != 'AP' and perfil_destino:
-            rol_destino = perfil_destino.rol.nombre_rol
-            
-            if rol_destino == 'LG':
-                nuevo_estado = EstadoExpediente.objects.get(nombre='LEG')
-            else:
-                nuevo_estado = EstadoExpediente.objects.get(nombre='1V')
-            
-            expediente.estado_expediente = nuevo_estado
-            # Actualiza el usuario asignado para que el expediente quede en poder de quien lo recibe.
+        if pase.usuario_destino:
             expediente.usuario_asignado = pase.usuario_destino
             expediente.save()
 
@@ -364,11 +424,25 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
         crear_notificacion_recepcion_expediente(pase.usuario_destino, expediente, pase_actual=pase)
         
     def get_queryset(self):
-        queryset = HistorialPase.objects.all()
+        queryset = (
+            HistorialPase.objects
+            .select_related(
+                'expediente',
+                'expediente__estado_expediente',
+                'expediente__postulante_titular',
+                'expediente__usuario_asignado',
+                'expediente__usuario_asignado__usuario',
+                'usuario_origen',
+                'usuario_origen__usuario',
+                'usuario_destino',
+                'usuario_destino__usuario',
+            )
+            .prefetch_related('documentos_adjuntos')
+        )
         expediente_id = self.request.query_params.get('expediente')
         usuario_id = self.request.query_params.get('usuario')
         
-        if expediente_id:
+        if expediente_id is not None:
             queryset = queryset.filter(expediente_id=expediente_id)
 
         if usuario_id:
@@ -378,6 +452,7 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
             )
             
         return queryset
+
         
             
 class NotificacionViewSet(viewsets.ModelViewSet):
@@ -411,7 +486,17 @@ class HistorialAccionViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet)
 class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin, GenericViewSet):
     queryset = FormularioSocioHabitacional.objects.all()
     serializer_class = FormularioSocioHabitacionalSerializer
-
+    
+    def get_queryset(self):
+        queryset = FormularioSocioHabitacional.objects.all()
+        expediente_id = self.request.query_params.get('expediente') 
+        
+        if expediente_id:
+            queryset = queryset.filter(expediente_id = expediente_id)
+            
+        return queryset
+            
+    
     def perform_create(self, serializer):
         formulario = serializer.save()
         expediente = formulario.expediente
@@ -424,41 +509,139 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
             return [IsTrabajadoraSocial()]
         return [IsAnyRole()]
 
+    logger = logging.getLogger(__name__)
+
     @action(detail=True, methods=['get'], url_path='pdf')
     def generar_pdf(self, request, pk=None):
+       formulario = self.get_object()
+       expediente = formulario.expediente
 
-        formulario = self.get_object()
+       # --- Datos del profesional asignado ---
+       profesional = ""
+       if expediente.usuario_asignado:
+           try:
+               perfil = expediente.usuario_asignado.usuario  # relación OneToOneField
+               profesional = f"{perfil.apellido}, {perfil.nombre} (Mat. {perfil.matricula})"
+           except (AttributeError, ObjectDoesNotExist) as e:
+              logger.warning(
+                  f"No se pudo obtener perfil detallado para usuario_asignado "
+                  f"id={expediente.usuario_asignado_id}: {e}"
+               )
+              profesional = (
+                   f"{expediente.usuario_asignado.last_name}, "
+                   f"{expediente.usuario_asignado.first_name}"
+               )
 
-        response = HttpResponse(content_type='application/pdf')
-        response['Content-Disposition'] = (
-            f'attachment; filename="Formulario_{formulario.id}.pdf"'
-        )
+       # --- Datos del titular ---
+       domicilio = apellido = nombre = dni = ""
+       if expediente.postulante_titular:
+           titular = expediente.postulante_titular
+           domicilio = getattr(titular, 'domicilio_actual', '') or ''
+           apellido = getattr(titular, 'apellido', '') or ''
+           nombre = getattr(titular, 'nombre', '') or ''
+           dni = getattr(titular, 'dni', '') or ''
 
-        pdf = canvas.Canvas(response, pagesize=A4)
+       # --- Fecha ---
+       fecha = formulario.fecha_modificacion or formulario.fecha_creacion
+       meses = [
+           "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+           "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+       ]
+       fecha_str = ""
+       if fecha:
+           fecha_str = f"{fecha.day} de {meses[fecha.month - 1]} de {fecha.year}"
 
-        ancho, alto = A4
+       # --- Response / Document ---
+       response = HttpResponse(content_type='application/pdf')
+       response['Content-Disposition'] = (
+           f'attachment; filename="Formulario_{formulario.id}.pdf"'
+       )
 
-        pagina1 = os.path.join(
-            settings.BASE_DIR,
-            "ipvu_backend",
-            "imagenespdf_formsociohabitacional",
-            "pagina1.jpg"
-        )
+       doc = SimpleDocTemplate(
+           response,
+           pagesize=A4,
+           topMargin=2 * cm,
+           bottomMargin=2 * cm,
+           leftMargin=2 * cm,
+           rightMargin=2 * cm,
+       )
 
-        pdf.drawImage(
-            pagina1,
-            0,
-            0,
-            width=ancho,
-            height=alto
-        )
-   
-        pdf.save()
+       styles = getSampleStyleSheet()
+       styles.add(ParagraphStyle(
+           name='TituloPrincipal',
+           parent=styles['Heading1'],
+           alignment=TA_CENTER,
+           fontSize=14,
+           spaceAfter=4,
+       ))
+       styles.add(ParagraphStyle(
+           name='Subtitulo',
+           parent=styles['Normal'],
+           alignment=TA_CENTER,
+           fontSize=9,
+           textColor=colors.grey,
+           spaceAfter=12,
+       ))
+       styles.add(ParagraphStyle(
+           name='SeccionTitulo',
+           parent=styles['Heading2'],
+           fontSize=11,
+           spaceBefore=14,
+           spaceAfter=6,
+           textColor=colors.HexColor('#1a3c6e'),
+       ))
+       styles.add(ParagraphStyle(
+          name='TextoCuerpo',
+          parent=styles['Normal'],
+          fontSize=10,
+           leading=14,
+       ))
 
-        return response
-        
+       elementos = []
 
-    
+       # --- Encabezado ---
+       elementos.append(Paragraph("Formulario Socio-Habitacional", styles['TituloPrincipal']))
+       elementos.append(Paragraph(f"Expediente N° {expediente.id}", styles['Subtitulo']))
+       elementos.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#1a3c6e')))
+       elementos.append(Spacer(1, 12))
+
+       # --- Tabla de datos generales ---
+       datos_generales = [
+           ["Profesional interviniente:", profesional or "-"],
+           ["DDJJ:", str(expediente.DDJJ or "-")],
+           ["Titular:", f"{apellido}, {nombre}".strip(", ") or "-"],
+           ["DNI:", dni or "-"],
+           ["Domicilio:", domicilio or "-"],
+           ["Fecha:", fecha_str or "-"],
+       ]
+       tabla = Table(datos_generales, colWidths=[4 * cm, 12 * cm])
+       tabla.setStyle(TableStyle([
+           ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+           ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+           ('FONTSIZE', (0, 0), (-1, -1), 10),
+           ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+           ('TOPPADDING', (0, 0), (-1, -1), 4),
+           ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]))
+       elementos.append(tabla)
+       elementos.append(Spacer(1, 10))
+
+       # --- Función helper para secciones de texto largo ---
+       def agregar_seccion(titulo, contenido):
+           elementos.append(Paragraph(titulo, styles['SeccionTitulo']))
+           texto = (contenido or '-').replace('\n', '<br/>')
+           elementos.append(Paragraph(texto, styles['TextoCuerpo']))
+
+       agregar_seccion("Grupo Familiar Constituyente", formulario.grupo_familiar)
+       agregar_seccion("Situación Habitacional", formulario.situacion_habitacional)
+       agregar_seccion("Aspecto Económico", formulario.aspecto_economico)
+       agregar_seccion("Situación de Salud", formulario.situacion_salud)
+       agregar_seccion("Nivel de Estudios", formulario.nivel_estudios)
+       agregar_seccion("Relevamiento Vecinal", formulario.relevamiento_vecinal)
+       agregar_seccion("Observaciones y/o Particularidades", formulario.observaciones)
+
+       doc.build(elementos)
+       return response
     
     
 class MiLoginPersonalizadoView(TokenObtainPairView):

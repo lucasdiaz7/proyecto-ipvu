@@ -152,6 +152,7 @@ const Expedientes = () => {
         });
     }, [expedientes, selectedEstado, searchTerm, verSoloNuevos, sortConfig]);
 
+
     const renderSortIcon = (key) => {
         if (sortConfig.key !== key) {
             return <ChevronDoubleUpIcon className="w-4 h-4 ml-1 inline text-gray-400 opacity-50 group-hover:opacity-100" />;
@@ -308,7 +309,9 @@ const Expedientes = () => {
                             const apellido = esObjeto ? e.postulante_titular.apellido : "";
                             const dni = esObjeto ? e.postulante_titular.dni : "---";
 
-                            const codEstado = obtenerCodigoEstado(e);
+
+                            const codEstado = e.estado_expediente;
+
                             const configEst = CONFIG_ESTADOS[codEstado] || { texto: codEstado || 'Sin Estado', color: 'bg-gray-100 text-gray-800' };
 
                             const fechaFormateada = e.fecha_creacion ? new Date(e.fecha_creacion).toLocaleDateString('es-AR') : '---';
