@@ -372,6 +372,12 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
             
         return queryset
     
+    def perform_destroy(self, instance):
+        archivo = instance.archivo
+        instance.delete()
+        
+        if archivo:
+            archivo.delete(salve=False)
     
              
 
