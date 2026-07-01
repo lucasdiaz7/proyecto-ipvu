@@ -16,7 +16,6 @@ export const usuarioService = {
         try {
             const response = await api.post("/usuario/", data)
             return response.data
-            console.log('response.data :>> ', response.data);
 
         } catch (error) {
             console.error(error)
@@ -30,6 +29,16 @@ export const usuarioService = {
             return response.data
         } catch (error) {
             console.log("Error al obtener usuarios:", error)
+            throw error;
+        }
+    },
+
+    getUsuario: async (id) => {
+        try {
+            const response = await api.get(`/usuario/${id}/`)
+            return response.data
+        } catch (error) {
+            console.log(`Error al obtener el usuario con id:${id}`, error)
             throw error;
         }
     }
