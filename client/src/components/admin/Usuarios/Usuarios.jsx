@@ -1,9 +1,15 @@
 import { UsersIcon } from '@heroicons/react/24/outline';
 import React, { useEffect, useState } from 'react';
 import { usuarioService } from '../../../services/usuarios/usuarios';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router-dom';
+import { auditoriaService } from '../../../services/auditoria/auditoria';
+
+const obtenerUsuarioId = (usuario) => Number(usuario?.usuario ?? usuario?.id);
+
+const usuarioEsTS = (usuario) => usuario?.rol_display === 'TS';
 
 const Usuarios = () => {
+    const navigate = useNavigate();
     const [listaUsuarios, setListaUsuarios] = useState([]);
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState(null);
@@ -11,14 +17,53 @@ const Usuarios = () => {
     const [busqueda, setBusqueda] = useState('');
 
     useEffect(() => {
-
-        const fetchUsuarios = async () => {
+        const fetchUsuariosYCasos = async () => {
             try {
                 setCargando(true);
                 setError(null);
 
-                const data = await usuarioService.getUsuarios();
-                setListaUsuarios(data);
+                const usuariosData = await usuarioService.getUsuarios();
+                const auditoriaResult = await auditoriaService.getAuditoriaUsuarios()
+                    .catch(() => null);
+
+                let metricasPorPerfil = new Map();
+
+                const auditoriaTieneVistos = auditoriaResult?.every((item) => item.total_vistos !== undefined);
+
+                if (auditoriaResult && auditoriaTieneVistos) {
+                    metricasPorPerfil = new Map(
+                        auditoriaResult.map((item) => [
+                            Number(item.usuario_id),
+                            {
+                                cantidad_casos: item.total_asignados ?? 0,
+                                cantidad_vistos: item.total_vistos ?? 0
+                            }
+                        ])
+                    );
+                } else {
+                    const expedientesData = await auditoriaService.getExpedientes()
+                        .catch(() => []);
+
+                    metricasPorPerfil = usuariosData.reduce((mapa, usuario) => {
+                        const usuarioId = obtenerUsuarioId(usuario);
+                        const casosAsignados = expedientesData.filter((exp) => Number(exp.usuario_asignado?.id) === usuarioId);
+
+                        mapa.set(Number(usuario.id), {
+                            cantidad_casos: casosAsignados.length,
+                            cantidad_vistos: casosAsignados.filter((exp) => exp.visto).length
+                        });
+
+                        return mapa;
+                    }, new Map());
+                }
+
+                const usuariosConCasos = usuariosData.map((usuario) => ({
+                    ...usuario,
+                    cantidad_casos: metricasPorPerfil.get(Number(usuario.id))?.cantidad_casos ?? 0,
+                    cantidad_vistos: metricasPorPerfil.get(Number(usuario.id))?.cantidad_vistos ?? 0
+                }));
+
+                setListaUsuarios(usuariosConCasos);
             } catch (err) {
                 console.error(err);
                 setError("Ocurrió un error al cargar la lista de usuarios.");
@@ -27,7 +72,7 @@ const Usuarios = () => {
             }
         };
 
-        fetchUsuarios();
+        fetchUsuariosYCasos();
     }, []);
 
     const usuariosFiltrados = listaUsuarios.filter((u) => {
@@ -88,18 +133,13 @@ const Usuarios = () => {
 
                 <div className="mt-6 overflow-x-auto">
 
-                    <div className="grid grid-cols-3 gap-2 md:hidden bg-gray-100 p-3 rounded-lg text-gray-700 font-semibold text-sm">
-                        <span>ID</span>
-                        <span>Nombre</span>
-                        <span>Perfil</span>
-                    </div>
-
-
-                    <div className="hidden md:grid grid-cols-4 bg-gray-100 p-3 rounded-lg text-gray-700 font-semibold text-sm">
+                    <div className="grid grid-cols-6 gap-2 min-w-[880px] bg-gray-100 p-3 rounded-lg text-gray-700 font-semibold text-sm">
                         <span>ID</span>
                         <span>Nombre</span>
                         <span>Perfil</span>
                         <span>DNI</span>
+                        <span>Total</span>
+                        <span>Vistos</span>
                     </div>
 
 
@@ -117,29 +157,59 @@ const Usuarios = () => {
                         </div>
                     ) : (
                         usuariosFiltrados.map((e) => (
-                            <button
-                                key={e.id}
-                                className="grid grid-cols-3 md:grid-cols-4 gap-2 items-center w-full text-left p-4 border-b hover:bg-gray-50 transition"
-                            >
-                                <span className="font-medium text-gray-800">#{e.id}</span>
-                                <span className="text-gray-700 capitalize">{`${e.apellido} ${e.nombre}`}</span>
+                                <button
+                                    key={e.id}
+                                    onClick={() => {
+                                        if (usuarioEsTS(e)) {
+                                            navigate(`/DetalleTS/${e.id}`);
+                                        }
+                                    }}
+                                    className="grid grid-cols-6 gap-2 items-center w-full min-w-[880px] text-left p-4 border-b hover:bg-gray-50 transition"
+                                >
 
-                                <span className="text-gray-700">
-                                    <span className={`px-2 py-0.5 rounded-md text-xs font-bold
-                                        ${e.rol_display === 'TS' ? 'bg-blue-100 text-blue-700' : ''}
-                                        ${e.rol_display === 'SU' ? 'bg-purple-100 text-purple-700' : ''}
-                                        ${e.rol_display === 'LG' ? 'bg-green-100 text-green-700' : ''}
-                                        ${e.rol_display === 'DE' ? 'bg-amber-100 text-amber-700' : ''}
-                                    `}>
-                                        {e.rol_display === 'TS' && 'Trabajadora Social'}
-                                        {e.rol_display === 'SU' && 'Administrador'}
-                                        {e.rol_display === 'LG' && 'Legales'}
-                                        {e.rol_display === 'DE' && 'Data Entry'}
+                                    <span className="font-medium text-gray-800">#{e.id}</span>
+
+
+                                    <span className="text-gray-700 capitalize">{`${e.apellido} ${e.nombre}`}</span>
+
+                                    <span className="text-gray-700">
+                                        <span className={`px-2 py-0.5 rounded-md text-xs font-bold
+                                            ${e.rol_display === 'TS' ? 'bg-blue-100 text-blue-700' : ''}
+                                            ${e.rol_display === 'SU' ? 'bg-purple-100 text-purple-700' : ''}
+                                            ${e.rol_display === 'LG' ? 'bg-green-100 text-green-700' : ''}
+                                            ${e.rol_display === 'DE' ? 'bg-amber-100 text-amber-700' : ''}
+                                        `}>
+                                            {e.rol_display === 'TS' && 'Trabajadora Social'}
+                                            {e.rol_display === 'SU' && 'Administrador'}
+                                            {e.rol_display === 'LG' && 'Legales'}
+                                            {e.rol_display === 'DE' && 'Data Entry'}
+                                        </span>
                                     </span>
-                                </span>
 
-                                <span className="hidden md:block text-gray-700 font-mono">{e.dni}</span>
-                            </button>
+
+                                    <span className="text-gray-700 font-mono">{e.dni || "---"}</span>
+
+
+                                    <span className="text-gray-700 text-sm text-left">
+                                        {usuarioEsTS(e) ? (
+                                            <span className="bg-gray-100 px-2 py-1 rounded-full text-xs font-semibold text-gray-600">
+                                                {e.cantidad_casos ?? 0} expedientes
+                                            </span>
+                                        ) : (
+                                            <span className="text-gray-400 pl-4">-</span>
+                                        )}
+                                    </span>
+
+                                    <span className="text-gray-700 text-sm text-left">
+                                        {usuarioEsTS(e) ? (
+                                            <span className="bg-green-50 px-2 py-1 rounded-full text-xs font-semibold text-green-700">
+                                                {e.cantidad_vistos ?? 0} vistos
+                                            </span>
+                                        ) : (
+                                            <span className="text-gray-400 pl-4">-</span>
+                                        )}
+                                    </span>
+                                </button>
                         ))
                     )}
                 </div>
