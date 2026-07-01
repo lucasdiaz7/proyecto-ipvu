@@ -403,12 +403,11 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
         queryset = HistorialPase.objects.all()
         expediente_id = self.request.query_params.get('expediente')
         
-        if expediente_id:
+        if expediente_id is not None:
             queryset = queryset.filter(expediente_id=expediente_id)
             
         return queryset
-    
-    # hacer para que los archivos adjuntos tambien puedan verse
+
         
             
 class NotificacionViewSet(viewsets.ModelViewSet):
