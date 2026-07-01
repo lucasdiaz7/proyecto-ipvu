@@ -400,7 +400,21 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
         crear_notificacion_recepcion_expediente(pase.usuario_destino, expediente, pase_actual=pase)
         
     def get_queryset(self):
-        queryset = HistorialPase.objects.all()
+        queryset = (
+            HistorialPase.objects
+            .select_related(
+                'expediente',
+                'expediente__estado_expediente',
+                'expediente__postulante_titular',
+                'expediente__usuario_asignado',
+                'expediente__usuario_asignado__usuario',
+                'usuario_origen',
+                'usuario_origen__usuario',
+                'usuario_destino',
+                'usuario_destino__usuario',
+            )
+            .prefetch_related('documentos_adjuntos')
+        )
         expediente_id = self.request.query_params.get('expediente')
         
         if expediente_id is not None:
