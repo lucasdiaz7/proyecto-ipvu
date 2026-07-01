@@ -183,6 +183,7 @@ class DocumentoAdjuntoSerializer(serializers.ModelSerializer):
 class HistorialPaseSerializer(serializers.ModelSerializer):
     expediente_info = serializers.SerializerMethodField()
     estado_actual = serializers.SerializerMethodField()
+    documentos_adjuntos_detalle = serializers.SerializerMethodField()
     documentos_adjuntos = serializers.PrimaryKeyRelatedField(
         queryset=DocumentoAdjunto.objects.all(), 
         many=True, 
