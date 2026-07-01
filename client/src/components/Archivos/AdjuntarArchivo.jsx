@@ -1,28 +1,102 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { TrashIcon, DocumentTextIcon, PhotoIcon } from '@heroicons/react/24/outline';
+import { documentoAdjuntoService, resolverArchivoUrl } from '../../services/documentos/documentoAdjunto';
 
-export const AdjuntarArchivos = ({ onArchivosChange }) => {
+export const AdjuntarArchivos = ({ expedienteId, adjuntosExcluidos = [], onArchivosChange }) => {
   const [archivos, setArchivos] = useState([]);
+  const [cargando, setCargando] = useState(false);
+  const [subiendo, setSubiendo] = useState(false);
+  const [eliminandoId, setEliminandoId] = useState(null);
+  const [error, setError] = useState('');
   const fileInputRef = useRef(null);
 
-  const handleFileChange = (e) => {
+  const obtenerClaveAdjunto = (archivo) => {
+    return String(
+      archivo?.id ||
+      archivo?.archivo_url ||
+      archivo?.archivo ||
+      archivo?.url ||
+      archivo?.tipo_documento ||
+      ''
+    );
+  };
+
+  useEffect(() => {
+    const obtenerAdjuntosPendientes = async () => {
+      if (!expedienteId) return;
+
+      try {
+        setCargando(true);
+        setError('');
+        const documentos = await documentoAdjuntoService.obtenerPorExpediente(expedienteId);
+        const clavesExcluidas = new Set(adjuntosExcluidos.map(obtenerClaveAdjunto).filter(Boolean));
+        const documentosPendientes = documentos.filter(
+          (documento) => !clavesExcluidas.has(obtenerClaveAdjunto(documento))
+        );
+        setArchivos(documentosPendientes);
+        onArchivosChange?.(documentosPendientes);
+      } catch (error) {
+        console.error('Error al obtener documentos adjuntos:', error);
+        setError('No se pudieron cargar los archivos adjuntos.');
+      } finally {
+        setCargando(false);
+      }
+    };
+
+    obtenerAdjuntosPendientes();
+  }, [expedienteId, adjuntosExcluidos, onArchivosChange]);
+
+  const handleFileChange = async (e) => {
     const seleccionados = Array.from(e.target.files);
-    const nuevosArchivos = [...archivos, ...seleccionados];
+    if (seleccionados.length === 0 || !expedienteId) return;
 
-    setArchivos(nuevosArchivos);
-    onArchivosChange(nuevosArchivos);
+    try {
+      setSubiendo(true);
+      setError('');
+      const documentosSubidos = await Promise.all(
+        seleccionados.map((archivo) =>
+          documentoAdjuntoService.crear({ expedienteId, archivo })
+        )
+      );
+      const nuevosArchivos = [...archivos, ...documentosSubidos];
+      setArchivos(nuevosArchivos);
+      onArchivosChange?.(nuevosArchivos);
+    } catch (error) {
+      console.error('Error al subir documentos adjuntos:', error);
+      setError('No se pudo subir uno de los archivos. Intenta nuevamente.');
+    } finally {
+      setSubiendo(false);
+      e.target.value = '';
+    }
   };
 
-  const removerArchivo = (indexTarget) => {
-    const filtrados = archivos.filter((_, index) => index !== indexTarget);
+  const removerArchivo = async (documentoId) => {
+    if (!documentoId) return;
 
-    setArchivos(filtrados);
-    onArchivosChange(filtrados);
+    try {
+      setEliminandoId(documentoId);
+      setError('');
+      await documentoAdjuntoService.eliminar(documentoId);
+      const filtrados = archivos.filter((archivo) => archivo.id !== documentoId);
+      setArchivos(filtrados);
+      onArchivosChange?.(filtrados);
+    } catch (error) {
+      console.error('Error al eliminar documento adjunto:', error);
+      setError('No se pudo eliminar el archivo adjunto.');
+    } finally {
+      setEliminandoId(null);
+    }
   };
+
+  const obtenerNombreArchivo = (archivo) => {
+    const nombreDesdeUrl = archivo.archivo?.split('/').pop() || archivo.archivo_url?.split('/').pop();
+    return archivo.tipo_documento || nombreDesdeUrl || 'Archivo adjunto';
+  };
+
+  const archivoEsPdf = (archivo) => obtenerNombreArchivo(archivo).toLowerCase().endsWith('.pdf');
 
   return (
     <div className="w-full pt-1">
-
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
         <input
           type="file"
@@ -35,45 +109,59 @@ export const AdjuntarArchivos = ({ onArchivosChange }) => {
         <button
           type="button"
           onClick={() => fileInputRef.current.click()}
-
-          className="whitespace-nowrap px-4 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 hover:border-gray-400 transition-colors h-9 inline-flex items-center justify-center gap-1"
+          disabled={subiendo || !expedienteId}
+          className="whitespace-nowrap px-4 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 hover:border-gray-400 transition-colors h-9 inline-flex items-center justify-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          📎 Adjuntar archivo
+          {subiendo ? 'Subiendo...' : 'Adjuntar archivo'}
         </button>
         <span className="text-xs font-medium text-gray-500 pl-1 sm:pl-0">
-          {archivos.length === 0 ? "Ningún archivo seleccionado" : `${archivos.length} archivo(s) listo(s)`}
+          {cargando
+            ? 'Cargando archivos...'
+            : archivos.length === 0
+              ? 'Ningun archivo adjunto'
+              : `${archivos.length} archivo(s) adjunto(s)`}
         </span>
       </div>
 
-      {/* Grid de archivos seleccionados */}
+      {error && (
+        <p className="text-xs text-red-600 font-semibold mt-2">{error}</p>
+      )}
+
       {archivos.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3 bg-gray-50/60 p-2.5 rounded-xl border border-gray-100">
-          {archivos.map((archivo, index) => {
-            const esPdf = archivo.type === "application/pdf";
+          {archivos.map((archivo) => {
+            const nombreArchivo = obtenerNombreArchivo(archivo);
+            const archivoUrl = resolverArchivoUrl(archivo.archivo_url || archivo.archivo);
+            const estaEliminando = eliminandoId === archivo.id;
+
             return (
               <div
-                key={index}
+                key={archivo.id}
                 className="flex items-center justify-between p-2 bg-white rounded-lg border border-gray-200/80 shadow-sm text-sm"
               >
                 <div className="flex items-center gap-2 truncate pr-2">
-                  {esPdf ? (
+                  {archivoEsPdf(archivo) ? (
                     <DocumentTextIcon className="w-5 h-5 text-red-500 flex-shrink-0" />
                   ) : (
                     <PhotoIcon className="w-5 h-5 text-green-500 flex-shrink-0" />
                   )}
-                  <span className="truncate font-medium text-gray-700" title={archivo.name}>
-                    {archivo.name}
-                  </span>
-                  <span className="text-xs text-gray-400 flex-shrink-0">
-                    ({(archivo.size / 1024 / 1024).toFixed(2)} MB)
-                  </span>
+                  <a
+                    href={archivoUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="truncate font-medium text-gray-700 hover:text-blue-600"
+                    title={nombreArchivo}
+                  >
+                    {nombreArchivo}
+                  </a>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => removerArchivo(index)}
-                  className="p-1 text-gray-400 hover:text-red-500 rounded-md hover:bg-red-50 transition-colors flex-shrink-0"
-                  title="Eliminar de la lista"
+                  onClick={() => removerArchivo(archivo.id)}
+                  disabled={estaEliminando}
+                  className="p-1 text-gray-400 hover:text-red-500 rounded-md hover:bg-red-50 transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Eliminar archivo adjunto"
                 >
                   <TrashIcon className="w-4 h-4" />
                 </button>
