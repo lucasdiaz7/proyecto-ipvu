@@ -396,7 +396,8 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
             historial_pases__isnull=True
         )
         if documentos_pendientes.exists():
-            pase.documentos_adjuntos.add(*documentos_pendientes)
+            pase.documentos_adjuntos.add(*list(documentos_pendientes))
+            serializer.instance = HistorialPase.objects.prefetch_related('documentos_adjuntos').get(id=pase.id)
         
         if pase.usuario_destino:
             expediente.usuario_asignado = pase.usuario_destino
