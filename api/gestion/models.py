@@ -102,6 +102,7 @@ class DocumentoAdjunto(models.Model):
     tipo_documento = models.CharField(max_length=200)
     archivo = models.FileField(upload_to='documentos_expedientes/', null=True, blank=True)
     #FK
+    subido_por = models.ForeignKey(User, on_delete=models.RESTRICT, related_name='mis_documentos_subidos')
     expediente = models.ForeignKey(Expediente, on_delete=models.PROTECT, related_name='documentos', null=True, blank=True)
     def __str__(self):
         return f"ID Documento: {self.id}"
@@ -113,6 +114,7 @@ class HistorialPase(models.Model):
     expediente = models.ForeignKey(Expediente, on_delete=models.CASCADE, related_name='historial_pases')
     usuario_origen = models.ForeignKey(User, on_delete=models.RESTRICT, related_name='pases_enviados' )
     usuario_destino = models.ForeignKey(User, on_delete=models.RESTRICT, related_name='pases_recibidos')
+    documentos_adjuntos = models.ManyToManyField(DocumentoAdjunto, related_name='historial_pases', blank=True)
     
     observacion = models.TextField(blank=True, null=True)
     

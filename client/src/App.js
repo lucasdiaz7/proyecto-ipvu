@@ -3,7 +3,6 @@ import DetalleTS from "./components/admin/Trabajador Social/DetalleTS.jsx";
 import TrabajadorSocial from "./components/admin/Trabajador Social/TrabajadorSocial.jsx";
 import FormUsuario from "./components/admin/Usuarios/FormUsuario.jsx";
 import Usuarios from "./components/admin/Usuarios/Usuarios.jsx";
-import { AdjuntarArchivos } from "./components/Archivos/AdjuntarArchivo.jsx";
 import FormExpedientes from "./components/data entry/FormExpedientes.jsx";
 import Home from "./components/data entry/Home.jsx";
 import DetailExpedientes from "./components/expedientes/DetailExpedientes.jsx";

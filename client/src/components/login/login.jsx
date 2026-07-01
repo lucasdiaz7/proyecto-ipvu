@@ -8,36 +8,29 @@ const Login = () => {
     const navigate = useNavigate();
     const [cargando, setCargando] = useState(false);
 
+    // 👁️ NUEVO ESTADO: Controla si se muestra o se oculta la contraseña
+    const [verPassword, setVerPassword] = useState(false);
+
     const onSubmit = async (data) => {
         try {
             setCargando(true);
-
 
             const res = await authService.iniciarSesion(data.username, data.password);
 
             if (res.requiere_cambio_password === true) {
                 alert("Por seguridad, debes cambiar tu contraseña predeterminada.");
                 navigate("/cambiarContraseña");
-                return; // Cortamos la ejecución acá para que no vaya a otra vista
+                return;
             }
 
             const userRolId = localStorage.getItem("rol_id");
 
             switch (userRolId) {
-                // trabajadora social
                 case "1":
-                    navigate("/expedientes");
-                    break;
-
                 case "2":
-                    navigate("/expedientes");
-                    break;
-
-                // data entry
                 case "3":
                     navigate("/expedientes");
                     break;
-
                 case "4":
                     alert(`¡Bienvenido/a ${res.nombre_completo}!`);
                     navigate("/homeAdmin");
@@ -60,7 +53,6 @@ const Login = () => {
         <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
             <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl border border-gray-100">
 
-
                 <div className="flex flex-col items-center mb-6">
                     <div className="bg-blue-600 p-2.5 rounded-xl mb-3">
                         <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -73,10 +65,9 @@ const Login = () => {
                     </p>
                 </div>
 
-
                 <div className="space-y-4">
 
-
+                    {/* CAMPO USUARIO */}
                     <div className="flex flex-col gap-1.5">
                         <label className="text-gray-800 font-bold text-xs ml-1">Usuario</label>
                         <input
@@ -90,15 +81,40 @@ const Login = () => {
                         )}
                     </div>
 
-
+                    {/* CAMPO CONTRASEÑA CON EL OJO */}
                     <div className="flex flex-col gap-1.5">
                         <label className="text-gray-800 font-bold text-xs ml-1">Contraseña</label>
-                        <input
-                            type="password"
-                            autoComplete="current-password"
-                            {...register('password', { required: true })}
-                            className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200"
-                        />
+
+                        {/* Contenedor relativo para posicionar el icono de forma absoluta */}
+                        <div className="relative w-full flex items-center">
+                            <input
+                                type={verPassword ? "text" : "password"} // 👁️ Alterna dinámicamente el tipo
+                                autoComplete="current-password"
+                                {...register('password', { required: true })}
+                                className="w-full pl-3.5 pr-10 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200"
+                            />
+
+                            {/* Botón del ojo */}
+                            <button
+                                type="button" // Evita que este botón dispare el submit del formulario
+                                onClick={() => setVerPassword(!verPassword)}
+                                className="absolute right-3 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                            >
+                                {verPassword ? (
+                                    /* Icono Ojo Abierto */
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                ) : (
+                                    /* Icono Ojo Cerrado / Tachado */
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.21 16.057 7 19 12 19c1.683 0 3.275-.325 4.735-.917m2.33-2.33A10.477 10.477 0 0022.066 12c-1.274-4.057-5.064-7-9.542-7-1.253 0-2.455.244-3.555.688M12 9a3 3 0 00-3 3m3 3a3 3 0 003-3m-9.75 15.75l16.5-16.5" />
+                                    </svg>
+                                )}
+                            </button>
+                        </div>
+
                         {errors.password?.type === 'required' && (
                             <p className="font-sans text-sm text-red-600">Este campo es obligatorio</p>
                         )}
