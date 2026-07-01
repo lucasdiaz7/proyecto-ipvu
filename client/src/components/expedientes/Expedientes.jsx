@@ -13,6 +13,12 @@ import {
 import { Link } from 'react-router-dom';
 import { expedienteService } from '../../services/expedientes/expediente';
 
+const obtenerCodigoEstado = (expediente) => {
+    if (!expediente?.estado_expediente) return null;
+    if (typeof expediente.estado_expediente === 'string') return expediente.estado_expediente;
+    return expediente.estado_expediente.nombre;
+};
+
 const Expedientes = () => {
     const [error, setError] = useState(null);
     const [cargando, setCargando] = useState(false);
@@ -34,6 +40,7 @@ const Expedientes = () => {
         const cargarExpedientes = async () => {
             try {
                 setCargando(true);
+                setError(null);
                 const data = await expedienteService.getExpediente();
                 setExpedientes(data);
             } catch (err) {
@@ -100,7 +107,7 @@ const Expedientes = () => {
         // Filtrar por estado
         const porEstado = expedientes.filter((e) => {
             if (selectedEstado === "TODOS") return true;
-            return e.estado_expediente?.nombre === selectedEstado;
+            return obtenerCodigoEstado(e) === selectedEstado;
         });
 
         // Filtrar por término de búsqueda
@@ -275,7 +282,7 @@ const Expedientes = () => {
                 </div>
 
                 <div className="mt-6 overflow-x-auto">
-                    <div className="hidden md:grid grid-cols-5 bg-gray-100 p-3 rounded-lg text-gray-700 font-semibold text-sm">
+                    <div className="grid grid-cols-5 gap-2 min-w-[860px] bg-gray-100 p-3 rounded-lg text-gray-700 font-semibold text-sm">
                         <button onClick={() => requestSort('ddjj')} className="flex items-center text-left focus:outline-none group">
                             <span>DD.JJ</span> {renderSortIcon('ddjj')}
                         </button>
@@ -302,7 +309,9 @@ const Expedientes = () => {
                             const apellido = esObjeto ? e.postulante_titular.apellido : "";
                             const dni = esObjeto ? e.postulante_titular.dni : "---";
 
+
                             const codEstado = e.estado_expediente;
+
                             const configEst = CONFIG_ESTADOS[codEstado] || { texto: codEstado || 'Sin Estado', color: 'bg-gray-100 text-gray-800' };
 
                             const fechaFormateada = e.fecha_creacion ? new Date(e.fecha_creacion).toLocaleDateString('es-AR') : '---';
@@ -312,7 +321,7 @@ const Expedientes = () => {
                                     to={`/Expediente/${e.id}`}
                                     onClick={() => handleManejarVisto(e.id, e.visto)}
                                     key={e.id}
-                                    className="grid grid-cols-3 md:grid-cols-5 gap-2 items-center w-full text-left p-4 border-b hover:bg-gray-50 transition"
+                                    className="grid grid-cols-5 gap-2 items-center w-full min-w-[860px] text-left p-4 border-b hover:bg-gray-50 transition"
                                 >
                                     <span className="font-bold text-gray-800">{e.DDJJ || "---"}</span>
                                     <span className="text-gray-700 capitalize">{`${apellido} ${nombre}`}</span>
@@ -324,7 +333,7 @@ const Expedientes = () => {
                                         </span>
                                     </span>
 
-                                    <span className="hidden md:block text-gray-500 text-sm">{fechaFormateada}</span>
+                                    <span className="text-gray-500 text-sm">{fechaFormateada}</span>
                                 </Link>
                             );
                         })
