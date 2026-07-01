@@ -78,6 +78,8 @@ const Usuarios = () => {
     const usuariosFiltrados = listaUsuarios.filter((u) => {
         const pasaPerfil = perfilSeleccionado === 'Todos' || u.rol_display === perfilSeleccionado;
         const textoBusqueda = busqueda.toLowerCase();
+
+
         const pasaBusqueda =
             u.nombre?.toLowerCase().includes(textoBusqueda) ||
             u.apellido?.toLowerCase().includes(textoBusqueda) ||
@@ -85,10 +87,10 @@ const Usuarios = () => {
 
         return pasaPerfil && pasaBusqueda;
     });
+
     return (
         <div className="w-full min-h-screen bg-gray-50 flex justify-center items-center p-4">
             <div className="w-full max-w-6xl bg-white shadow-lg rounded-2xl p-6 md:p-10">
-
 
                 <div>
                     <h3 className="text-gray-800 font-bold text-xl">
@@ -114,7 +116,7 @@ const Usuarios = () => {
                     <div className="bg-gray-100 p-3 rounded-xl shadow-sm">
                         <input
                             type="text"
-                            placeholder="Buscar..."
+                            placeholder="Buscar por nombre, apellido o DNI..."
                             value={busqueda}
                             onChange={(e) => setBusqueda(e.target.value)}
                             className="w-full bg-transparent outline-none text-gray-700"
@@ -122,8 +124,7 @@ const Usuarios = () => {
                     </div>
 
                     <div className="flex items-center justify-between bg-gray-100 p-3 rounded-xl shadow-sm hover:bg-gray-200 transition cursor-pointer">
-
-                        <Link to="/crearUsuario" className="text-gray-700 font-medium">
+                        <Link to="/crearUsuario" className="text-gray-700 font-medium w-full block">
                             Crear nuevo usuario
                         </Link>
                         <UsersIcon className="w-6 h-6 text-gray-800" />
@@ -150,9 +151,9 @@ const Usuarios = () => {
                         <div className="text-center p-8 text-red-600 bg-red-50 rounded-xl border border-red-100 text-sm mt-2">
                             {error}
                         </div>
-                    ) : listaUsuarios.length === 0 ? (
+                    ) : usuariosFiltrados.length === 0 ? ( // Cambiado a usuariosFiltrados para que muestre el aviso si la búsqueda no da resultados
                         <div className="text-center p-8 text-gray-400 text-sm">
-                            No hay usuarios registrados en el sistema.
+                            No se encontraron usuarios con esos criterios.
                         </div>
                     ) : (
                         usuariosFiltrados.map((e) => (
@@ -212,7 +213,6 @@ const Usuarios = () => {
                         ))
                     )}
                 </div>
-
             </div>
         </div>
     );
