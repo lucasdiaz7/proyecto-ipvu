@@ -302,6 +302,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
                 expedientes_del_usuario = user_nativo.expediente_set.all()
                 
                 total_asignados = expedientes_del_usuario.count()
+                total_vistos = expedientes_del_usuario.filter(visto=True).count()
 
                 desglose_db = expedientes_del_usuario.values('estado_expediente__nombre').annotate(cantidad=Count('id'))
 
@@ -316,6 +317,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
                     "nombre_completo": f"{perfil.apellido}, {perfil.nombre}",
                     "rol": perfil.rol.nombre_rol if perfil.rol else "Sin Rol",
                     "total_asignados": total_asignados,
+                    "total_vistos": total_vistos,
                     "desglose_estados": estados_limpios
                 })
             return Response(resultado)
@@ -364,9 +366,16 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
     def get_queryset(self):
         queryset = HistorialPase.objects.all()
         expediente_id = self.request.query_params.get('expediente')
+        usuario_id = self.request.query_params.get('usuario')
         
         if expediente_id:
             queryset = queryset.filter(expediente_id=expediente_id)
+
+        if usuario_id:
+            queryset = queryset.filter(
+                Q(usuario_origen_id=usuario_id) |
+                Q(usuario_destino_id=usuario_id)
+            )
             
         return queryset
         
