@@ -1,5 +1,7 @@
 import csv
 import os
+import logging
+
 from django.http import HttpResponse
 from django.shortcuts import render
 from rest_framework import viewsets, permissions
@@ -26,6 +28,18 @@ from django.db.models import Count
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import cm
+from django.core.exceptions import ObjectDoesNotExist
+from django.http import HttpResponse
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import cm
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+)
+from reportlab.lib import colors
+
+
 
 
 # Notificaciones automaticas. meensajes posibles al recibir un expediente
@@ -465,125 +479,139 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
             return [IsTrabajadoraSocial()]
         return [IsAnyRole()]
 
+    logger = logging.getLogger(__name__)
+
     @action(detail=True, methods=['get'], url_path='pdf')
     def generar_pdf(self, request, pk=None):
-        formulario = self.get_object()
-        expediente = formulario.expediente
-        
-        # Intentamos obtener el perfil detallado del usuario asignado (Trabajadora Social)
-        profesional = ""
-        if expediente.usuario_asignado:
-            try:
-                perfil = expediente.usuario_asignado.usuario  # relación OneToOneField
-                profesional = f"{perfil.apellido}, {perfil.nombre} (Mat. {perfil.matricula})"
-            except Exception:
-                profesional = f"{expediente.usuario_asignado.last_name}, {expediente.usuario_asignado.first_name}"
+       formulario = self.get_object()
+       expediente = formulario.expediente
 
-        response = HttpResponse(content_type='application/pdf')
-        response['Content-Disposition'] = (
-            f'attachment; filename="Formulario_{formulario.id}.pdf"'
-        )
+       # --- Datos del profesional asignado ---
+       profesional = ""
+       if expediente.usuario_asignado:
+           try:
+               perfil = expediente.usuario_asignado.usuario  # relación OneToOneField
+               profesional = f"{perfil.apellido}, {perfil.nombre} (Mat. {perfil.matricula})"
+           except (AttributeError, ObjectDoesNotExist) as e:
+              logger.warning(
+                  f"No se pudo obtener perfil detallado para usuario_asignado "
+                  f"id={expediente.usuario_asignado_id}: {e}"
+               )
+              profesional = (
+                   f"{expediente.usuario_asignado.last_name}, "
+                   f"{expediente.usuario_asignado.first_name}"
+               )
 
-        pdf = canvas.Canvas(response, pagesize=A4)
-        ancho, alto = A4  # A4: ~595.27 x 841.89 puntos
+       # --- Datos del titular ---
+       domicilio = apellido = nombre = dni = ""
+       if expediente.postulante_titular:
+           titular = expediente.postulante_titular
+           domicilio = getattr(titular, 'domicilio_actual', '') or ''
+           apellido = getattr(titular, 'apellido', '') or ''
+           nombre = getattr(titular, 'nombre', '') or ''
+           dni = getattr(titular, 'dni', '') or ''
 
-        # --- PÁGINA 1 ---
-        pagina1 = os.path.join(
-            settings.BASE_DIR,
-            "ipvu_backend",
-            "imagenespdf_formsociohabitacional",
-            "pagina1.jpg"
-        )
-        pdf.drawImage(pagina1, 0, 0, width=ancho, height=alto)
+       # --- Fecha ---
+       fecha = formulario.fecha_modificacion or formulario.fecha_creacion
+       meses = [
+           "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+           "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+       ]
+       fecha_str = ""
+       if fecha:
+           fecha_str = f"{fecha.day} de {meses[fecha.month - 1]} de {fecha.year}"
 
-        # Configuración de texto
-        pdf.setFont("Helvetica", 10)
+       # --- Response / Document ---
+       response = HttpResponse(content_type='application/pdf')
+       response['Content-Disposition'] = (
+           f'attachment; filename="Formulario_{formulario.id}.pdf"'
+       )
 
-        # Datos Generales del Encabezado
-        pdf.drawString(160, 708, profesional)
-        pdf.drawString(140, 693, f"Expediente N° {expediente.id}")
-        pdf.drawString(550, 693, str(expediente.DDJJ or ''))
-        
-        if expediente.postulante_titular:
-            titular = expediente.postulante_titular
-            domicilio_str = f"{titular.domicilio_actual} | Titular: {titular.apellido}, {titular.nombre} - DNI: {titular.dni}"
-            pdf.drawString(110, 678, domicilio_str)
+       doc = SimpleDocTemplate(
+           response,
+           pagesize=A4,
+           topMargin=2 * cm,
+           bottomMargin=2 * cm,
+           leftMargin=2 * cm,
+           rightMargin=2 * cm,
+       )
 
-        # Bloques de texto largo usando textobjects para soportar saltos de línea (\n)
-        # 1. Grupo Familiar Constituyente
-        text_fam = pdf.beginText(70, 620)
-        text_fam.setFont("Helvetica", 9)
-        text_fam.setLineSpacing(14)
-        text_fam.textLines(formulario.grupo_familiar or '')
-        pdf.drawText(text_fam)
+       styles = getSampleStyleSheet()
+       styles.add(ParagraphStyle(
+           name='TituloPrincipal',
+           parent=styles['Heading1'],
+           alignment=TA_CENTER,
+           fontSize=14,
+           spaceAfter=4,
+       ))
+       styles.add(ParagraphStyle(
+           name='Subtitulo',
+           parent=styles['Normal'],
+           alignment=TA_CENTER,
+           fontSize=9,
+           textColor=colors.grey,
+           spaceAfter=12,
+       ))
+       styles.add(ParagraphStyle(
+           name='SeccionTitulo',
+           parent=styles['Heading2'],
+           fontSize=11,
+           spaceBefore=14,
+           spaceAfter=6,
+           textColor=colors.HexColor('#1a3c6e'),
+       ))
+       styles.add(ParagraphStyle(
+          name='TextoCuerpo',
+          parent=styles['Normal'],
+          fontSize=10,
+           leading=14,
+       ))
 
-        # 2. Situación Habitacional
-        text_hab = pdf.beginText(70, 475)
-        text_hab.setFont("Helvetica", 9)
-        text_hab.setLineSpacing(14)
-        text_hab.textLines(formulario.situacion_habitacional or '')
-        pdf.drawText(text_hab)
+       elementos = []
 
-        # 3. Aspecto Económico
-        text_eco = pdf.beginText(70, 330)
-        text_eco.setFont("Helvetica", 9)
-        text_eco.setLineSpacing(14)
-        text_eco.textLines(formulario.aspecto_economico or '')
-        pdf.drawText(text_eco)
+       # --- Encabezado ---
+       elementos.append(Paragraph("Formulario Socio-Habitacional", styles['TituloPrincipal']))
+       elementos.append(Paragraph(f"Expediente N° {expediente.id}", styles['Subtitulo']))
+       elementos.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#1a3c6e')))
+       elementos.append(Spacer(1, 12))
 
-        # 4. Situación de Salud
-        text_sal = pdf.beginText(70, 190)
-        text_sal.setFont("Helvetica", 9)
-        text_sal.setLineSpacing(14)
-        text_sal.textLines(formulario.situacion_salud or '')
-        pdf.drawText(text_sal)
+       # --- Tabla de datos generales ---
+       datos_generales = [
+           ["Profesional interviniente:", profesional or "-"],
+           ["DDJJ:", str(expediente.DDJJ or "-")],
+           ["Titular:", f"{apellido}, {nombre}".strip(", ") or "-"],
+           ["DNI:", dni or "-"],
+           ["Domicilio:", domicilio or "-"],
+           ["Fecha:", fecha_str or "-"],
+       ]
+       tabla = Table(datos_generales, colWidths=[4 * cm, 12 * cm])
+       tabla.setStyle(TableStyle([
+           ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+           ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+           ('FONTSIZE', (0, 0), (-1, -1), 10),
+           ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+           ('TOPPADDING', (0, 0), (-1, -1), 4),
+           ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]))
+       elementos.append(tabla)
+       elementos.append(Spacer(1, 10))
 
-        # 5. Nivel de Estudios (Es un CharField de una sola línea)
-        pdf.drawString(160, 93, str(formulario.nivel_estudios or ''))
-        
-        # Pasamos a la hoja de reverso
-        pdf.showPage()
+       # --- Función helper para secciones de texto largo ---
+       def agregar_seccion(titulo, contenido):
+           elementos.append(Paragraph(titulo, styles['SeccionTitulo']))
+           texto = (contenido or '-').replace('\n', '<br/>')
+           elementos.append(Paragraph(texto, styles['TextoCuerpo']))
 
-        # --- PÁGINA 2 ---
-        pagina2 = os.path.join(
-            settings.BASE_DIR,
-            "ipvu_backend",
-            "imagenespdf_formsociohabitacional",
-            "pagina2.jpg"
-        )
-        pdf.drawImage(pagina2, 0, 0, width=ancho, height=alto)
+       agregar_seccion("Grupo Familiar Constituyente", formulario.grupo_familiar)
+       agregar_seccion("Situación Habitacional", formulario.situacion_habitacional)
+       agregar_seccion("Aspecto Económico", formulario.aspecto_economico)
+       agregar_seccion("Situación de Salud", formulario.situacion_salud)
+       agregar_seccion("Nivel de Estudios", formulario.nivel_estudios)
+       agregar_seccion("Relevamiento Vecinal", formulario.relevamiento_vecinal)
+       agregar_seccion("Observaciones y/o Particularidades", formulario.observaciones)
 
-        # 6. Relevamiento Vecinal
-        text_vec = pdf.beginText(70, 710)
-        text_vec.setFont("Helvetica", 9)
-        text_vec.setLineSpacing(14)
-        text_vec.textLines(formulario.relevamiento_vecinal or '')
-        pdf.drawText(text_vec)
-
-        # 7. Observaciones y/o Particularidades
-        text_obs = pdf.beginText(70, 420)
-        text_obs.setFont("Helvetica", 9)
-        text_obs.setLineSpacing(14)
-        text_obs.textLines(formulario.observaciones or '')
-        pdf.drawText(text_obs)
-
-        # 8. Renderizado Dinámico de Fecha actual de modificación
-        # (Santiago del Estero, _____ de ____________ de 20___)
-        fecha = formulario.fecha_modificacion if formulario.fecha_modificacion else formulario.fecha_creacion
-        
-        meses = [
-            "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-            "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-        ]
-        
-        if fecha:
-            pdf.drawString(175, 298, str(fecha.day))
-            pdf.drawString(240, 298, meses[fecha.month - 1])
-            pdf.drawString(335, 298, str(fecha.year)[-2:]) # Los últimos 2 dígitos (ej: "26")
-
-        pdf.save()
-        return response
-    
+       doc.build(elementos)
+       return response
     
     
 class MiLoginPersonalizadoView(TokenObtainPairView):
