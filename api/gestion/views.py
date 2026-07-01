@@ -377,7 +377,7 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
         instance.delete()
         
         if archivo:
-            archivo.delete(salve=False)
+            archivo.delete(save=False)
     
              
 
@@ -390,6 +390,13 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
     def perform_create(self, serializer):
         pase = serializer.save(usuario_origen = self.request.user)
         expediente = pase.expediente
+
+        if not pase.documentos_adjuntos.exists():
+            documentos_pendientes = DocumentoAdjunto.objects.filter(
+                expediente=expediente,
+                historial_pases__isnull=True
+            )
+            pase.documentos_adjuntos.set(documentos_pendientes)
         
         if pase.usuario_destino:
             expediente.usuario_asignado = pase.usuario_destino

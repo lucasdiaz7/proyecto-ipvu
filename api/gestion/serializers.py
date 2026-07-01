@@ -98,6 +98,8 @@ class ExpedienteSerializer(serializers.ModelSerializer):
                 'tipo_documento': documento.tipo_documento,
                 'archivo': documento.archivo.name if documento.archivo else None,
                 'archivo_url': documento.archivo.url if documento.archivo else None,
+                'historial_pases': list(documento.historial_pases.values_list('id', flat=True)),
+                'pendiente_pase': not documento.historial_pases.exists(),
             }
             for documento in instance.documentos.all()
         ]
@@ -114,6 +116,8 @@ class ExpedienteSerializer(serializers.ModelSerializer):
                     "tipo_documento": doc.tipo_documento,
                     "archivo": doc.archivo.name if doc.archivo else None,
                     "archivo_url": doc.archivo.url if doc.archivo else None,
+                    "historial_pases": list(doc.historial_pases.values_list('id', flat=True)),
+                    "pendiente_pase": not doc.historial_pases.exists(),
                 } for doc in documentos
             ]
         return []
@@ -170,15 +174,30 @@ class UsuarioSerializer(serializers.ModelSerializer):
     
 class DocumentoAdjuntoSerializer(serializers.ModelSerializer):
     archivo_url = serializers.SerializerMethodField()
+    historial_pases = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+    pendiente_pase = serializers.SerializerMethodField()
+
     class Meta:
         model = DocumentoAdjunto
-        fields = ['id', 'archivo', 'tipo_documento', 'subido_por']
+        fields = [
+            'id',
+            'archivo',
+            'archivo_url',
+            'tipo_documento',
+            'subido_por',
+            'expediente',
+            'historial_pases',
+            'pendiente_pase',
+        ]
         read_only_fields = ['subido_por']
         
     def get_archivo_url(self, obj):
         if obj.archivo:
             return obj.archivo.url
         return None
+
+    def get_pendiente_pase(self, obj):
+        return not obj.historial_pases.exists()
 
 class HistorialPaseSerializer(serializers.ModelSerializer):
     expediente_info = serializers.SerializerMethodField()
