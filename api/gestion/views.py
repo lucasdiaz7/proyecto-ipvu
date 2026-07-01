@@ -391,7 +391,7 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
         instance.delete()
         
         if archivo:
-            archivo.delete(salve=False)
+            archivo.delete(save=False)
     
              
 
@@ -404,6 +404,14 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
     def perform_create(self, serializer):
         pase = serializer.save(usuario_origen = self.request.user)
         expediente = pase.expediente
+
+        documentos_pendientes = DocumentoAdjunto.objects.filter(
+            expediente=expediente,
+            historial_pases__isnull=True
+        )
+        if documentos_pendientes.exists():
+            pase.documentos_adjuntos.add(*list(documentos_pendientes))
+            serializer.instance = HistorialPase.objects.prefetch_related('documentos_adjuntos').get(id=pase.id)
         
         if pase.usuario_destino:
             expediente.usuario_asignado = pase.usuario_destino
@@ -414,15 +422,28 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
         crear_notificacion_recepcion_expediente(pase.usuario_destino, expediente, pase_actual=pase)
         
     def get_queryset(self):
-        queryset = HistorialPase.objects.all()
+        queryset = (
+            HistorialPase.objects
+            .select_related(
+                'expediente',
+                'expediente__estado_expediente',
+                'expediente__postulante_titular',
+                'expediente__usuario_asignado',
+                'expediente__usuario_asignado__usuario',
+                'usuario_origen',
+                'usuario_origen__usuario',
+                'usuario_destino',
+                'usuario_destino__usuario',
+            )
+            .prefetch_related('documentos_adjuntos')
+        )
         expediente_id = self.request.query_params.get('expediente')
         
-        if expediente_id:
+        if expediente_id is not None:
             queryset = queryset.filter(expediente_id=expediente_id)
             
         return queryset
-    
-    # hacer para que los archivos adjuntos tambien puedan verse
+
         
             
 class NotificacionViewSet(viewsets.ModelViewSet):
