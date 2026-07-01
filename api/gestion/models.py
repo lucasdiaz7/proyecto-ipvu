@@ -113,6 +113,7 @@ class HistorialPase(models.Model):
     expediente = models.ForeignKey(Expediente, on_delete=models.CASCADE, related_name='historial_pases')
     usuario_origen = models.ForeignKey(User, on_delete=models.RESTRICT, related_name='pases_enviados' )
     usuario_destino = models.ForeignKey(User, on_delete=models.RESTRICT, related_name='pases_recibidos')
+    documento_adjunto = models.ForeignKey(DocumentoAdjunto, on_delete=models.SET_NULL, related_name='historial_pases',null=True,blank=True)
     
     observacion = models.TextField(blank=True, null=True)
     
