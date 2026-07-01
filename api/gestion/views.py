@@ -189,7 +189,7 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
         
         if not usuario.is_authenticated:
             queryset = Expediente.objects.all()
-        elif hasattr(usuario, 'usuario') and usuario.usuario.rol.nombre_rol == 'TS':
+        elif hasattr(usuario, 'usuario') and usuario.usuario.rol.nombre_rol in ['TS', 'LG', 'DE']:
             queryset = Expediente.objects.filter(usuario_asignado= usuario)
         else:
             queryset = Expediente.objects.all()
