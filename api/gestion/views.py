@@ -23,7 +23,8 @@ from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django.db.models import Q
 from django.db.models import Count
-
+from rest_framework.throttling import ScopedRateThrottle
+from rest_framework_simplejwt.views import TokenRefreshView
 
 # Notificaciones automaticas. meensajes posibles al recibir un expediente
 MENSAJE_NUEVO_CASO = "Nuevo caso recibido"
@@ -425,6 +426,8 @@ class DictamenLegalViewSet(viewsets.ModelViewSet):
     
 class MiLoginPersonalizadoView(TokenObtainPairView):
     serializer_class = MiLoginPersonalizadoSerializer
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
 
 
 class EstablecerPasswordInicialView(APIView):
@@ -444,6 +447,8 @@ class EstablecerPasswordInicialView(APIView):
 
 class SolicitarResetPasswordView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_classes =[ScopedRateThrottle]
+    throttle_scope = "password_reset"
 
     def post(self, request):
         serializer = SolicitarResetPasswordSerializer(data=request.data)
@@ -476,7 +481,8 @@ class SolicitarResetPasswordView(APIView):
 
 class ConfirmarResetPasswordView(APIView):
     permission_classes = [permissions.AllowAny]
-
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "password_reset"
     def post(self, request):
         serializer = ConfirmarResetPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -486,3 +492,8 @@ class ConfirmarResetPasswordView(APIView):
             "mensaje": "Contraseña actualizada correctamente."
         })
 
+
+class MiTokenRefreshView(TokenRefreshView):
+    
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "token_refresh"

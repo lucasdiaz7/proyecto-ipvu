@@ -17,7 +17,7 @@ router.register(r'rol', RolViewSet)
 router.register(r'usuario', UsuarioViewSet)
 router.register(r'documentoadjunto', DocumentoAdjuntoViewSet)   
 router.register(r'historialpase', HistorialPaseViewSet)
-router.register(r'notificacion', NotificacionViewSet)
+router.register(r'notificacion', NotificacionViewSet) 
 router.register(r'historialaccion', HistorialAccionViewSet)
 router.register(r'formulario', FormularioSocioHabitacionalViewSet)
 router.register(r'dictamen', DictamenLegalViewSet)
@@ -28,7 +28,7 @@ urlpatterns = [
 
     # rutas de login
     path('api/login/', MiLoginPersonalizadoView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/token/refresh/', MiTokenRefreshView.as_view(), name='token_refresh'),
     
     # ruta para establecer contraseña inicial
     path(
