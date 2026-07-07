@@ -153,7 +153,7 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_THROTTLE_CLASSES': ('rest_framework.throttling.ScopedRateThrottle', ),
     'DEFAULT_THROTTLE_RATES': {
-        'login': '1/min',
+        'login': '5/min',
         'password_reset': '3/hour',
         'token_refresh': '20/min',
 
