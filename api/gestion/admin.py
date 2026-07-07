@@ -13,7 +13,6 @@ admin.site.register(HistorialPase)
 admin.site.register(Notificacion)
 admin.site.register(HistorialAccion)
 admin.site.register(FormularioSocioHabitacional)
-admin.site.register(DictamenLegal)
 
 
 

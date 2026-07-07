@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react'; // 1. Importamos useMemo
 import {
     ChevronDownIcon,
     BellIcon,
-    EyeIcon, // Importamos el ojo para el botón "Ver Todos"
+    EyeIcon,
     ChevronDoubleUpIcon,
     ChevronDoubleDownIcon,
     CheckIcon,
@@ -13,28 +13,35 @@ import {
 import { Link } from 'react-router-dom';
 import { expedienteService } from '../../services/expedientes/expediente';
 
+const obtenerCodigoEstado = (expediente) => {
+    if (!expediente?.estado_expediente) return null;
+    if (typeof expediente.estado_expediente === 'string') return expediente.estado_expediente;
+    return expediente.estado_expediente.nombre;
+};
+
 const Expedientes = () => {
     const [error, setError] = useState(null);
     const [cargando, setCargando] = useState(false);
     const [expedientes, setExpedientes] = useState([]);
-    console.log('expedientes :>> ', expedientes);
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
     const [searchTerm, setSearchTerm] = useState("");
-
     const [selectedEstado, setSelectedEstado] = useState("TODOS");
     const [menuAbierto, setMenuAbierto] = useState(false);
-
     const [verSoloNuevos, setVerSoloNuevos] = useState(false);
 
     const rolId = Number(localStorage.getItem('rol_id'));
-    const nuevosCount = expedientes.filter(e => e.visto === false).length;
+
+
+    const nuevosCount = useMemo(() => {
+        return expedientes.filter(e => e.visto === false).length;
+    }, [expedientes]);
 
     useEffect(() => {
-        const Exp = async () => {
+        const cargarExpedientes = async () => {
             try {
                 setCargando(true);
+                setError(null);
                 const data = await expedienteService.getExpediente();
-                console.log('dataExpComp :>> ', data);
                 setExpedientes(data);
             } catch (err) {
                 console.log(err);
@@ -44,23 +51,20 @@ const Expedientes = () => {
             }
         };
 
-        Exp();
+        cargarExpedientes();
     }, []);
 
     const handleManejarVisto = async (id, yaVisto) => {
         if (yaVisto) return;
         try {
-
             setExpedientes(prevExpedientes =>
                 prevExpedientes.map(exp =>
                     exp.id === id ? { ...exp, visto: true } : exp
                 )
             );
-
             await expedienteService.marcarComoVisto(id);
         } catch (err) {
             console.log("No se pudo guardar el estado 'visto' en el servidor", err);
-
             setExpedientes(prevExpedientes =>
                 prevExpedientes.map(exp =>
                     exp.id === id ? { ...exp, visto: false } : exp
@@ -68,7 +72,6 @@ const Expedientes = () => {
             );
         }
     };
-
 
     const CONFIG_ESTADOS = {
         'SINI': { texto: 'Sin Iniciar', color: 'bg-gray-100 text-gray-800 border-gray-300', dot: 'bg-gray-400' },
@@ -98,53 +101,57 @@ const Expedientes = () => {
         return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     };
 
-    const expedientesPorEstado = expedientes.filter((e) => {
-        if (selectedEstado === "TODOS") return true;
-        return e.estado_expediente?.nombre === selectedEstado;
-    });
 
-    const expedientesFiltrados = expedientesPorEstado.filter((e) => {
-        const term = removeAccents(searchTerm.toLowerCase().trim());
-        const ddjj = e.DDJJ ? removeAccents(e.DDJJ.toLowerCase()) : "";
+    // Esto asegura rendimiento óptimo y evita disparos en cadena hacia el DOM
+    const expedientesFinales = useMemo(() => {
+        // Filtrar por estado
+        const porEstado = expedientes.filter((e) => {
+            if (selectedEstado === "TODOS") return true;
+            return obtenerCodigoEstado(e) === selectedEstado;
+        });
 
-        const esObjetoPostulante = e.postulante_titular && typeof e.postulante_titular === 'object';
-        const nombreTitular = esObjetoPostulante
-            ? removeAccents(`${e.postulante_titular.nombre} ${e.postulante_titular.apellido}`.toLowerCase())
-            : "";
-        const dniTitular = esObjetoPostulante ? (e.postulante_titular.dni || "") : "";
+        // Filtrar por término de búsqueda
+        const porTermino = porEstado.filter((e) => {
+            const term = removeAccents(searchTerm.toLowerCase().trim());
+            const ddjj = e.DDJJ ? removeAccents(e.DDJJ.toLowerCase()) : "";
+            const esObjetoPostulante = e.postulante_titular && typeof e.postulante_titular === 'object';
+            const nombreTitular = esObjetoPostulante
+                ? removeAccents(`${e.postulante_titular.nombre} ${e.postulante_titular.apellido}`.toLowerCase())
+                : "";
+            const dniTitular = esObjetoPostulante ? (e.postulante_titular.dni || "") : "";
 
-        return ddjj.includes(term) || nombreTitular.includes(term) || dniTitular.replace(/\./g, '').includes(term) || dniTitular.includes(term);
-    });
+            return ddjj.includes(term) || nombreTitular.includes(term) || dniTitular.replace(/\./g, '').includes(term) || dniTitular.includes(term);
+        });
 
+        // Filtrar por estado de lectura "visto"
+        const porVisto = porTermino.filter((e) => {
+            if (verSoloNuevos) return e.visto === false;
+            return true;
+        });
 
-    const expedientesPorVisto = expedientesFiltrados.filter((e) => {
-        if (verSoloNuevos) {
-            return e.visto === false;
-        }
-        return true;
-    });
+        // Ordenar el resultado final
+        return [...porVisto].sort((a, b) => {
+            if (!sortConfig.key) return 0;
 
+            let valA = a[sortConfig.key];
+            let valB = b[sortConfig.key];
 
-    const expedientesFinales = [...expedientesPorVisto].sort((a, b) => {
-        if (!sortConfig.key) return 0;
+            if (sortConfig.key === 'ddjj') { valA = a.DDJJ; valB = b.DDJJ; }
+            if (sortConfig.key === 'dni') {
+                valA = cleanDni(typeof a.postulante_titular === 'object' ? a.postulante_titular?.dni : "");
+                valB = cleanDni(typeof b.postulante_titular === 'object' ? b.postulante_titular?.dni : "");
+            }
+            if (sortConfig.key === 'titular') {
+                valA = typeof a.postulante_titular === 'object' ? a.postulante_titular?.nombre : "";
+                valB = typeof b.postulante_titular === 'object' ? b.postulante_titular?.nombre : "";
+            }
 
-        let valA = a[sortConfig.key];
-        let valB = b[sortConfig.key];
+            if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [expedientes, selectedEstado, searchTerm, verSoloNuevos, sortConfig]);
 
-        if (sortConfig.key === 'ddjj') { valA = a.DDJJ; valB = b.DDJJ; }
-        if (sortConfig.key === 'dni') {
-            valA = cleanDni(typeof a.postulante_titular === 'object' ? a.postulante_titular?.dni : "");
-            valB = cleanDni(typeof b.postulante_titular === 'object' ? b.postulante_titular?.dni : "");
-        }
-        if (sortConfig.key === 'titular') {
-            valA = typeof a.postulante_titular === 'object' ? a.postulante_titular?.nombre : "";
-            valB = typeof b.postulante_titular === 'object' ? b.postulante_titular?.nombre : "";
-        }
-
-        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-    });
 
     const renderSortIcon = (key) => {
         if (sortConfig.key !== key) {
@@ -231,7 +238,6 @@ const Expedientes = () => {
                         />
                     </div>
 
-                    {/* adminitrador */}
                     {rolId === 4 && (
                         <Link to="/crearUsuario" className="flex items-center justify-between bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl shadow-sm transition">
                             <span className="font-semibold">Crear Usuario</span>
@@ -239,7 +245,6 @@ const Expedientes = () => {
                         </Link>
                     )}
 
-                    {/* dataentry */}
                     {rolId === 3 && (
                         <Link to="/nuevoExpediente" className="flex items-center justify-between bg-green-600 hover:bg-green-700 text-white p-3 rounded-xl shadow-sm transition">
                             <span className="font-semibold">Crear Expediente</span>
@@ -247,13 +252,12 @@ const Expedientes = () => {
                         </Link>
                     )}
 
-                    {/* trabajadora social  */}
                     {rolId === 1 && (
                         <button
                             onClick={() => setVerSoloNuevos(!verSoloNuevos)}
                             className={`flex items-center justify-between p-3 rounded-xl shadow-sm transition focus:outline-none w-full ${verSoloNuevos
-                                ? "bg-slate-800 text-white hover:bg-slate-900" // Diseño oscuro cuando está activo "Ver Todos"
-                                : "bg-gray-100 text-gray-800 hover:bg-gray-200" // Diseño gris estándar
+                                ? "bg-slate-800 text-white hover:bg-slate-900"
+                                : "bg-gray-100 text-gray-800 hover:bg-gray-200"
                                 }`}
                         >
                             <span className="font-semibold">
@@ -278,7 +282,7 @@ const Expedientes = () => {
                 </div>
 
                 <div className="mt-6 overflow-x-auto">
-                    <div className="hidden md:grid grid-cols-5 bg-gray-100 p-3 rounded-lg text-gray-700 font-semibold text-sm">
+                    <div className="grid grid-cols-5 gap-2 min-w-[860px] bg-gray-100 p-3 rounded-lg text-gray-700 font-semibold text-sm">
                         <button onClick={() => requestSort('ddjj')} className="flex items-center text-left focus:outline-none group">
                             <span>DD.JJ</span> {renderSortIcon('ddjj')}
                         </button>
@@ -305,17 +309,19 @@ const Expedientes = () => {
                             const apellido = esObjeto ? e.postulante_titular.apellido : "";
                             const dni = esObjeto ? e.postulante_titular.dni : "---";
 
-                            const codEstado = e.estado_expediente?.nombre;
+
+                            const codEstado = e.estado_expediente;
+
                             const configEst = CONFIG_ESTADOS[codEstado] || { texto: codEstado || 'Sin Estado', color: 'bg-gray-100 text-gray-800' };
 
                             const fechaFormateada = e.fecha_creacion ? new Date(e.fecha_creacion).toLocaleDateString('es-AR') : '---';
 
                             return (
                                 <Link
-                                    to="/DetalleExpediente"
+                                    to={`/Expediente/${e.id}`}
                                     onClick={() => handleManejarVisto(e.id, e.visto)}
                                     key={e.id}
-                                    className="grid grid-cols-3 md:grid-cols-5 gap-2 items-center w-full text-left p-4 border-b hover:bg-gray-50 transition"
+                                    className="grid grid-cols-5 gap-2 items-center w-full min-w-[860px] text-left p-4 border-b hover:bg-gray-50 transition"
                                 >
                                     <span className="font-bold text-gray-800">{e.DDJJ || "---"}</span>
                                     <span className="text-gray-700 capitalize">{`${apellido} ${nombre}`}</span>
@@ -327,7 +333,7 @@ const Expedientes = () => {
                                         </span>
                                     </span>
 
-                                    <span className="hidden md:block text-gray-500 text-sm">{fechaFormateada}</span>
+                                    <span className="text-gray-500 text-sm">{fechaFormateada}</span>
                                 </Link>
                             );
                         })

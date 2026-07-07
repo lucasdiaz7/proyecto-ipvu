@@ -33,10 +33,11 @@ function App() {
             <Route path="/crearUsuario" element={<FormUsuario />} />
             <Route path="/trabajadoraSocial" element={<TrabajadorSocial />} />
             <Route path="/DetalleTS" element={<DetalleTS />} />
+            <Route path="/DetalleTS/:id" element={<DetalleTS />} />
             <Route path="/dataEntry" element={<Home />} />
             <Route path="/nuevoExpediente" element={<FormExpedientes />} />
-            <Route path="/DetalleExpediente" element={<DetailExpedientes />} />
-            <Route path="expedientes/:id" element={<DetailExpedientes />} />
+            <Route path="/Expediente/:id" element={<DetailExpedientes />} />
+
           </Route>
         </Routes>
       </BrowserRouter>

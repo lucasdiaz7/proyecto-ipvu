@@ -100,10 +100,10 @@ class Usuario(models.Model):
 
 class DocumentoAdjunto(models.Model):
     tipo_documento = models.CharField(max_length=200)
-
+    archivo = models.FileField(upload_to='documentos_expedientes/', null=True, blank=True)
     #FK
-    id_expediente = models.ForeignKey(Expediente, on_delete= models.PROTECT)
-
+    subido_por = models.ForeignKey(User, on_delete=models.RESTRICT, related_name='mis_documentos_subidos')
+    expediente = models.ForeignKey(Expediente, on_delete=models.PROTECT, related_name='documentos', null=True, blank=True)
     def __str__(self):
         return f"ID Documento: {self.id}"
 
@@ -114,6 +114,7 @@ class HistorialPase(models.Model):
     expediente = models.ForeignKey(Expediente, on_delete=models.CASCADE, related_name='historial_pases')
     usuario_origen = models.ForeignKey(User, on_delete=models.RESTRICT, related_name='pases_enviados' )
     usuario_destino = models.ForeignKey(User, on_delete=models.RESTRICT, related_name='pases_recibidos')
+    documentos_adjuntos = models.ManyToManyField(DocumentoAdjunto, related_name='historial_pases', blank=True)
     
     observacion = models.TextField(blank=True, null=True)
     
@@ -217,36 +218,3 @@ class FormularioSocioHabitacional(models.Model):
         f"Relevamiento Vecinal: {self.relevamiento_vecinal},\n "
         f"Observaciones: {self.observaciones}"
     )
-
-class DictamenLegal(models.Model):
-    texto_observaciones=models.TextField()
-
-    # opciones de estado (sujeto a cambio), el virgo de django quiere si o si q le tires dos alternativas de escritura para la misma
-    # opcion, por eso se repiten
-    estado_sancion= models.CharField(max_length=35, choices=[("APTO", "APTO"), ("NO APTO", "NO APTO"), ("EN REVISION", "EN REVISION")])
-
-    #fecha
-    fecha_dictamen=models.DateTimeField(auto_now_add=True)
-
-    #FK 
-    id_usuario=models.ForeignKey(Usuario, on_delete=models.PROTECT)
-    id_expediente=models.ForeignKey(Expediente, on_delete=models.PROTECT, null=True, blank=True)
-    
-    def __str__(self):
-       return f"Observaciones: {self.texto_observaciones}. Estado: {self.estado_sancion}. Fecha {self.fecha_dictamen}"
-
-
-class DocumentoExpediente(models.Model):
-    archivo = models.FileField(upload_to='expedientes/')
-    fecha_subida = models.DateTimeField(auto_now_add=True)
-    expediente = models.ForeignKey(
-        Expediente,
-        on_delete=models.CASCADE,
-        related_name='documentos'
-    )
-
-    def __str__(self):
-        return self.archivo.name
-
-
-    
