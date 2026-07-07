@@ -489,10 +489,47 @@ class HistorialAccionViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet)
 
 
 
+import os
+from django.conf import settings
+
+import os
+from django.conf import settings
+
 def _dibujar_encabezado_pie_formulario(canvas, doc):
     canvas.saveState()
     ancho_pagina, alto_pagina = A4
 
+    # --- Rutas de los logos ---
+    logo_ipvu_path = os.path.join(
+        settings.BASE_DIR, "gestion", "static_pdf", "logo_ipvu.jpg"
+    )
+    logo_santiago_path = os.path.join(
+        settings.BASE_DIR, "gestion", "static_pdf", "logo_santiago.jpg"
+    )
+
+    # --- Logo izquierdo (I.P.V.U.) ---
+    if os.path.exists(logo_ipvu_path):
+        canvas.drawImage(
+            logo_ipvu_path,
+            x=2 * cm, y=alto_pagina - 2.3 * cm,
+            width=2 * cm, height=1.6 * cm,
+            preserveAspectRatio=True, mask='auto'
+        )
+    else:
+        logger.warning(f"No se encontró el logo IPVU en: {logo_ipvu_path}")
+
+    # --- Logo derecho (Santiago) ---
+    if os.path.exists(logo_santiago_path):
+        canvas.drawImage(
+            logo_santiago_path,
+            x=ancho_pagina - 4 * cm, y=alto_pagina - 2.3 * cm,
+            width=2 * cm, height=1.6 * cm,
+            preserveAspectRatio=True, mask='auto'
+        )
+    else:
+        logger.warning(f"No se encontró el logo Santiago en: {logo_santiago_path}")
+
+    # --- Encabezado institucional (3 líneas centradas) ---
     y = alto_pagina - 1.3 * cm
     canvas.setFont("Helvetica-Bold", 10)
     canvas.drawCentredString(ancho_pagina / 2, y, "INSTITUTO PROVINCIAL DE VIVIENDA Y URBANISMO")
@@ -501,6 +538,7 @@ def _dibujar_encabezado_pie_formulario(canvas, doc):
     y -= 0.42 * cm
     canvas.drawCentredString(ancho_pagina / 2, y, "SECRETARÍA TÉCNICA DE RELACIONES PUBLICAS E INSTITUCIONALES")
 
+    # --- Fila de contacto ---
     y -= 0.35 * cm
     canvas.setLineWidth(0.5)
     canvas.line(2 * cm, y, ancho_pagina - 2 * cm, y)
@@ -512,12 +550,14 @@ def _dibujar_encabezado_pie_formulario(canvas, doc):
     y -= 0.25 * cm
     canvas.line(2 * cm, y, ancho_pagina - 2 * cm, y)
 
+    # --- Pie de página ---
     canvas.setFont("Helvetica-Oblique", 7)
     canvas.drawCentredString(
         ancho_pagina / 2, 1.3 * cm,
         "Secretaría Técnica de Relaciones Públicas - I.P.V.U. - "
         "Lunes a Viernes de 8 a 12 hs. - Santiago del Estero"
     )
+
     canvas.restoreState()
     
 class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin, GenericViewSet):
@@ -658,10 +698,6 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
         elementos.append(PageBreak())
         agregar_seccion("RELEVAMIENTO VECINAL", None, formulario.relevamiento_vecinal)
 
-        elementos.append(Spacer(1, 10))
-        elementos.append(Paragraph("_" * 40, styles['FirmaLinea']))
-        elementos.append(Paragraph("Firma y Aclaración del Entrevistado", styles['FirmaEtiqueta']))
-        elementos.append(Spacer(1, 14))
 
         agregar_seccion("OBSERVACIONES Y/O PARTICULARIDADES", None, formulario.observaciones)
 
