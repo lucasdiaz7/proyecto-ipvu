@@ -64,7 +64,7 @@ class Command(BaseCommand):
         estado_inicial = EstadoExpediente.objects.get(nombre='SINI')
         ts_user = User.objects.get(username='trabajador1')
         
-        ddjjs = ['EXP-2024-001', 'EXP-2024-002', 'EXP-2024-003', 'EXP-2024-003', 'EXP-2024-003']
+        ddjjs = ['EXP-2024-001', 'EXP-2024-002', 'EXP-2024-003', 'EXP-2024-004', 'EXP-2024-005']
         for i, postulante in enumerate(postulantes):
             Expediente.objects.get_or_create(
                 DDJJ=ddjjs[i],
