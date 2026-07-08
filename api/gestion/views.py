@@ -698,6 +698,10 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
         elementos.append(PageBreak())
         agregar_seccion("RELEVAMIENTO VECINAL", None, formulario.relevamiento_vecinal)
 
+        elementos.append(Spacer(1, 10))
+        elementos.append(Paragraph("_" * 40, styles['FirmaLinea']))
+        elementos.append(Paragraph("Firma y Aclaración del Entrevistado", styles['FirmaEtiqueta']))
+        elementos.append(Spacer(1, 14))
 
         agregar_seccion("OBSERVACIONES Y/O PARTICULARIDADES", None, formulario.observaciones)
 
@@ -718,7 +722,6 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
             onLaterPages=_dibujar_encabezado_pie_formulario,
         )
         return response
-    
     
 class MiLoginPersonalizadoView(TokenObtainPairView):
     serializer_class = MiLoginPersonalizadoSerializer
