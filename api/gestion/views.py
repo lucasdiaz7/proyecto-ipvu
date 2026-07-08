@@ -159,7 +159,7 @@ def obtener_siguiente_trabajadora_social():
 
     ultimo_expediente = (
         Expediente.objects
-        .filter(usuario_asignado__usuario__rol__nombre_rol="TS", usuario_asignado__activo= True)
+        .filter(usuario_asignado__usuario__rol__nombre_rol="TS", usuario_asignado__usuario__activo= True)
         .order_by("-id")
         .first()
     )
