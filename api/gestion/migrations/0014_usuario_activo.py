@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('gestion', '0013_remove_historialpase_documento_adjunto_and_more'),
+        ('gestion', '0001_initial'),
     ]
 
     operations = [
