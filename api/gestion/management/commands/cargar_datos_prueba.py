@@ -16,6 +16,8 @@ class Command(BaseCommand):
         # 2. Crear usuarios
         usuarios_data = [
             ('trabajador1', 'TS', 'Sofia', 'Gomez', '11111111', 'MAT-001'),
+            ('trabajador2', 'TS', 'Lucia', 'Dominguez', '12341234', 'MAT-002'),
+            ('trabajador3', 'TS', 'Lourdes', 'Lopez', '43214321', 'MAT-003'),
             ('legales1', 'LG', 'Martin', 'Lopez', '22222222', 'MAT-002'),
             ('admin1', 'SU', 'Carlos', 'Perez', '33333333', 'MAT-003'),
             ('dataentry1', 'DE', 'Laura', 'Diaz', '44444444', 'MAT-004'),
@@ -40,6 +42,8 @@ class Command(BaseCommand):
             ('Juan', 'Rodriguez', '55555555', '3814000001', 'Av. Belgrano 123'),
             ('Maria', 'Gonzalez', '66666666', '3814000002', 'Av. Libertad 456'),
             ('Pedro', 'Martinez', '77777777', '3814000003', 'Calle 9 de Julio 789'),
+            ('Lucas', 'Diaz', '88888888', '3814000002', 'Av. Libertad 456'),
+            ('Nico', 'Paz', '99999999', '3814000002', 'Av. Libertad 456')
         ]
         
         postulantes = []
