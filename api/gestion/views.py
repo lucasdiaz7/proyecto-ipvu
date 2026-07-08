@@ -557,7 +557,18 @@ def _dibujar_encabezado_pie_formulario(canvas, doc):
         "Secretaría Técnica de Relaciones Públicas - I.P.V.U. - "
         "Lunes a Viernes de 8 a 12 hs. - Santiago del Estero"
     )
+    if canvas.getPageNumber() == 1:
+       y_firma = 3.8 * cm
 
+       canvas.setLineWidth(0.7)
+       canvas.line(6 * cm, y_firma, 15 * cm, y_firma)
+
+       canvas.setFont("Helvetica", 9)
+       canvas.drawCentredString(
+          ancho_pagina / 2,
+          y_firma - 0.5 * cm,
+           "Firma y Aclaración del Entrevistado"
+         )
     canvas.restoreState()
     
 class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin, GenericViewSet):
@@ -642,6 +653,8 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
             leftMargin=2 * cm,
             rightMargin=2 * cm,
         )
+        
+        doc.title = f"Informe Socio Habitacional - Expediente {expediente_id}"
 
         styles = getSampleStyleSheet()
         styles.add(ParagraphStyle(name='TituloFormulario', parent=styles['Heading1'],
@@ -708,11 +721,14 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
         agregar_seccion("SITUACIÓN DE SALUD", "Discapacidad. Invalidez", formulario.situacion_salud)
         agregar_seccion("NIVEL DE ESTUDIOS", None, formulario.nivel_estudios)
 
-        elementos.append(Spacer(1, 10))
-        elementos.append(Paragraph("_" * 45, styles['FirmaLinea']))
-        elementos.append(Paragraph("Firma y Aclaración del Entrevistado", styles['FirmaEtiqueta']))
+        agregar_seccion("SITUACIÓN DE SALUD", "Discapacidad. Invalidez", formulario.situacion_salud)
+        agregar_seccion("NIVEL DE ESTUDIOS", None, formulario.nivel_estudios)
 
-        # ============ continuacion ============
+          # La firma ahora se dibuja desde _dibujar_encabezado_pie_formulario()
+
+        # ============  pagina 2============
+
+        elementos.append(PageBreak())
 
         agregar_seccion("RELEVAMIENTO VECINAL", None, formulario.relevamiento_vecinal)
 
