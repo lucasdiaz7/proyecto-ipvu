@@ -132,14 +132,6 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
         return [IsAnyRole()]
     
 
- 
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update']:
-            return [IsDataEntryOrSuperAdmin()]
-        if self.action == 'destroy':
-            return [IsSuperAdmin()]
-        return [IsAnyRole()]
- 
 class EstadoExpedienteViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet, UpdateModelMixin):
     queryset = EstadoExpediente.objects.all()
     permission_classes = [IsAnyRole]
@@ -159,7 +151,7 @@ def obtener_siguiente_trabajadora_social():
 
     ultimo_expediente = (
         Expediente.objects
-        .filter(usuario_asignado__usuario__rol__nombre_rol="TS", usuario__activo= True)
+        .filter(usuario_asignado__usuario__rol__nombre_rol="TS", usuario_asignado__usuario__activo= True)
         .order_by("-id")
         .first()
     )
