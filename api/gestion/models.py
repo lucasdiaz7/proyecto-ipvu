@@ -67,7 +67,6 @@ class Expediente(models.Model):
         ordering = ['-id']
 
 
-    
 class Rol(models.Model):
      #django exige dos opciones, una abreviacion y un string legible
      tipo_rol = [('TS','TRABAJADORA SOCIAL'),

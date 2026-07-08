@@ -8,7 +8,7 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         
         # 1. Crear roles si no existen
-        roles = [('TS', 'desc'), ('SU', 'desc'), ('LG', 'desc'), ('DE', 'desc')]
+        roles = [('TS', 'Trabajador Social'), ('SU', 'Super Usuario'), ('LG', 'Legales'), ('DE', 'Data Entry')]
         for nombre, desc in roles:
             Rol.objects.get_or_create(nombre_rol=nombre, defaults={'descripcion': desc})
         self.stdout.write('Roles creados')
