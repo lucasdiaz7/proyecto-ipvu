@@ -659,17 +659,35 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
                                    alignment=TA_CENTER, fontSize=10, spaceBefore=24))
         styles.add(ParagraphStyle(name='FirmaEtiqueta', parent=styles['Normal'],
                                    alignment=TA_CENTER, fontSize=9, spaceBefore=2))
-
+        styles.add(ParagraphStyle(name='TextoCaja', parent=styles['Normal'], fontSize=10, leading=14))
         elementos = []
 
         def agregar_seccion(titulo, bajada, contenido):
             elementos.append(Paragraph(titulo, styles['SeccionTitulo']))
+
             if bajada:
                 elementos.append(Paragraph(bajada, styles['SeccionBajada']))
-            texto = (contenido or '-').replace('\n', '<br/>')
-            elementos.append(Paragraph(texto, styles['TextoCuerpo']))
 
-        # ============ PÁGINA 1 ============
+            texto = (contenido or "-").replace("\n", "<br/>")
+
+            tabla = Table(
+                [[Paragraph(texto, styles['TextoCaja'])]],
+                   colWidths=[16.5 * cm]
+                    )
+
+            tabla.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.whitesmoke),
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+              ]))
+
+            elementos.append(tabla)
+            elementos.append(Spacer(1, 8))
+
+        # ============ pagina 1 ============
         elementos.append(Paragraph("INFORME SOCIO HABITACIONAL", styles['TituloFormulario']))
         elementos.append(Paragraph(f"<b>Profesional Actuante:</b> {profesional or '-'}", styles['CampoIdentificacion']))
         elementos.append(Paragraph(
@@ -694,8 +712,8 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
         elementos.append(Paragraph("_" * 45, styles['FirmaLinea']))
         elementos.append(Paragraph("Firma y Aclaración del Entrevistado", styles['FirmaEtiqueta']))
 
-        # ============ PÁGINA 2 ============
-        elementos.append(PageBreak())
+        # ============ continuacion ============
+
         agregar_seccion("RELEVAMIENTO VECINAL", None, formulario.relevamiento_vecinal)
 
 
