@@ -132,14 +132,6 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
         return [IsAnyRole()]
     
 
- 
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update']:
-            return [IsDataEntryOrSuperAdmin()]
-        if self.action == 'destroy':
-            return [IsSuperAdmin()]
-        return [IsAnyRole()]
- 
 class EstadoExpedienteViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet, UpdateModelMixin):
     queryset = EstadoExpediente.objects.all()
     permission_classes = [IsAnyRole]
