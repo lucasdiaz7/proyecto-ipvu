@@ -654,7 +654,7 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
             rightMargin=2 * cm,
         )
         
-        doc.title = f"Informe Socio Habitacional - Expediente {expediente_id}"
+        doc.title = f"Informe Socio Habitacional - Expediente {expediente.id}"
 
         styles = getSampleStyleSheet()
         styles.add(ParagraphStyle(name='TituloFormulario', parent=styles['Heading1'],
