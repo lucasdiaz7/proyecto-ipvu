@@ -18,9 +18,9 @@ class Command(BaseCommand):
             ('trabajador1', 'TS', 'Sofia', 'Gomez', '11111111', 'MAT-001'),
             ('trabajador2', 'TS', 'Lucia', 'Dominguez', '12341234', 'MAT-002'),
             ('trabajador3', 'TS', 'Lourdes', 'Lopez', '43214321', 'MAT-003'),
-            ('legales1', 'LG', 'Martin', 'Lopez', '22222222', 'MAT-002'),
-            ('admin1', 'SU', 'Carlos', 'Perez', '33333333', 'MAT-003'),
-            ('dataentry1', 'DE', 'Laura', 'Diaz', '44444444', 'MAT-004'),
+            ('legales1', 'LG', 'Martin', 'Lopez', '22222222', 'MAT-004'),
+            ('admin1', 'SU', 'Carlos', 'Perez', '33333333', 'MAT-005'),
+            ('dataentry1', 'DE', 'Laura', 'Diaz', '44444444', 'MAT-006'),
         ]
         
         for username, rol_nombre, nombre, apellido, dni, matricula in usuarios_data:
@@ -64,7 +64,7 @@ class Command(BaseCommand):
         estado_inicial = EstadoExpediente.objects.get(nombre='SINI')
         ts_user = User.objects.get(username='trabajador1')
         
-        ddjjs = ['EXP-2024-001', 'EXP-2024-002', 'EXP-2024-003']
+        ddjjs = ['EXP-2024-001', 'EXP-2024-002', 'EXP-2024-003', 'EXP-2024-003', 'EXP-2024-003']
         for i, postulante in enumerate(postulantes):
             Expediente.objects.get_or_create(
                 DDJJ=ddjjs[i],
