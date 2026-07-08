@@ -88,6 +88,8 @@ class Usuario(models.Model):
     matricula = models.CharField(max_length=20, unique=True,)
     dni = models.CharField(max_length=15)
     email= models.EmailField(unique=True, null=True, blank=True)
+    activo = models.BooleanField(default=True)
+
     
     #FK
     rol = models.ForeignKey(Rol, on_delete=models.RESTRICT)
