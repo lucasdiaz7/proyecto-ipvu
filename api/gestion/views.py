@@ -348,7 +348,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
                 expedientes_del_usuario = user_nativo.expediente_set.all()
                 
                 total_asignados = expedientes_del_usuario.count()
-                total_vistos = expedientes_del_usuario.filter(visto=False).count()
+                total_no_vistos = expedientes_del_usuario.filter(visto=False).count()
 
                 desglose_db = expedientes_del_usuario.values('estado_expediente__nombre').annotate(cantidad=Count('id'))
 
@@ -363,7 +363,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
                     "nombre_completo": f"{perfil.apellido}, {perfil.nombre}",
                     "rol": perfil.rol.nombre_rol if perfil.rol else "Sin Rol",
                     "total_asignados": total_asignados,
-                    "total_vistos": total_vistos,
+                    "total_no_vistos": total_no_vistos,
                     "desglose_estados": estados_limpios
                 })
             return Response(resultado)
