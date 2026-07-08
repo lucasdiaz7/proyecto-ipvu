@@ -67,7 +67,6 @@ class Expediente(models.Model):
         ordering = ['-id']
 
 
-    
 class Rol(models.Model):
      #django exige dos opciones, una abreviacion y un string legible
      tipo_rol = [('TS','TRABAJADORA SOCIAL'),
@@ -89,6 +88,8 @@ class Usuario(models.Model):
     dni = models.CharField(max_length=15)
     email= models.EmailField(unique=True, null=True, blank=True)
     activo = models.BooleanField(default=True)
+
+    
     #FK
     rol = models.ForeignKey(Rol, on_delete=models.RESTRICT)
 

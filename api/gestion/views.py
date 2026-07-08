@@ -25,6 +25,8 @@ from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django.db.models import Q
 from django.db.models import Count
+from rest_framework.throttling import ScopedRateThrottle
+from rest_framework_simplejwt.views import TokenRefreshView
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import cm
@@ -35,9 +37,11 @@ from reportlab.lib.units import cm
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER
 from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, PageBreak
 )
 from reportlab.lib import colors
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -155,7 +159,7 @@ def obtener_siguiente_trabajadora_social():
 
     ultimo_expediente = (
         Expediente.objects
-        .filter(usuario_asignado__usuario__rol__nombre_rol="TS", usuario__activo = True)
+        .filter(usuario_asignado__usuario__rol__nombre_rol="TS", usuario__activo= True)
         .order_by("-id")
         .first()
     )
@@ -344,7 +348,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
                 expedientes_del_usuario = user_nativo.expediente_set.all()
                 
                 total_asignados = expedientes_del_usuario.count()
-                total_vistos = expedientes_del_usuario.filter(visto=True).count()
+                total_no_vistos = expedientes_del_usuario.filter(visto=False).count()
 
                 desglose_db = expedientes_del_usuario.values('estado_expediente__nombre').annotate(cantidad=Count('id'))
 
@@ -359,7 +363,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
                     "nombre_completo": f"{perfil.apellido}, {perfil.nombre}",
                     "rol": perfil.rol.nombre_rol if perfil.rol else "Sin Rol",
                     "total_asignados": total_asignados,
-                    "total_vistos": total_vistos,
+                    "total_no_vistos": total_no_vistos,
                     "desglose_estados": estados_limpios
                 })
             return Response(resultado)
@@ -482,6 +486,79 @@ class HistorialAccionViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet)
     queryset = HistorialAccion.objects.all()
     permission_classes = [IsAnyRole]
     serializer_class = HistorialAccionSerializer
+
+
+
+import os
+from django.conf import settings
+
+import os
+from django.conf import settings
+
+def _dibujar_encabezado_pie_formulario(canvas, doc):
+    canvas.saveState()
+    ancho_pagina, alto_pagina = A4
+
+    # --- Rutas de los logos ---
+    logo_ipvu_path = os.path.join(
+        settings.BASE_DIR, "gestion", "static_pdf", "logo_ipvu.jpg"
+    )
+    logo_santiago_path = os.path.join(
+        settings.BASE_DIR, "gestion", "static_pdf", "logo_santiago.jpg"
+    )
+
+    # --- Logo izquierdo (I.P.V.U.) ---
+    if os.path.exists(logo_ipvu_path):
+        canvas.drawImage(
+            logo_ipvu_path,
+            x=2 * cm, y=alto_pagina - 2.3 * cm,
+            width=2 * cm, height=1.6 * cm,
+            preserveAspectRatio=True, mask='auto'
+        )
+    else:
+        logger.warning(f"No se encontró el logo IPVU en: {logo_ipvu_path}")
+
+    # --- Logo derecho (Santiago) ---
+    if os.path.exists(logo_santiago_path):
+        canvas.drawImage(
+            logo_santiago_path,
+            x=ancho_pagina - 4 * cm, y=alto_pagina - 2.3 * cm,
+            width=2 * cm, height=1.6 * cm,
+            preserveAspectRatio=True, mask='auto'
+        )
+    else:
+        logger.warning(f"No se encontró el logo Santiago en: {logo_santiago_path}")
+
+    # --- Encabezado institucional (3 líneas centradas) ---
+    y = alto_pagina - 1.3 * cm
+    canvas.setFont("Helvetica-Bold", 10)
+    canvas.drawCentredString(ancho_pagina / 2, y, "INSTITUTO PROVINCIAL DE VIVIENDA Y URBANISMO")
+    y -= 0.42 * cm
+    canvas.drawCentredString(ancho_pagina / 2, y, "Ministerio de Obras y Servicios Públicos")
+    y -= 0.42 * cm
+    canvas.drawCentredString(ancho_pagina / 2, y, "SECRETARÍA TÉCNICA DE RELACIONES PUBLICAS E INSTITUCIONALES")
+
+    # --- Fila de contacto ---
+    y -= 0.35 * cm
+    canvas.setLineWidth(0.5)
+    canvas.line(2 * cm, y, ancho_pagina - 2 * cm, y)
+    y -= 0.45 * cm
+    canvas.setFont("Helvetica-Bold", 8)
+    canvas.drawCentredString(ancho_pagina * 0.20, y, "Agustín Álvarez N° 90")
+    canvas.drawCentredString(ancho_pagina * 0.50, y, "Tel. (0385) 422-1646 / 4989")
+    canvas.drawCentredString(ancho_pagina * 0.80, y, "4200 - Santiago del Estero")
+    y -= 0.25 * cm
+    canvas.line(2 * cm, y, ancho_pagina - 2 * cm, y)
+
+    # --- Pie de página ---
+    canvas.setFont("Helvetica-Oblique", 7)
+    canvas.drawCentredString(
+        ancho_pagina / 2, 1.3 * cm,
+        "Secretaría Técnica de Relaciones Públicas - I.P.V.U. - "
+        "Lunes a Viernes de 8 a 12 hs. - Santiago del Estero"
+    )
+
+    canvas.restoreState()
     
 class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin, GenericViewSet):
     queryset = FormularioSocioHabitacional.objects.all()
@@ -509,143 +586,148 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
             return [IsTrabajadoraSocial()]
         return [IsAnyRole()]
 
-    logger = logging.getLogger(__name__)
 
     @action(detail=True, methods=['get'], url_path='pdf')
     def generar_pdf(self, request, pk=None):
-       formulario = self.get_object()
-       expediente = formulario.expediente
+        formulario = self.get_object()
+        expediente = formulario.expediente
 
-       # --- Datos del profesional asignado ---
-       profesional = ""
-       if expediente.usuario_asignado:
-           try:
-               perfil = expediente.usuario_asignado.usuario  # relación OneToOneField
-               profesional = f"{perfil.apellido}, {perfil.nombre} (Mat. {perfil.matricula})"
-           except (AttributeError, ObjectDoesNotExist) as e:
-              logger.warning(
-                  f"No se pudo obtener perfil detallado para usuario_asignado "
-                  f"id={expediente.usuario_asignado_id}: {e}"
-               )
-              profesional = (
-                   f"{expediente.usuario_asignado.last_name}, "
-                   f"{expediente.usuario_asignado.first_name}"
-               )
+        # --- Datos del profesional asignado ---
+        profesional = ""
+        if expediente.usuario_asignado:
+            try:
+                perfil = expediente.usuario_asignado.usuario
+                profesional = f"{perfil.apellido}, {perfil.nombre} (Mat. {perfil.matricula})"
+            except (AttributeError, ObjectDoesNotExist) as e:
+                logger.warning(
+                    f"No se pudo obtener perfil detallado para usuario_asignado "
+                    f"id={expediente.usuario_asignado_id}: {e}"
+                )
+                profesional = (
+                    f"{expediente.usuario_asignado.last_name}, "
+                    f"{expediente.usuario_asignado.first_name}"
+                )
 
-       # --- Datos del titular ---
-       domicilio = apellido = nombre = dni = ""
-       if expediente.postulante_titular:
-           titular = expediente.postulante_titular
-           domicilio = getattr(titular, 'domicilio_actual', '') or ''
-           apellido = getattr(titular, 'apellido', '') or ''
-           nombre = getattr(titular, 'nombre', '') or ''
-           dni = getattr(titular, 'dni', '') or ''
+        # --- Datos del titular ---
+        domicilio = apellido = nombre = dni = ""
+        if expediente.postulante_titular:
+            titular = expediente.postulante_titular
+            domicilio = getattr(titular, 'domicilio_actual', '') or ''
+            apellido = getattr(titular, 'apellido', '') or ''
+            nombre = getattr(titular, 'nombre', '') or ''
+            dni = getattr(titular, 'dni', '') or ''
 
-       # --- Fecha ---
-       fecha = formulario.fecha_modificacion or formulario.fecha_creacion
-       meses = [
-           "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-           "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-       ]
-       fecha_str = ""
-       if fecha:
-           fecha_str = f"{fecha.day} de {meses[fecha.month - 1]} de {fecha.year}"
+        # --- Fecha ---
+        fecha = formulario.fecha_modificacion or formulario.fecha_creacion
+        meses = [
+            "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+            "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+        ]
+        dia_str = mes_str = anio_str = ""
+        if fecha:
+            dia_str = str(fecha.day)
+            mes_str = meses[fecha.month - 1]
+            anio_str = str(fecha.year)[-2:]
 
-       # --- Response / Document ---
-       response = HttpResponse(content_type='application/pdf')
-       response['Content-Disposition'] = (
-           f'attachment; filename="Formulario_{formulario.id}.pdf"'
-       )
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = (
+            f'attachment; filename="Formulario_{formulario.id}.pdf"'
+        )
 
-       doc = SimpleDocTemplate(
-           response,
-           pagesize=A4,
-           topMargin=2 * cm,
-           bottomMargin=2 * cm,
-           leftMargin=2 * cm,
-           rightMargin=2 * cm,
-       )
+        doc = SimpleDocTemplate(
+            response,
+            pagesize=A4,
+            topMargin=3.6 * cm,
+            bottomMargin=2.2 * cm,
+            leftMargin=2 * cm,
+            rightMargin=2 * cm,
+        )
 
-       styles = getSampleStyleSheet()
-       styles.add(ParagraphStyle(
-           name='TituloPrincipal',
-           parent=styles['Heading1'],
-           alignment=TA_CENTER,
-           fontSize=14,
-           spaceAfter=4,
-       ))
-       styles.add(ParagraphStyle(
-           name='Subtitulo',
-           parent=styles['Normal'],
-           alignment=TA_CENTER,
-           fontSize=9,
-           textColor=colors.grey,
-           spaceAfter=12,
-       ))
-       styles.add(ParagraphStyle(
-           name='SeccionTitulo',
-           parent=styles['Heading2'],
-           fontSize=11,
-           spaceBefore=14,
-           spaceAfter=6,
-           textColor=colors.HexColor('#1a3c6e'),
-       ))
-       styles.add(ParagraphStyle(
-          name='TextoCuerpo',
-          parent=styles['Normal'],
-          fontSize=10,
-           leading=14,
-       ))
+        styles = getSampleStyleSheet()
+        styles.add(ParagraphStyle(name='TituloFormulario', parent=styles['Heading1'],
+                                   alignment=TA_CENTER, fontSize=13, spaceBefore=6, spaceAfter=14))
+        styles.add(ParagraphStyle(name='CampoIdentificacion', parent=styles['Normal'],
+                                   fontSize=10, spaceAfter=8))
+        styles.add(ParagraphStyle(name='SeccionTitulo', parent=styles['Heading2'],
+                                   fontSize=11, spaceBefore=10, spaceAfter=2, textColor=colors.black))
+        styles.add(ParagraphStyle(name='SeccionBajada', parent=styles['Normal'],
+                                   fontName='Helvetica-Oblique', fontSize=8.5,
+                                   textColor=colors.grey, spaceAfter=6))
+        styles.add(ParagraphStyle(name='TextoCuerpo', parent=styles['Normal'],
+                                   fontSize=10, leading=14, spaceAfter=4))
+        styles.add(ParagraphStyle(name='FirmaLinea', parent=styles['Normal'],
+                                   alignment=TA_CENTER, fontSize=10, spaceBefore=24))
+        styles.add(ParagraphStyle(name='FirmaEtiqueta', parent=styles['Normal'],
+                                   alignment=TA_CENTER, fontSize=9, spaceBefore=2))
 
-       elementos = []
+        elementos = []
 
-       # --- Encabezado ---
-       elementos.append(Paragraph("Formulario Socio-Habitacional", styles['TituloPrincipal']))
-       elementos.append(Paragraph(f"Expediente N° {expediente.id}", styles['Subtitulo']))
-       elementos.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#1a3c6e')))
-       elementos.append(Spacer(1, 12))
+        def agregar_seccion(titulo, bajada, contenido):
+            elementos.append(Paragraph(titulo, styles['SeccionTitulo']))
+            if bajada:
+                elementos.append(Paragraph(bajada, styles['SeccionBajada']))
+            texto = (contenido or '-').replace('\n', '<br/>')
+            elementos.append(Paragraph(texto, styles['TextoCuerpo']))
 
-       # --- Tabla de datos generales ---
-       datos_generales = [
-           ["Profesional interviniente:", profesional or "-"],
-           ["DDJJ:", str(expediente.DDJJ or "-")],
-           ["Titular:", f"{apellido}, {nombre}".strip(", ") or "-"],
-           ["DNI:", dni or "-"],
-           ["Domicilio:", domicilio or "-"],
-           ["Fecha:", fecha_str or "-"],
-       ]
-       tabla = Table(datos_generales, colWidths=[4 * cm, 12 * cm])
-       tabla.setStyle(TableStyle([
-           ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-           ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
-           ('FONTSIZE', (0, 0), (-1, -1), 10),
-           ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-           ('TOPPADDING', (0, 0), (-1, -1), 4),
-           ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ]))
-       elementos.append(tabla)
-       elementos.append(Spacer(1, 10))
+        # ============ PÁGINA 1 ============
+        elementos.append(Paragraph("INFORME SOCIO HABITACIONAL", styles['TituloFormulario']))
+        elementos.append(Paragraph(f"<b>Profesional Actuante:</b> {profesional or '-'}", styles['CampoIdentificacion']))
+        elementos.append(Paragraph(
+            f"<b>Caso de Referencia:</b> Expediente N° {expediente.id} &nbsp;&nbsp;&nbsp; "
+            f"<b>DJ N°:</b> {expediente.DDJJ or '-'}",
+            styles['CampoIdentificacion']
+        ))
+        elementos.append(Paragraph(
+            f"<b>Domicilio:</b> {domicilio or '-'} "
+            f"(Titular: {apellido}, {nombre} - DNI: {dni or '-'})",
+            styles['CampoIdentificacion']
+        ))
+        elementos.append(Spacer(1, 6))
 
-       # --- Función helper para secciones de texto largo ---
-       def agregar_seccion(titulo, contenido):
-           elementos.append(Paragraph(titulo, styles['SeccionTitulo']))
-           texto = (contenido or '-').replace('\n', '<br/>')
-           elementos.append(Paragraph(texto, styles['TextoCuerpo']))
+        agregar_seccion("GRUPO FAMILIAR CONSTITUYENTE", "Tipo y Dinamia familiar. Conflictos", formulario.grupo_familiar)
+        agregar_seccion("SITUACIÓN HABITACIONAL", "Tipo de posesión y tiempo de habitabilidad", formulario.situacion_habitacional)
+        agregar_seccion("ASPECTO ECONÓMICO", "Ingresos y Calidad de Vida", formulario.aspecto_economico)
+        agregar_seccion("SITUACIÓN DE SALUD", "Discapacidad. Invalidez", formulario.situacion_salud)
+        agregar_seccion("NIVEL DE ESTUDIOS", None, formulario.nivel_estudios)
 
-       agregar_seccion("Grupo Familiar Constituyente", formulario.grupo_familiar)
-       agregar_seccion("Situación Habitacional", formulario.situacion_habitacional)
-       agregar_seccion("Aspecto Económico", formulario.aspecto_economico)
-       agregar_seccion("Situación de Salud", formulario.situacion_salud)
-       agregar_seccion("Nivel de Estudios", formulario.nivel_estudios)
-       agregar_seccion("Relevamiento Vecinal", formulario.relevamiento_vecinal)
-       agregar_seccion("Observaciones y/o Particularidades", formulario.observaciones)
+        elementos.append(Spacer(1, 10))
+        elementos.append(Paragraph("_" * 45, styles['FirmaLinea']))
+        elementos.append(Paragraph("Firma y Aclaración del Entrevistado", styles['FirmaEtiqueta']))
 
-       doc.build(elementos)
-       return response
+        # ============ PÁGINA 2 ============
+        elementos.append(PageBreak())
+        agregar_seccion("RELEVAMIENTO VECINAL", None, formulario.relevamiento_vecinal)
+
+        elementos.append(Spacer(1, 10))
+        elementos.append(Paragraph("_" * 40, styles['FirmaLinea']))
+        elementos.append(Paragraph("Firma y Aclaración del Entrevistado", styles['FirmaEtiqueta']))
+        elementos.append(Spacer(1, 14))
+
+        agregar_seccion("OBSERVACIONES Y/O PARTICULARIDADES", None, formulario.observaciones)
+
+        elementos.append(Spacer(1, 16))
+        elementos.append(Paragraph(
+            f"Santiago del Estero, {dia_str or '____'} de {mes_str or '____________'} de 20{anio_str or '__'}",
+            styles['TextoCuerpo']
+        ))
+        elementos.append(Spacer(1, 10))
+        elementos.append(Paragraph("Atentamente", styles['TextoCuerpo']))
+        elementos.append(Spacer(1, 24))
+        elementos.append(Paragraph("_" * 40, styles['FirmaLinea']))
+        elementos.append(Paragraph("Firma y Sello del Profesional Actuante", styles['FirmaEtiqueta']))
+
+        doc.build(
+            elementos,
+            onFirstPage=_dibujar_encabezado_pie_formulario,
+            onLaterPages=_dibujar_encabezado_pie_formulario,
+        )
+        return response
     
     
 class MiLoginPersonalizadoView(TokenObtainPairView):
     serializer_class = MiLoginPersonalizadoSerializer
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
 
 
 class EstablecerPasswordInicialView(APIView):
@@ -665,6 +747,8 @@ class EstablecerPasswordInicialView(APIView):
 
 class SolicitarResetPasswordView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_classes =[ScopedRateThrottle]
+    throttle_scope = "password_reset"
 
     def post(self, request):
         serializer = SolicitarResetPasswordSerializer(data=request.data)
@@ -697,7 +781,8 @@ class SolicitarResetPasswordView(APIView):
 
 class ConfirmarResetPasswordView(APIView):
     permission_classes = [permissions.AllowAny]
-
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "password_reset"
     def post(self, request):
         serializer = ConfirmarResetPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -708,3 +793,7 @@ class ConfirmarResetPasswordView(APIView):
         })
 
 
+class MiTokenRefreshView(TokenRefreshView):
+    
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "token_refresh"

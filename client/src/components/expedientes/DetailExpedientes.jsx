@@ -139,7 +139,7 @@ const DetailExpedientes = () => {
 
     const handleGenerarPdf = async () => {
         if (!formulario?.id) {
-            alert("No se encuentra el formulario para generar el PDF.");
+            alert("No se encuentra el formulario para generar el PDF");
             return;
         }
 
