@@ -3,6 +3,9 @@ import { useForm } from "react-hook-form";
 import { useState } from "react";
 import { authService } from "../../services/authService/authService.js";
 
+const LOGIN_BG_URL_SM = "https://res.cloudinary.com/dl4q3kwpq/image/upload/v1787694982/images_ek7dqw.jpg";
+const LOGIN_BG_URL_LG = "https://res.cloudinary.com/dl4q3kwpq/image/upload/v1787695579/torres_de_rio_03_mzebgi.jpg";
+
 const Login = () => {
     const { register, formState: { errors }, handleSubmit } = useForm();
     const navigate = useNavigate();
@@ -35,6 +38,11 @@ const Login = () => {
                     alert(`¡Bienvenido/a ${res.nombre_completo}!`);
                     navigate("/homeAdmin");
                     break;
+                // default:
+                //     console.warn("rol_id no reconoció ningún caso o vino undefined:", userRolId);
+                //     // Redirección por defecto provisional si rol_id falla
+                //     navigate("/expedientes");
+                //     break;
             }
 
         } catch (error) {
@@ -50,11 +58,25 @@ const Login = () => {
     };
 
     return (
-        <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
-            <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl border border-gray-100">
+        <div className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden p-4">
+            {/* Imagen de fondo: una para pantallas chicas y otra para pantallas grandes, ambas se adaptan al tamaño */}
+            <div
+                className="absolute inset-0 bg-cover bg-center bg-no-repeat lg:hidden"
+                style={{ backgroundImage: `url(${LOGIN_BG_URL_SM})` }}
+            />
+            <div
+                className="absolute inset-0 hidden bg-cover bg-center bg-no-repeat lg:block"
+                style={{ backgroundImage: `url(${LOGIN_BG_URL_LG})` }}
+            />
+            {/* Overlay para dar contraste y legibilidad al formulario */}
+            <div className="absolute inset-0 bg-gradient-to-b from-blue-950/80 via-slate-900/70 to-black/80" />
 
+            <form
+                onSubmit={handleSubmit(onSubmit)}
+                className="relative z-10 w-full max-w-sm rounded-3xl bg-white/75 backdrop-blur-xl p-6 sm:p-8 shadow-2xl border border-white/40"
+            >
                 <div className="flex flex-col items-center mb-6">
-                    <div className="bg-blue-600 p-2.5 rounded-xl mb-3">
+                    <div className="bg-blue-600 p-2.5 rounded-xl mb-3 shadow-lg shadow-blue-600/30">
                         <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                         </svg>
@@ -136,8 +158,8 @@ const Login = () => {
                     </div>
                 </div>
 
-            </div>
-        </form>
+            </form>
+        </div>
     );
 };
 
