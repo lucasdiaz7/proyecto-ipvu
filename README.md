@@ -14,7 +14,7 @@ git checkout develop
 git pull origin develop
 
 PASO 2: Crear el entorno virtual (se hace una sola vez)
-python -m venv venv
+python -m venv venv   (si no funciona con python -m venv venv, prueben haciendo py -m venv venv asi me funciona a mi a veces xd)
 
 PASO 3: Activar el entorno virtual (se hace siempre antes de levantar el server)
 .\venv\Scripts\activate
@@ -30,6 +30,7 @@ python manage.py runserver
 
 LISTO. El servidor va a quedar corriendo en http://localhost:8000. 
 Minimicen esta terminal y déjenla abierta de fondo mientras trabajan en el front.
+
 
 
 para mi y piero quedaria asi para subir a la rama develop
