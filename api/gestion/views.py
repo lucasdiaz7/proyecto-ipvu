@@ -715,7 +715,6 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
         )
         return response
     
-    
 class MiLoginPersonalizadoView(TokenObtainPairView):
     serializer_class = MiLoginPersonalizadoSerializer
     throttle_classes = [ScopedRateThrottle]
