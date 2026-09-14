@@ -1,6 +1,7 @@
 import csv
 import os
 import logging
+import io
 
 from django.http import HttpResponse
 from django.shortcuts import render
@@ -36,10 +37,10 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER
-from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, PageBreak
-)
+from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, PageBreak)
 from reportlab.lib import colors
+from django.core.files.base import ContentFile
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -481,11 +482,6 @@ class HistorialAccionViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet)
 
 
 
-import os
-from django.conf import settings
-
-import os
-from django.conf import settings
 
 def _dibujar_encabezado_pie_formulario(canvas, doc):
     canvas.saveState()
@@ -625,7 +621,8 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
         response['Content-Disposition'] = (
             f'attachment; filename="Formulario_{formulario.id}.pdf"'
         )
-
+        buffer = io.BytesIO()
+        
         doc = SimpleDocTemplate(
             response,
             pagesize=A4,
@@ -713,6 +710,17 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
             onFirstPage=_dibujar_encabezado_pie_formulario,
             onLaterPages=_dibujar_encabezado_pie_formulario,
         )
+        pdf_bytes = buffer.getvalue()
+        DocumentoAdjunto.objects.create(
+            tipo_documento="Formulario Socio Habitacional",
+            archivo=ContentFile(pdf_bytes, name=f"Formulario_{formulario.id}.pdf"),
+            subido_por=request.user,
+            expediente=expediente
+        )
+
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="Formulario_{formulario.id}.pdf"'
+        
         return response
     
 class MiLoginPersonalizadoView(TokenObtainPairView):
