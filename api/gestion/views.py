@@ -460,7 +460,7 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
         
         HistorialAccion.objects.create(
             usuario=request.user,
-            accion='DOWNLOAD'
+            accion='DOWNLOAD',
             expediente=documento.expediente,
             detalle=f'Descargó el archivo: {documento.archivo.name}'
         )
