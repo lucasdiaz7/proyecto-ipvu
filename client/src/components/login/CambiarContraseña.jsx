@@ -2,11 +2,36 @@ import React, { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router';
 import { nuevaContraseña } from '../../services/authService/nuevaContraseña';
+import useTemporaryPasswordReveal from '../../hooks/useTemporaryPasswordReveal.js';
+import { useToast } from '../../context/ToastContext.jsx';
+
+const LOGIN_BG_URL_SM = "https://res.cloudinary.com/dmgvv9nbt/image/upload/v1787791149/images_avzw0a.jpg";
+const LOGIN_BG_URL_LG = "https://res.cloudinary.com/dmgvv9nbt/image/upload/v1787791066/torres_de_rio_03_dmvcik.jpg";
+
+const EyeIcon = ({ visible }) => (
+    visible ? (
+        /* Icono Ojo Abierto */
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+        </svg>
+    ) : (
+        /* Icono Ojo Cerrado / Tachado */
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.21 16.057 7 19 12 19c1.683 0 3.275-.325 4.735-.917m2.33-2.33A10.477 10.477 0 0022.066 12c-1.274-4.057-5.064-7-9.542-7-1.253 0-2.455.244-3.555.688M12 9a3 3 0 00-3 3m3 3a3 3 0 003-3m-9.75 15.75l16.5-16.5" />
+        </svg>
+    )
+);
 
 const CambiarContraseña = () => {
     const { register, watch, formState: { errors }, handleSubmit } = useForm();
     const [cargando, setCargando] = useState(false);
     const navigate = useNavigate();
+    const toast = useToast();
+
+    // 👁️ Al hacer click en el ojo, muestra la contraseña unos segundos y luego la vuelve a ocultar
+    const [verNuevaContraseña, toggleVerNuevaContraseña] = useTemporaryPasswordReveal();
+    const [verRepetirContraseña, toggleVerRepetirContraseña] = useTemporaryPasswordReveal();
 
     const nuevaContaseñaWatch = watch("nuevaContraseña")
 
@@ -23,7 +48,7 @@ const CambiarContraseña = () => {
 
             await nuevaContraseña.cambiarContraseña(payload);
 
-            alert("¡Contraseña establecida con éxito! Ingresando al sistema...");
+            toast.success("¡Contraseña establecida con éxito! Ingresando al sistema...");
 
 
             const userRolId = localStorage.getItem("rol_id");
@@ -36,7 +61,7 @@ const CambiarContraseña = () => {
 
         } catch (error) {
             console.error("Error al cambiar la contraseña:", error.response?.data || error.message);
-            alert("Hubo un problema al guardar tu contraseña. Intentá nuevamente.");
+            toast.error("Hubo un problema al guardar tu contraseña. Intentá nuevamente.");
         } finally {
             setCargando(false);
         }
@@ -44,12 +69,26 @@ const CambiarContraseña = () => {
 
 
     return (
-        <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
-            <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl border border-gray-100">
+        <div className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden p-4">
+            {/* Imagen de fondo: una para pantallas chicas y otra para pantallas grandes, ambas se adaptan al tamaño */}
+            <div
+                className="absolute inset-0 bg-cover bg-center bg-no-repeat lg:hidden"
+                style={{ backgroundImage: `url(${LOGIN_BG_URL_SM})` }}
+            />
+            <div
+                className="absolute inset-0 hidden bg-cover bg-center bg-no-repeat lg:block"
+                style={{ backgroundImage: `url(${LOGIN_BG_URL_LG})` }}
+            />
+            {/* Overlay para dar contraste y legibilidad al formulario */}
+            <div className="absolute inset-0 bg-gradient-to-b from-blue-950/80 via-slate-900/70 to-black/80" />
 
+            <form
+                onSubmit={handleSubmit(onSubmit)}
+                className="relative z-10 w-full max-w-sm rounded-3xl bg-white/75 backdrop-blur-xl p-6 sm:p-8 shadow-2xl border border-white/40"
+            >
 
                 <div className="flex flex-col items-center mb-6">
-                    <div className="bg-blue-600 p-2.5 rounded-xl mb-3">
+                    <div className="bg-blue-600 p-2.5 rounded-xl mb-3 shadow-lg shadow-blue-600/30">
                         <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                         </svg>
@@ -63,37 +102,58 @@ const CambiarContraseña = () => {
 
                 <div className="space-y-4">
 
-
+                    {/* NUEVA CONTRASEÑA CON EL OJO */}
                     <div className="flex flex-col gap-1.5">
                         <label className="text-gray-800 font-bold text-xs ml-1">Nueva Contraseña:</label>
-                        <input
-                            type="text"
-                            {...register('nuevaContraseña', {
-                                required: true,
-                                minLength: 8,
-                                pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/
-                            })}
-                            className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200"
-                        />
+                        <div className="relative w-full flex items-center">
+                            <input
+                                type={verNuevaContraseña ? "text" : "password"}
+                                autoComplete="new-password"
+                                {...register('nuevaContraseña', {
+                                    required: true,
+                                    minLength: 8,
+                                    pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/
+                                })}
+                                className="w-full pl-3.5 pr-10 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200"
+                            />
+                            <button
+                                type="button"
+                                onClick={toggleVerNuevaContraseña}
+                                className="absolute right-3 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                            >
+                                <EyeIcon visible={verNuevaContraseña} />
+                            </button>
+                        </div>
                         {errors.nuevaContraseña?.type === 'required' && <p className="font-sans text-sm text-red-600">La contraseña es obligatoria</p>}
                         {errors.nuevaContraseña?.type === 'minLength' && <p className="font-sans text-sm text-red-600">Debe tener al menos 8 caracteres</p>}
                         {errors.nuevaContraseña?.type === 'pattern' && <p className="font-sans text-sm text-red-600">Debe incluir mayúscula, minúscula, un número y un carácter especial</p>}
 
                     </div>
 
-
+                    {/* REPETIR CONTRASEÑA CON EL OJO */}
                     <div className="flex flex-col gap-1.5">
                         <label className="text-gray-800 font-bold text-xs ml-1">Repetir Contraseña</label>
-                        <input
-                            type="password"
-                            {...register('repetirContraseña', {
-                                required: true,
-                                validate: (value) =>
-                                    value === nuevaContaseñaWatch || "Las contraseñas no coinciden"
-                            })}
-                            className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200"
-                        />
+                        <div className="relative w-full flex items-center">
+                            <input
+                                type={verRepetirContraseña ? "text" : "password"}
+                                autoComplete="new-password"
+                                {...register('repetirContraseña', {
+                                    required: true,
+                                    validate: (value) =>
+                                        value === nuevaContaseñaWatch || "Las contraseñas no coinciden"
+                                })}
+                                className="w-full pl-3.5 pr-10 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200"
+                            />
+                            <button
+                                type="button"
+                                onClick={toggleVerRepetirContraseña}
+                                className="absolute right-3 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                            >
+                                <EyeIcon visible={verRepetirContraseña} />
+                            </button>
+                        </div>
                         {errors.repetirContraseña?.type === 'required' && <p className="font-sans text-sm text-red-600">La contraseña es obligatoria</p>}
+                        {errors.repetirContraseña?.type === 'validate' && <p className="font-sans text-sm text-red-600">{errors.repetirContraseña.message}</p>}
                     </div>
 
                     <button
@@ -108,8 +168,8 @@ const CambiarContraseña = () => {
 
                 </div>
 
-            </div>
-        </form>
+            </form>
+        </div>
     )
 }
 

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { usuarioService } from '../../../services/usuarios/usuarios';
 import { auditoriaService } from '../../../services/auditoria/auditoria';
+import AdminQuickLinks from '../AdminQuickLinks';
 
 const ESTADOS_EN_EJECUCION = ['SINI', '1V', 'LEG', 'DOCP', 'NUEVAV'];
 
@@ -64,8 +65,8 @@ const TrabajadorSocial = () => {
 
     if (cargando) {
         return (
-            <div className="w-full min-h-screen bg-gray-50 flex justify-center items-center p-4">
-                <div className="text-center py-20 text-gray-600 font-medium">
+            <div className="w-full flex justify-center items-start p-4 py-8">
+                <div className="text-center py-20 text-gray-600 dark:text-slate-300 font-medium">
                     Cargando equipo de Trabajadoras Sociales...
                 </div>
             </div>
@@ -73,70 +74,71 @@ const TrabajadorSocial = () => {
     }
 
     return (
-        <div className="w-full min-h-screen bg-gray-50 flex justify-center items-center p-4">
-            <div className="w-full max-w-6xl bg-white shadow-lg rounded-2xl p-6 md:p-10">
-                {error && (
-                    <div className="bg-red-100 text-red-700 p-3 rounded-lg mb-4 text-center font-medium">
-                        {error}
-                    </div>
-                )}
+        <div className="w-full flex justify-center items-start p-4 py-8">
+            <div className="w-full max-w-6xl flex flex-col gap-4">
 
-                <div>
-                    <h3 className="text-gray-800 font-bold text-xl">
-                        Trabajadoras Sociales
-                    </h3>
-                </div>
+                <AdminQuickLinks excludePaths={["/trabajadoraSocial"]} />
 
-                <div className="mt-6 grid grid-cols-1 gap-4">
-                    <div className="bg-gray-100 p-3 rounded-xl shadow-sm">
-                        <input
-                            type="text"
-                            placeholder="Buscar por nombre, matrícula o DNI..."
-                            value={busqueda}
-                            onChange={(e) => setBusqueda(e.target.value)}
-                            className="w-full bg-transparent outline-none text-gray-700"
-                        />
-                    </div>
-                </div>
-
-                <div className="mt-6 overflow-x-auto">
-                    <div className="grid grid-cols-7 gap-2 min-w-[1040px] bg-gray-100 p-3 rounded-lg text-gray-700 font-semibold text-sm">
-                        <span>Matrícula</span>
-                        <span>Nombre</span>
-                        <span>DNI</span>
-                        <span>Total</span>
-                        <span>Vistos</span>
-                        <span>En ejecución</span>
-                        <span>Acción</span>
-                    </div>
-
-                    {!error && tsFiltrados.length === 0 ? (
-                        <div className="text-center py-10 text-gray-500 font-medium border-b">
-                            No se encontraron Trabajadoras Sociales registradas en el sistema.
+                <div className="w-full bg-white dark:bg-slate-900 shadow-lg dark:shadow-black/30 border border-transparent dark:border-slate-800 rounded-2xl p-6 md:p-10 transition-colors">
+                    {error && (
+                        <div className="bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-400 p-3 rounded-lg mb-4 text-center font-medium">
+                            {error}
                         </div>
-                    ) : (
-                        tsFiltrados.map((ts) => {
-                            const metricas = obtenerMetricasTS(ts);
-
-                            return (
-                                <Link
-                                    key={ts.matricula || ts.id}
-                                    to={`/DetalleTS/${ts.id}`}
-                                    className="grid grid-cols-7 gap-2 items-center w-full min-w-[1040px] text-left p-4 border-b hover:bg-gray-50 transition"
-                                >
-                                    <span className="font-medium text-gray-800 font-mono">{ts.matricula || "---"}</span>
-                                    <span className="text-gray-700 capitalize">{`${ts.apellido} ${ts.nombre}`}</span>
-                                    <span className="text-gray-700 font-mono">{ts.dni || "---"}</span>
-                                    <span className="text-gray-700 font-semibold">{metricas.total}</span>
-                                    <span className="text-green-700 font-semibold">{metricas.vistos}</span>
-                                    <span className="text-gray-700 font-semibold">{metricas.enEjecucion}</span>
-                                    <span className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-lg font-medium w-max">
-                                        Ver detalle
-                                    </span>
-                                </Link>
-                            );
-                        })
                     )}
+
+                    <div>
+                        <h3 className="text-gray-800 dark:text-slate-100 font-bold text-xl">
+                            Trabajadoras Sociales
+                        </h3>
+                    </div>
+
+                    <div className="mt-6 grid grid-cols-1 gap-4">
+                        <div className="bg-gray-100 dark:bg-slate-800 p-3 rounded-xl shadow-sm border border-transparent focus-within:border-gray-300 dark:focus-within:border-slate-600 transition">
+                            <input
+                                type="text"
+                                placeholder="Buscar por nombre, matrícula o DNI..."
+                                value={busqueda}
+                                onChange={(e) => setBusqueda(e.target.value)}
+                                className="w-full bg-transparent outline-none text-gray-700 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="mt-6 overflow-x-auto">
+                        <div className="grid grid-cols-6 gap-2 min-w-[900px] bg-gray-100 dark:bg-slate-800 p-3 rounded-lg text-gray-700 dark:text-slate-300 font-semibold text-sm">
+                            <span>Matrícula</span>
+                            <span>Nombre</span>
+                            <span>DNI</span>
+                            <span>Total</span>
+                            <span>Vistos</span>
+                            <span>En ejecución</span>
+                        </div>
+
+                        {!error && tsFiltrados.length === 0 ? (
+                            <div className="text-center py-10 text-gray-500 dark:text-slate-400 font-medium border-b dark:border-slate-800">
+                                No se encontraron Trabajadoras Sociales registradas en el sistema.
+                            </div>
+                        ) : (
+                            tsFiltrados.map((ts) => {
+                                const metricas = obtenerMetricasTS(ts);
+
+                                return (
+                                    <Link
+                                        key={ts.matricula || ts.id}
+                                        to={`/DetalleUsuario/${ts.id}`}
+                                        className="grid grid-cols-6 gap-2 items-center w-full min-w-[900px] text-left p-4 border-b dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/60 transition"
+                                    >
+                                        <span className="font-medium text-gray-800 dark:text-slate-100 font-mono">{ts.matricula || "---"}</span>
+                                        <span className="text-gray-700 dark:text-slate-300 capitalize">{`${ts.apellido} ${ts.nombre}`}</span>
+                                        <span className="text-gray-700 dark:text-slate-300 font-mono">{ts.dni || "---"}</span>
+                                        <span className="text-gray-700 dark:text-slate-300 font-semibold">{metricas.total}</span>
+                                        <span className="text-green-700 dark:text-green-400 font-semibold">{metricas.vistos}</span>
+                                        <span className="text-gray-700 dark:text-slate-300 font-semibold">{metricas.enEjecucion}</span>
+                                    </Link>
+                                );
+                            })
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

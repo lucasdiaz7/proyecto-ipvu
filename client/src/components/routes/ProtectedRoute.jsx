@@ -4,7 +4,7 @@ const HOME_POR_ROL = {
     "1": "/expedientes",
     "2": "/expedientes",
     "3": "/expedientes",
-    "4": "/homeAdmin",
+    "4": "/expedientes",
 };
 
 const ProtectedRoute = ({ allowedRoles }) => {

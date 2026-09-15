@@ -2,17 +2,20 @@ import { useNavigate } from "react-router";
 import { useForm } from "react-hook-form";
 import { useState } from "react";
 import { authService } from "../../services/authService/authService.js";
+import useTemporaryPasswordReveal from "../../hooks/useTemporaryPasswordReveal.js";
+import { useToast } from "../../context/ToastContext.jsx";
 
-const LOGIN_BG_URL_SM = "https://res.cloudinary.com/dl4q3kwpq/image/upload/v1787694982/images_ek7dqw.jpg";
-const LOGIN_BG_URL_LG = "https://res.cloudinary.com/dl4q3kwpq/image/upload/v1787695579/torres_de_rio_03_mzebgi.jpg";
+const LOGIN_BG_URL_SM = "https://res.cloudinary.com/dmgvv9nbt/image/upload/v1787791149/images_avzw0a.jpg";
+const LOGIN_BG_URL_LG = "https://res.cloudinary.com/dmgvv9nbt/image/upload/v1787791066/torres_de_rio_03_dmvcik.jpg";
 
 const Login = () => {
     const { register, formState: { errors }, handleSubmit } = useForm();
     const navigate = useNavigate();
+    const toast = useToast();
     const [cargando, setCargando] = useState(false);
 
-    // 👁️ NUEVO ESTADO: Controla si se muestra o se oculta la contraseña
-    const [verPassword, setVerPassword] = useState(false);
+    // 👁️ Al hacer click en el ojo, muestra la contraseña unos segundos y luego la vuelve a ocultar
+    const [verPassword, toggleVerPassword] = useTemporaryPasswordReveal();
 
     const onSubmit = async (data) => {
         try {
@@ -21,7 +24,7 @@ const Login = () => {
             const res = await authService.iniciarSesion(data.username, data.password);
 
             if (res.requiere_cambio_password === true) {
-                alert("Por seguridad, debes cambiar tu contraseña predeterminada.");
+                toast.info("Por seguridad, debes cambiar tu contraseña predeterminada.");
                 navigate("/cambiarContraseña");
                 return;
             }
@@ -35,8 +38,8 @@ const Login = () => {
                     navigate("/expedientes");
                     break;
                 case "4":
-                    alert(`¡Bienvenido/a ${res.nombre_completo}!`);
-                    navigate("/homeAdmin");
+                    toast.success(`¡Bienvenido/a ${res.nombre_completo}!`);
+                    navigate("/expedientes");
                     break;
                 // default:
                 //     console.warn("rol_id no reconoció ningún caso o vino undefined:", userRolId);
@@ -48,9 +51,9 @@ const Login = () => {
         } catch (error) {
             console.error("Error al iniciar sesión:", error.response?.data || error.message);
             if (error.response?.status === 400 || error.response?.status === 401) {
-                alert("Usuario o contraseña incorrectos.");
+                toast.error("Usuario o contraseña incorrectos.");
             } else {
-                alert("Hubo un problema de conexión con el servidor.");
+                toast.error("Hubo un problema de conexión con el servidor.");
             }
         } finally {
             setCargando(false);
@@ -119,7 +122,7 @@ const Login = () => {
                             {/* Botón del ojo */}
                             <button
                                 type="button" // Evita que este botón dispare el submit del formulario
-                                onClick={() => setVerPassword(!verPassword)}
+                                onClick={toggleVerPassword}
                                 className="absolute right-3 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
                             >
                                 {verPassword ? (

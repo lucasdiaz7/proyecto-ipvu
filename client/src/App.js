@@ -1,6 +1,5 @@
-import HomeAdmin from "./components/admin/HomeAdmin.jsx";
-import DetalleTS from "./components/admin/Trabajador Social/DetalleTS.jsx";
 import TrabajadorSocial from "./components/admin/Trabajador Social/TrabajadorSocial.jsx";
+import DetalleUsuario from "./components/admin/Usuarios/DetalleUsuario.jsx";
 import FormUsuario from "./components/admin/Usuarios/FormUsuario.jsx";
 import Usuarios from "./components/admin/Usuarios/Usuarios.jsx";
 import FormExpedientes from "./components/data entry/FormExpedientes.jsx";
@@ -13,6 +12,7 @@ import Layout from "./components/navBar/Layout.jsx";
 import ProtectedRoute from "./components/routes/ProtectedRoute.jsx";
 import Form1 from "./components/trabajadorSocial/Form/Form1.jsx";
 import Form2 from "./components/trabajadorSocial/Form/Form2.jsx";
+import { ToastProvider } from "./context/ToastContext.jsx";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router";
 
 
@@ -20,6 +20,7 @@ function App() {
   return (
     <div>
       <BrowserRouter>
+        <ToastProvider>
         <Routes>
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<Login />} />
@@ -46,16 +47,15 @@ function App() {
 
               {/* Administración: solo rol 4 */}
               <Route element={<ProtectedRoute allowedRoles={["4"]} />}>
-                <Route path="/homeAdmin" element={<HomeAdmin />} />
                 <Route path="/usuarios" element={<Usuarios />} />
                 <Route path="/crearUsuario" element={<FormUsuario />} />
                 <Route path="/trabajadoraSocial" element={<TrabajadorSocial />} />
-                <Route path="/DetalleTS" element={<DetalleTS />} />
-                <Route path="/DetalleTS/:id" element={<DetalleTS />} />
+                <Route path="/DetalleUsuario/:id" element={<DetalleUsuario />} />
               </Route>
             </Route>
           </Route>
         </Routes>
+        </ToastProvider>
       </BrowserRouter>
     </div>
   )
