@@ -2,10 +2,12 @@ import { Link, useLocation, useNavigate } from "react-router";
 import { useForm } from "react-hook-form";
 import { useEffect } from "react";
 import { form1Service } from "../../../services/Formularios/form1Service";
+import { useToast } from "../../../context/ToastContext";
 
 const Form1 = () => {
     const location = useLocation();
     const navigate = useNavigate();
+    const toast = useToast();
 
     // Desestructuramos el estado de la ruta sumando 'idFormulario' y los campos cargados previamente si existen
     const {
@@ -65,12 +67,12 @@ const Form1 = () => {
                 // patch
                 console.log('Enviando PATCH con id:', idFormulario, payload);
                 await form1Service.actualizarFormulario(idFormulario, payload);
-                alert("¡Formulario actualizado exitosamente!");
+                toast.success("¡Formulario actualizado exitosamente!");
             } else {
                 // post
                 console.log('Enviando POST:', payload);
                 await form1Service.crearFormulario(payload);
-                alert("¡Formulario creado!");
+                toast.success("¡Formulario creado!");
             }
 
             navigate(`/expediente/${idExpediente}`);
@@ -83,126 +85,126 @@ const Form1 = () => {
                 console.error("Detalles del error del Backend:", error.response.data);
                 console.error("Código de estado HTTP:", error.response.status);
 
-                // Convertimos el objeto de error a un texto legible para el alert
+                // Convertimos el objeto de error a un texto legible para el toast
                 const erroresBackend = JSON.stringify(error.response.data, null, 2);
 
-                alert(
+                toast.error(
                     `Error del servidor (${error.response.status}):\n${erroresBackend}`
                 );
             } else if (error.request) {
                 // La petición se hizo pero el servidor no respondió nada (error de red/timeout)
                 console.error("No se recibió respuesta del servidor:", error.request);
-                alert("No se recibió respuesta del servidor. Verifica tu conexión.");
+                toast.error("No se recibió respuesta del servidor. Verifica tu conexión.");
             } else {
                 // Ocurrió un error al configurar la petición
                 console.error("Error al configurar la petición:", error.message);
-                alert(`Error: ${error.message}`);
+                toast.error(`Error: ${error.message}`);
             }
         }
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4 md:p-12">
-            <div className="w-full max-w-3xl rounded-3xl bg-white p-6 shadow-xl border border-gray-100">
+        <div className="flex items-center justify-center p-4 py-8 md:p-12">
+            <div className="w-full max-w-3xl rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-xl dark:shadow-black/30 border border-gray-100 dark:border-slate-800 transition-colors">
                 <form onSubmit={handleSubmit(onSubmit)}>
                     <div className="flex justify-center">
-                        <h2 className="text-gray-800 font-bold text-[18px] tracking-tight text-center">
+                        <h2 className="text-gray-800 dark:text-slate-100 font-bold text-[18px] tracking-tight text-center">
                             "INFORME SOCIO HABITACIONAL"
                         </h2>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
                         <div>
-                            <label className="text-gray-800 font-semibold text-base">Profesional Actuante</label>
-                            <p className="w-full px-3 py-2 text-sm border border-gray-200 bg-gray-50 transition-all duration-200">{nombreCompletoUsuario}</p>
+                            <label className="text-gray-800 dark:text-slate-200 font-semibold text-base">Profesional Actuante</label>
+                            <p className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-gray-700 dark:text-slate-300 transition-all duration-200">{nombreCompletoUsuario}</p>
                         </div>
 
                         <div>
-                            <label className="text-gray-800 font-semibold text-base">Caso de referencia</label>
+                            <label className="text-gray-800 dark:text-slate-200 font-semibold text-base">Caso de referencia</label>
                             <input
                                 type="text"
                                 readOnly={soloLectura}
-                                className="w-full px-3 py-2 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200"
+                                className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 text-gray-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-500/40 focus:border-blue-400 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-all duration-200"
                                 {...register("casoDeReferencia")}
                             />
                         </div>
 
                         <div>
-                            <label className="text-gray-800 font-semibold text-base">DJ N°</label>
-                            <p className="w-full px-3 py-2 text-sm border border-gray-200 bg-gray-50 transition-all duration-200">{ddjj}</p>
+                            <label className="text-gray-800 dark:text-slate-200 font-semibold text-base">DJ N°</label>
+                            <p className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-gray-700 dark:text-slate-300 transition-all duration-200">{ddjj}</p>
                         </div>
 
                         <div>
-                            <label className="text-gray-800 font-semibold text-base">Domicilio</label>
-                            <p className="w-full px-3 py-2 text-sm border border-gray-200 bg-gray-50 transition-all duration-200">{domicilio}</p>
+                            <label className="text-gray-800 dark:text-slate-200 font-semibold text-base">Domicilio</label>
+                            <p className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-gray-700 dark:text-slate-300 transition-all duration-200">{domicilio}</p>
                         </div>
                     </div>
 
                     <div>
                         <div className="mt-5">
-                            <h2 className="text-gray-800 font-semibold text-base">GRUPO FAMILIAR CONSTITUYENTE</h2>
-                            <p className="text-gray-600 text-sm">Tipo y Dinamia Familiar. Conflictos</p>
+                            <h2 className="text-gray-800 dark:text-slate-200 font-semibold text-base">GRUPO FAMILIAR CONSTITUYENTE</h2>
+                            <p className="text-gray-600 dark:text-slate-400 text-sm">Tipo y Dinamia Familiar. Conflictos</p>
                             <textarea
                                 readOnly={soloLectura}
-                                className="w-full mt-2 px-3 py-3 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 resize-none"
+                                className="w-full mt-2 px-3 py-3 text-sm border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 text-gray-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-500/40 focus:border-blue-400 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-all duration-200 resize-none"
                                 {...register("grupoFamiliarConstituyente")}
                             />
                         </div>
 
                         <div className="mt-5">
-                            <h2 className="text-gray-800 font-semibold text-base">SITUACION HABITACIONAL</h2>
-                            <p className="text-gray-600 text-sm">Tipo de posesion y tiempo de habitabilidad</p>
+                            <h2 className="text-gray-800 dark:text-slate-200 font-semibold text-base">SITUACION HABITACIONAL</h2>
+                            <p className="text-gray-600 dark:text-slate-400 text-sm">Tipo de posesion y tiempo de habitabilidad</p>
                             <textarea
                                 readOnly={soloLectura}
-                                className="w-full mt-2 px-3 py-3 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 resize-none"
+                                className="w-full mt-2 px-3 py-3 text-sm border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 text-gray-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-500/40 focus:border-blue-400 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-all duration-200 resize-none"
                                 {...register("situacionHabitacional")}
                             />
                         </div>
 
                         <div className="mt-5">
-                            <h2 className="text-gray-800 font-semibold text-base">ASPECTO ECONOMICO</h2>
-                            <p className="text-gray-600 text-sm">Ingresos y Calidad de Vida</p>
+                            <h2 className="text-gray-800 dark:text-slate-200 font-semibold text-base">ASPECTO ECONOMICO</h2>
+                            <p className="text-gray-600 dark:text-slate-400 text-sm">Ingresos y Calidad de Vida</p>
                             <textarea
                                 readOnly={soloLectura}
-                                className="w-full mt-2 px-3 py-3 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 resize-none"
+                                className="w-full mt-2 px-3 py-3 text-sm border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 text-gray-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-500/40 focus:border-blue-400 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-all duration-200 resize-none"
                                 {...register("aspectoEconomico")}
                             />
                         </div>
 
                         <div className="mt-5">
-                            <h2 className="text-gray-800 font-semibold text-base">SITUACION DE SALUD</h2>
-                            <p className="text-gray-600 text-sm">Discapacidad. Invalidez</p>
+                            <h2 className="text-gray-800 dark:text-slate-200 font-semibold text-base">SITUACION DE SALUD</h2>
+                            <p className="text-gray-600 dark:text-slate-400 text-sm">Discapacidad. Invalidez</p>
                             <textarea
                                 readOnly={soloLectura}
-                                className="w-full mt-2 px-3 py-3 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 resize-none"
+                                className="w-full mt-2 px-3 py-3 text-sm border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 text-gray-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-500/40 focus:border-blue-400 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-all duration-200 resize-none"
                                 {...register("situacionDeSalud")}
                             />
                         </div>
 
                         <div className="mt-5">
-                            <h2 className="text-gray-800 font-semibold text-base">NIVEL DE ESTUDIOS</h2>
+                            <h2 className="text-gray-800 dark:text-slate-200 font-semibold text-base">NIVEL DE ESTUDIOS</h2>
                             <input
                                 type="text"
                                 readOnly={soloLectura}
-                                className="w-full mt-2 px-3 py-2 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200"
+                                className="w-full mt-2 px-3 py-2 text-sm border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 text-gray-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-500/40 focus:border-blue-400 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-all duration-200"
                                 {...register("nivelDeEstudios")}
                             />
                         </div>
 
                         <div className="mt-5">
-                            <h2 className="text-gray-800 font-semibold text-base">RELEVAMIENTO VECINAL</h2>
+                            <h2 className="text-gray-800 dark:text-slate-200 font-semibold text-base">RELEVAMIENTO VECINAL</h2>
                             <textarea
                                 readOnly={soloLectura}
-                                className="w-full mt-2 px-3 py-3 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 resize-none"
+                                className="w-full mt-2 px-3 py-3 text-sm border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 text-gray-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-500/40 focus:border-blue-400 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-all duration-200 resize-none"
                                 {...register("relevamientoVecinal")}
                             />
                         </div>
 
                         <div className="mt-5">
-                            <h2 className="text-gray-800 font-semibold text-base">OBSERVACIONES Y/O PARTICULARIDADES</h2>
+                            <h2 className="text-gray-800 dark:text-slate-200 font-semibold text-base">OBSERVACIONES Y/O PARTICULARIDADES</h2>
                             <textarea
                                 readOnly={soloLectura}
-                                className="w-full mt-2 px-3 py-3 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 focus:bg-white transition-all duration-200 resize-none"
+                                className="w-full mt-2 px-3 py-3 text-sm border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 text-gray-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-500/40 focus:border-blue-400 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-all duration-200 resize-none"
                                 {...register("observacionesParticularidades")}
                             />
                         </div>
@@ -212,7 +214,7 @@ const Form1 = () => {
                         {soloLectura ? (
                             <Link
                                 to={`/expediente/${idExpediente}`}
-                                className="w-full md:w-72 bg-gray-600 hover:bg-gray-700 text-white font-bold text-[13px] py-2.5 rounded-lg shadow-sm transition-colors duration-200 text-center"
+                                className="w-full md:w-72 bg-gray-600 hover:bg-gray-700 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold text-[13px] py-2.5 rounded-lg shadow-sm transition-colors duration-200 text-center"
                             >
                                 Volver al expediente
                             </Link>

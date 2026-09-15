@@ -41,6 +41,16 @@ export const usuarioService = {
             console.log(`Error al obtener el usuario con id:${id}`, error)
             throw error;
         }
+    },
+
+    cambiarEstadoActivo: async (id, activo) => {
+        try {
+            const response = await api.patch(`/usuario/${id}/`, { activo })
+            return response.data
+        } catch (error) {
+            console.log(`Error al cambiar el estado del usuario con id:${id}`, error)
+            throw error;
+        }
     }
 
 }
