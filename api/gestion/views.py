@@ -105,6 +105,22 @@ def crear_notificacion_recepcion_expediente(usuario_destino, expediente, pase_ac
         expediente_relacionado=expediente
     )
 
+def registrar_auditoria(user_request, expediente, mensaje):
+    """
+    Guarda un registro en HistorialAccion.
+    """
+    try:
+        # Buscamos el perfil de Usuario (tu modelo) asociado al User logueado
+        perfil_usuario = getattr(user_request, 'usuario', None)
+        if perfil_usuario:
+            HistorialAccion.objects.create(
+                mensaje_accion=mensaje,
+                id_usuario_accion=perfil_usuario,
+                id_expediente=expediente
+            )
+    except Exception as e:
+        print(f"Error al registrar auditoria: {e}")
+
 
 class PostulanteTitularViewSet(viewsets.ModelViewSet):
     queryset = PostulanteTitular.objects.all()
@@ -115,6 +131,7 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
         postulante = serializer.save()
         estado_inicial = EstadoExpediente.objects.get(nombre='SINI')
         trabajadora_social = obtener_siguiente_trabajadora_social()
+        
         # crea el expediente inicial y conserva la instancia para generar la notificacion al usuario asignado
         expediente = Expediente.objects.create(
             postulante_titular=postulante,
@@ -122,9 +139,18 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
             DDJJ=ddjj,
             usuario_asignado=trabajadora_social
         )
+        
         # notifica a la trabajadora social cuando recibe el expediente por primera vez
         crear_notificacion_recepcion_expediente(trabajadora_social, expediente)
 
+        # NUEVO: Auditoría de creación
+        registrar_auditoria(
+            self.request.user,
+            expediente,
+            f"Expediente inicial creado y asignado a TS: {trabajadora_social.first_name} {trabajadora_social.last_name}."
+        )
+        
+    
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update']:
             return [IsDataEntryOrSuperAdmin()]
@@ -139,20 +165,23 @@ class EstadoExpedienteViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet
     serializer_class = EstadoExpedienteSerializer
 
 
-
+#Algoritmo de asignacion de trabajadoras sociales para la creacion de expedientes
 def obtener_siguiente_trabajadora_social():
+    # 1. ¡Acá está el cambio! Solo traemos a las TS que están activas
     trabajadoras = list(
         User.objects
-        .filter(usuario__rol__nombre_rol="TS")
+        .filter(usuario__rol__nombre_rol="TS", usuario__activo=True)
         .order_by("id")
     )
 
     if not trabajadoras:
         return None
 
+    # 2. Buscamos el último expediente (ya no hace falta filtrar activo acá, 
+    # pero dejarlo no hace daño)
     ultimo_expediente = (
         Expediente.objects
-        .filter(usuario_asignado__usuario__rol__nombre_rol="TS", usuario_asignado__usuario__activo= True)
+        .filter(usuario_asignado__usuario__rol__nombre_rol="TS")
         .order_by("-id")
         .first()
     )
@@ -162,28 +191,63 @@ def obtener_siguiente_trabajadora_social():
 
     ultimo_usuario = ultimo_expediente.usuario_asignado
 
+    # 3. Si el último usuario se dio de baja y ya no está en la lista de activas, 
+    # va a saltar al 'except' y arrancar desde el principio. ¡Perfecto!
     try:
         indice_actual = trabajadoras.index(ultimo_usuario)
+        siguiente_indice = indice_actual + 1
+        
+        if siguiente_indice >= len(trabajadoras):
+            siguiente_indice = 0
+            
+        return trabajadoras[siguiente_indice]
+        
     except ValueError:
-        return trabajadoras[0]
-
-    siguiente_indice = indice_actual + 1
-
-    if siguiente_indice >= len(trabajadoras):
-        siguiente_indice = 0
-
-    return trabajadoras[siguiente_indice]
+        # Si el último usuario se dio de baja, buscamos a la siguiente TS 
+        # que tenga un ID mayor al que se fue.
+        siguientes = [t for t in trabajadoras if t.id > ultimo_usuario.id]
+        
+        if siguientes:
+            return siguientes[0] # Le toca al próximo en la fila
+        else:
+            return trabajadoras[0] # Si el que se fue era el último, volvemos a empezar
 
 class ExpedienteViewSet(viewsets.ModelViewSet,):
     queryset = Expediente.objects.all().order_by('-id')[:5]
     serializer_class = ExpedienteSerializer
 
+    def retrieve(self, request, *args, **kwargs):
+        # 1. Dejamos que el sistema busque el expediente y arme la respuesta normal
+        response = super().retrieve(request, *args, **kwargs)
+        
+        # 2. Obtenemos el expediente que el usuario acaba de abrir
+        expediente = self.get_object()
+        
+        # 3. Guardamos la acción en el historial usando el helper que armamos
+        registrar_auditoria(
+            request.user,
+            expediente,
+            "El usuario visualizó los detalles del legajo en pantalla."
+        )
+        
+        return response
+    
     def perform_create(self, serializer):
         trabajadora_social = obtener_siguiente_trabajadora_social()
+        
         # Guarda el expediente creado manualmente y conserva la instancia para notificar al usuario asignado.
         expediente = serializer.save(usuario_asignado=trabajadora_social)
+        
         # Notifica a la Trabajadora Social cuando recibe el expediente creado desde este endpoint.
         crear_notificacion_recepcion_expediente(trabajadora_social, expediente)
+
+        # NUEVO: Auditoría de creación manual
+        registrar_auditoria(
+            self.request.user,
+            expediente,
+            f"Expediente manual creado y asignado a TS: {trabajadora_social.first_name} {trabajadora_social.last_name}."
+        )
+
 
     def get_queryset(self):
         usuario = self.request.user
@@ -650,6 +714,14 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
         expediente.estado_expediente = estado_1v
         expediente.save()
 
+        # NUEVO: Auditoría de Trabajo de Campo
+        registrar_auditoria(
+            self.request.user,
+            expediente,
+            "Se guardó el Informe Socio-Habitacional del caso."
+        )
+        
+        
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update']:
             return [IsTrabajadoraSocial()]
