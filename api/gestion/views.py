@@ -371,11 +371,13 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         #se guarda el nuevo usuario
         nuevo_usuario = serializer.save()
         
-        #se deja constancia en la tabla de auditoría
+        # Se busca el perfil de 'Usuario' del administrador que hace la petición
+        usuario_admin = Usuario.objects.get(usuario=self.request.user)
+        
+        # Se deja constancia en la tabla de auditoría
         HistorialAccion.objects.create(
-            usuario=self.request.user,
-            accion='CREATE_USER',
-            detalle=f'Creó el perfil de usuario para: ¨{nuevo_usuario.nombre} {nuevo_usuario.apellido}.'
+            id_usuario_accion=usuario_admin,
+            mensaje_accion=f'CREATE_USER: Creó el perfil de usuario para: {nuevo_usuario.nombre} {nuevo_usuario.apellido}.'
         )
     
     # auditoría modificación de usuarios
@@ -392,18 +394,24 @@ class UsuarioViewSet(viewsets.ModelViewSet):
    
     # auditoría eliminación de usuarios
     def perform_destroy(self, instance):
-        # se trae el nombre antes de borrarlo para que figure en el detalle
-        nombre_completo= f"{instance.nombre} {instance.apellido}"
+        # 1. Borrado lógico del modelo Usuario personalizado
+        instance.activo = False
+        instance.save()
+
+        # 2. Borrado lógico del User nativo de Django (para deshabilitar el login)
+        user_django = instance.usuario
+        user_django.is_active = False
+        user_django.save()
+
+        # 3. Se busca el perfil del administrador que hace la petición
+        usuario_admin = Usuario.objects.get(usuario=self.request.user)
+        nombre_completo = f"{instance.nombre} {instance.apellido}"
         
-        #se borra el usuario
-        instance.delete()
-        
-        #registra la baja en la auditoría
+        # 4. Se deja constancia en la tabla de auditoría
         HistorialAccion.objects.create(
-            usuario=self.request.user,
-            accion='DELETE_USER',
-            detalle= f'Eliminó permanentemente al usuario {nombre_completo}.'
-        )         
+            id_usuario_accion=usuario_admin,
+            mensaje_accion=f'DELETE_USER: Dio de baja lógica al usuario {nombre_completo}.'
+        )      
         
         
             
@@ -819,16 +827,23 @@ class MiLoginPersonalizadoView(TokenObtainPairView):
         # si el login fue un exito, o sea, status 200, se registra la acción
         if response.status_code == 200:
             try:
-                # se busca el usuario correspondiente al username q mando la peticion
-                usuario = User.objects.get(username=request.data.get('username'))
+                #  Se busca el User nativo de Django usando el username de la petición
+                usuario_django = User.objects.get(username=request.data.get('username'))
+                
+                #  Se busca tu modelo Usuario personalizado vinculado a ese User
+                usuario_personalizado = Usuario.objects.get(usuario=usuario_django)
+
+                #  Se crea el registro en el historial con el modelo correcto
                 HistorialAccion.objects.create(
-                    usuario=usuario,
-                    accion='LOGIN',
-                    detalle='El usuario inició sesión en el sistema.'
+                    id_usuario_accion=usuario_personalizado,
+                    mensaje_accion='LOGIN: El usuario inició sesión en el sistema.'
                 )
             except User.DoesNotExist:
-                pass 
-        return response            
+                pass
+            except Usuario.DoesNotExist:
+                pass
+                
+        return response           
           
    
 
