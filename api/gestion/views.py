@@ -82,6 +82,22 @@ def crear_notificacion_recepcion_expediente(usuario_destino, expediente, pase_ac
         expediente_relacionado=expediente
     )
 
+def registrar_auditoria(user_request, expediente, mensaje):
+    """
+    Guarda un registro en HistorialAccion.
+    """
+    try:
+        # Buscamos el perfil de Usuario (tu modelo) asociado al User logueado
+        perfil_usuario = getattr(user_request, 'usuario', None)
+        if perfil_usuario:
+            HistorialAccion.objects.create(
+                mensaje_accion=mensaje,
+                id_usuario_accion=perfil_usuario,
+                id_expediente=expediente
+            )
+    except Exception as e:
+        print(f"Error al registrar auditoria: {e}")
+
 
 class PostulanteTitularViewSet(viewsets.ModelViewSet):
     queryset = PostulanteTitular.objects.all()
@@ -92,6 +108,7 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
         postulante = serializer.save()
         estado_inicial = EstadoExpediente.objects.get(nombre='SINI')
         trabajadora_social = obtener_siguiente_trabajadora_social()
+        
         # crea el expediente inicial y conserva la instancia para generar la notificacion al usuario asignado
         expediente = Expediente.objects.create(
             postulante_titular=postulante,
@@ -99,9 +116,18 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
             DDJJ=ddjj,
             usuario_asignado=trabajadora_social
         )
+        
         # notifica a la trabajadora social cuando recibe el expediente por primera vez
         crear_notificacion_recepcion_expediente(trabajadora_social, expediente)
 
+        # NUEVO: Auditoría de creación
+        registrar_auditoria(
+            self.request.user,
+            expediente,
+            f"Expediente inicial creado y asignado a TS: {trabajadora_social.first_name} {trabajadora_social.last_name}."
+        )
+        
+    
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update']:
             return [IsDataEntryOrSuperAdmin()]
@@ -122,7 +148,6 @@ class EstadoExpedienteViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet
     queryset = EstadoExpediente.objects.all()
     permission_classes = [IsAnyRole]
     serializer_class = EstadoExpedienteSerializer
-
 
 
 def obtener_siguiente_trabajadora_social():
@@ -163,12 +188,38 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
     queryset = Expediente.objects.all().order_by('-id')[:5]
     serializer_class = ExpedienteSerializer
 
+    def retrieve(self, request, *args, **kwargs):
+        # 1. Dejamos que el sistema busque el expediente y arme la respuesta normal
+        response = super().retrieve(request, *args, **kwargs)
+        
+        # 2. Obtenemos el expediente que el usuario acaba de abrir
+        expediente = self.get_object()
+        
+        # 3. Guardamos la acción en el historial usando el helper que armamos
+        registrar_auditoria(
+            request.user,
+            expediente,
+            "El usuario visualizó los detalles del legajo en pantalla."
+        )
+        
+        return response
+    
     def perform_create(self, serializer):
         trabajadora_social = obtener_siguiente_trabajadora_social()
+        
         # Guarda el expediente creado manualmente y conserva la instancia para notificar al usuario asignado.
         expediente = serializer.save(usuario_asignado=trabajadora_social)
+        
         # Notifica a la Trabajadora Social cuando recibe el expediente creado desde este endpoint.
         crear_notificacion_recepcion_expediente(trabajadora_social, expediente)
+
+        # NUEVO: Auditoría de creación manual
+        registrar_auditoria(
+            self.request.user,
+            expediente,
+            f"Expediente manual creado y asignado a TS: {trabajadora_social.first_name} {trabajadora_social.last_name}."
+        )
+
 
     def get_queryset(self):
         usuario = self.request.user
@@ -263,6 +314,8 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
             return Response ({'mensaje': 'Estado actualizado'})
         else:
             return Response ({'mensaje': 'Estado no válido'})
+
+
 
 class RolViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
     queryset = Rol.objects.all()
@@ -405,7 +458,15 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
         estado_1v = EstadoExpediente.objects.get(nombre='1V')
         expediente.estado_expediente = estado_1v
         expediente.save()
-    
+
+        # NUEVO: Auditoría de Trabajo de Campo
+        registrar_auditoria(
+            self.request.user,
+            expediente,
+            "Se guardó el Informe Socio-Habitacional del caso."
+        )
+        
+        
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update']:
             return [IsTrabajadoraSocial()]

@@ -17,7 +17,6 @@ class PostulanteTitularSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('fecha_creacion', 'fecha_modificacion')
         
-
         
 class EstadoExpedienteSerializer(serializers.ModelSerializer):
     class Meta:
@@ -129,7 +128,6 @@ class UsuarioSerializer(serializers.ModelSerializer):
             password = dni_ingresado,
             email=email_ingresado
         )
-    
         perfil_usuario = Usuario.objects.create(usuario=nuevo_usuario, **validated_data)
         
         return perfil_usuario
@@ -161,8 +159,6 @@ class DocumentoAdjuntoSerializer(serializers.ModelSerializer):
 class HistorialPaseSerializer(serializers.ModelSerializer):
     expediente_info = serializers.SerializerMethodField()
     estado_actual = serializers.SerializerMethodField()
-
- 
     
     class Meta:
         model = HistorialPase
@@ -292,7 +288,24 @@ class FormularioSocioHabitacionalSerializer(serializers.ModelSerializer):
         read_only_fields = ('fecha_creacion', 'fecha_modificacion', 'estado')
         
 
-                
+class HistorialAccionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HistorialAccion
+        fields = '__all__'
+        read_only_fields = ('fecha_accion',)
+        
+    def to_representation(self, instance):
+        response = super().to_representation(instance)
+        
+        # Agregamos el nombre completo del usuario para que el Front no reniegue
+        if instance.id_usuario_accion:
+            perfil = instance.id_usuario_accion
+            response['usuario_display'] = f"{perfil.nombre} {perfil.apellido}"
+        else:
+            response['usuario_display'] = "Sistema"
+            
+        return response
+      
 class MiLoginPersonalizadoSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
