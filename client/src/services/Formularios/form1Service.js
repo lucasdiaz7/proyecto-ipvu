@@ -8,6 +8,11 @@ export const form1Service = {
         return response.data;
     },
 
+    getFormularioPorExpediente: async (idExpediente) => {
+        const response = await api.get(`/formulario/?expediente=${idExpediente}`)
+        return response.data
+    },
+
     // Guardar por primera vez (POST)
     crearFormulario: async (datos) => {
         const response = await api.post('/formulario/', datos);

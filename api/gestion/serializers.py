@@ -26,11 +26,8 @@ class EstadoExpedienteSerializer(serializers.ModelSerializer):
 
 class ExpedienteSerializer(serializers.ModelSerializer):
     estado_expediente = EstadoExpedienteSerializer(read_only= True)
-    estado_expediente_id = serializers.PrimaryKeyRelatedField(
-        queryset=EstadoExpediente.objects.all(),
-        source='estado_expediente',
-        write_only=True
-    )
+    estado_expediente_id = serializers.PrimaryKeyRelatedField(queryset=EstadoExpediente.objects.all(), source='estado_expediente',write_only=True)
+    documentos_adjuntos = serializers.SerializerMethodField()
     
     class Meta:
         model = Expediente
@@ -94,7 +91,35 @@ class ExpedienteSerializer(serializers.ModelSerializer):
         else:
             response['usuario_asignado'] = None
 
+        response['documentos_adjuntos'] = [
+            {
+                'id': documento.id,
+                'tipo_documento': documento.tipo_documento,
+                'archivo': documento.archivo.name if documento.archivo else None,
+                'archivo_url': documento.archivo.url if documento.archivo else None,
+                'historial_pases': list(documento.historial_pases.values_list('id', flat=True)),
+                'pendiente_pase': not documento.historial_pases.exists(),
+            }
+            for documento in instance.documentos.all()
+        ]
+
         return response
+    
+    def get_documentos_adjuntos(self, obj):
+        documentos = DocumentoAdjunto.objects.filter(expediente=obj)
+        
+        if documentos.exists():
+            return [
+                {
+                    "id": doc.id,
+                    "tipo_documento": doc.tipo_documento,
+                    "archivo": doc.archivo.name if doc.archivo else None,
+                    "archivo_url": doc.archivo.url if doc.archivo else None,
+                    "historial_pases": list(doc.historial_pases.values_list('id', flat=True)),
+                    "pendiente_pase": not doc.historial_pases.exists(),
+                } for doc in documentos
+            ]
+        return []
     
     def update(self, instance, validated_data):
         # Obligamos a que sí o sí usen tu @action "cambiar_estado"
@@ -147,19 +172,40 @@ class UsuarioSerializer(serializers.ModelSerializer):
     
 class DocumentoAdjuntoSerializer(serializers.ModelSerializer):
     archivo_url = serializers.SerializerMethodField()
+    historial_pases = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+    pendiente_pase = serializers.SerializerMethodField()
+
     class Meta:
         model = DocumentoAdjunto
-        fields = '__all__'
+        fields = [
+            'id',
+            'archivo',
+            'archivo_url',
+            'tipo_documento',
+            'subido_por',
+            'expediente',
+            'historial_pases',
+            'pendiente_pase',
+        ]
+        read_only_fields = ['subido_por']
         
     def get_archivo_url(self, obj):
         if obj.archivo:
             return obj.archivo.url
         return None
 
+    def get_pendiente_pase(self, obj):
+        return not obj.historial_pases.exists()
+
 class HistorialPaseSerializer(serializers.ModelSerializer):
     expediente_info = serializers.SerializerMethodField()
     estado_actual = serializers.SerializerMethodField()
-    
+    documentos_adjuntos_detalle = serializers.SerializerMethodField()
+    documentos_adjuntos = serializers.PrimaryKeyRelatedField(
+        queryset=DocumentoAdjunto.objects.all(), 
+        many=True, 
+        required=False
+    )
     class Meta:
         model = HistorialPase
         fields = [
@@ -168,11 +214,26 @@ class HistorialPaseSerializer(serializers.ModelSerializer):
             'expediente_info',
             'usuario_origen',
             'usuario_destino',
+            'documentos_adjuntos',
+            'documentos_adjuntos_detalle',
             'observacion',
             'fecha_envio',
-            'estado_actual'
+            'estado_actual',
         ]
-        read_only_fields = ('fecha_envio', 'usuario_origen', 'expediente_info')
+        read_only_fields = ('fecha_envio', 'usuario_origen', 'expediente_info', 'estado_actual', 'documentos_adjuntos_detalle')
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        expediente = attrs.get('expediente') or getattr(self.instance, 'expediente', None)
+        documentos = attrs.get('documentos_adjuntos', [])
+
+        for doc in documentos:
+            if doc.expediente_id != expediente.id:
+                raise serializers.ValidationError({
+                    'documentos_adjuntos': f'El documento {doc.id} no pertenece al expediente del pase.'
+                })
+                
+        return attrs
         
     def get_estado_actual(self, obj):
         if obj.expediente and obj.expediente.estado_expediente:
@@ -197,6 +258,21 @@ class HistorialPaseSerializer(serializers.ModelSerializer):
                 'dni': expediente.postulante_titular.dni,
             } if expediente.postulante_titular else None
         }
+        
+    def get_documentos_adjuntos_detalle(self, obj):
+        documentos = obj.documentos_adjuntos.all()
+
+        if documentos.exists():
+            return [
+                {
+                    "id": doc.id,
+                    "tipo_documento": doc.tipo_documento,
+                    "archivo": doc.archivo.name if doc.archivo else None,
+                    "archivo_url": doc.archivo.url if doc.archivo else None
+                } for doc in documentos
+            ]
+        return []
+    
     
     def to_representation(self, instance):
         response = super().to_representation(instance)
@@ -266,6 +342,14 @@ class HistorialAccionSerializer(serializers.ModelSerializer):
         read_only_fields = ('fecha_accion',)
         
 class FormularioSocioHabitacionalSerializer(serializers.ModelSerializer):
+    grupo_familiar = serializers.CharField(allow_blank=True, required=False)
+    situacion_habitacional = serializers.CharField(allow_blank=True, required=False)
+    aspecto_economico = serializers.CharField(allow_blank=True, required=False)
+    situacion_salud = serializers.CharField(allow_blank=True, required=False)
+    nivel_estudios = serializers.CharField(allow_blank=True, required=False)
+    relevamiento_vecinal = serializers.CharField(allow_blank=True, required=False)
+    observaciones = serializers.CharField(allow_blank=True, required=False)
+
     # Estado calculado automaticamente segun la cantidad de campos completados del formulario.
     estado = serializers.ReadOnlyField()
 

@@ -5,3 +5,7 @@ __pycache__/
 env/
 venv/
 db.sqlite3/
+test_pdf.py
+test_output.pdf
+*.pdf
+node_modules/

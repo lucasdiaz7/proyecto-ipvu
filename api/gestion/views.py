@@ -1,4 +1,8 @@
 import csv
+import os
+import logging
+import io
+
 from django.http import HttpResponse
 from django.shortcuts import render
 from rest_framework import viewsets, permissions
@@ -22,6 +26,25 @@ from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django.db.models import Q
 from django.db.models import Count
+from rest_framework.throttling import ScopedRateThrottle
+from rest_framework_simplejwt.views import TokenRefreshView
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import cm
+from django.core.exceptions import ObjectDoesNotExist
+from django.http import HttpResponse
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import cm
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER
+from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, PageBreak)
+from reportlab.lib import colors
+from django.core.files.base import ContentFile
+from django.conf import settings
+
+logger = logging.getLogger(__name__)
+
+
 
 
 # Notificaciones automaticas. meensajes posibles al recibir un expediente
@@ -136,15 +159,7 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
         return [IsAnyRole()]
     
 
- 
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update']:
-            return [IsDataEntryOrSuperAdmin()]
-        if self.action == 'destroy':
-            return [IsSuperAdmin()]
-        return [IsAnyRole()]
- 
-class EstadoExpedienteViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
+class EstadoExpedienteViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet, UpdateModelMixin):
     queryset = EstadoExpediente.objects.all()
     permission_classes = [IsAnyRole]
     serializer_class = EstadoExpedienteSerializer
@@ -162,7 +177,7 @@ def obtener_siguiente_trabajadora_social():
 
     ultimo_expediente = (
         Expediente.objects
-        .filter(usuario_asignado__usuario__rol__nombre_rol="TS")
+        .filter(usuario_asignado__usuario__rol__nombre_rol="TS", usuario_asignado__usuario__activo= True)
         .order_by("-id")
         .first()
     )
@@ -184,7 +199,7 @@ def obtener_siguiente_trabajadora_social():
 
     return trabajadoras[siguiente_indice]
 
-class ExpedienteViewSet(viewsets.ModelViewSet):
+class ExpedienteViewSet(viewsets.ModelViewSet,):
     queryset = Expediente.objects.all().order_by('-id')[:5]
     serializer_class = ExpedienteSerializer
 
@@ -236,7 +251,7 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
         
         if not usuario.is_authenticated:
             queryset = Expediente.objects.all()
-        elif hasattr(usuario, 'usuario') and usuario.usuario.rol.nombre_rol == 'TS':
+        elif hasattr(usuario, 'usuario') and usuario.usuario.rol.nombre_rol in ['TS', 'LG', 'DE']:
             queryset = Expediente.objects.filter(usuario_asignado= usuario)
         else:
             queryset = Expediente.objects.all()
@@ -270,7 +285,7 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
         return queryset   
     
     def get_permissions(self):
-        if self.action == 'create':
+        if self.action in ['create', 'update', 'partial_update']:
             return [IsDataEntry()]
         if self.action in ['destroy']:
             return [IsSuperAdmin()]
@@ -304,19 +319,39 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['patch'], permission_classes=[IsDataEntry])
     def cambiar_estado(self, request, pk=None):
-        expediente= self.get_object()
-        nuevo_estado = request.data.get('estado')
+        print("\n--- 🟢 ENTRÓ A LA FUNCIÓN CAMBIAR ESTADO ---")
+        print(f"Data cruda recibida del Front: {request.data}")
         
-        if nuevo_estado in ['AP', 'NOAP', 'NUEVAV']:
-            estado_obj = EstadoExpediente.objects.get(nombre=nuevo_estado)
-            expediente.estado_expediente = estado_obj
-            expediente.save()
-            return Response ({'mensaje': 'Estado actualizado'})
-        else:
-            return Response ({'mensaje': 'Estado no válido'})
-
-
-
+        try:
+            expediente = self.get_object()
+            nuevo_estado = request.data.get('estado')
+            print(f"Estado extraído: {nuevo_estado}")
+            
+            if nuevo_estado in ['AP', 'NOAP', 'NUEVAV']:
+                # 2. Intentamos buscar el estado en la base de datos
+                estado_obj = EstadoExpediente.objects.get(nombre=nuevo_estado)
+                print(f"Objeto estado encontrado en DB: {estado_obj}")
+                
+                # 3. Asignamos y guardamos
+                expediente.estado_expediente = estado_obj
+                expediente.save()
+                print("--- ✅ ÉXITO: Expediente guardado en DB ---")
+                
+                return Response({'mensaje': 'Estado actualizado'}, status=200)
+            else:
+                print("--- 🟡 ADVERTENCIA: Cayó en el else (estado no válido) ---")
+                return Response({'error': 'Estado no válido'}, status=400)
+                
+        except EstadoExpediente.DoesNotExist:
+            print(f"--- 🔴 ERROR: El estado '{nuevo_estado}' NO EXISTE en tu tabla EstadoExpediente ---")
+            return Response({'error': 'El estado no existe en la base de datos. Crealo primero.'}, status=404)
+            
+        except Exception as e:
+            print(f"--- 🔴 ERROR FATAL: {str(e)} ---")
+            return Response({'error': str(e)}, status=500)
+        
+        
+        
 class RolViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
     queryset = Rol.objects.all()
     permission_classes = [IsAnyRole]
@@ -344,6 +379,12 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     def auditoria_usuarios(self, request):
         try:
             perfiles = self.get_queryset() 
+            
+            #filtro para mostrar solo trabajadoras sociales
+            solo_ts = request.query_params.get('solo_ts')
+            if solo_ts == 'true':
+                perfiles = perfiles.filter(rol__nombre_rol= 'TS')
+                
             resultado = []
 
             for perfil in perfiles:
@@ -351,6 +392,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
                 expedientes_del_usuario = user_nativo.expediente_set.all()
                 
                 total_asignados = expedientes_del_usuario.count()
+                total_no_vistos = expedientes_del_usuario.filter(visto=False).count()
 
                 desglose_db = expedientes_del_usuario.values('estado_expediente__nombre').annotate(cantidad=Count('id'))
 
@@ -365,6 +407,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
                     "nombre_completo": f"{perfil.apellido}, {perfil.nombre}",
                     "rol": perfil.rol.nombre_rol if perfil.rol else "Sin Rol",
                     "total_asignados": total_asignados,
+                    "total_no_vistos": total_no_vistos,
                     "desglose_estados": estados_limpios
                 })
             return Response(resultado)
@@ -379,7 +422,28 @@ class UsuarioViewSet(viewsets.ModelViewSet):
 class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
     queryset = DocumentoAdjunto.objects.all()
     permission_classes = [IsAnyRole]
-    serializer_class = DocumentoAdjuntoSerializer        
+    serializer_class = DocumentoAdjuntoSerializer   
+    
+    def perform_create(self, serializer):
+        serializer.save(subido_por = self.request.user)
+    
+    def get_queryset(self):
+        queryset = DocumentoAdjunto.objects.all()
+        expediente_id = self.request.query_params.get('expediente')
+        
+        if expediente_id:
+            queryset = queryset.filter(expediente_id=expediente_id)
+            
+        return queryset
+    
+    def perform_destroy(self, instance):
+        archivo = instance.archivo
+        instance.delete()
+        
+        if archivo:
+            archivo.delete(save=False)
+    
+             
 
 
 class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, GenericViewSet):
@@ -390,19 +454,16 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
     def perform_create(self, serializer):
         pase = serializer.save(usuario_origen = self.request.user)
         expediente = pase.expediente
-        #Obtiene el perfil del usuario destino para decidir el nuevo estado del expediente segun su rol.
-        perfil_destino = getattr(pase.usuario_destino, 'usuario', None)
+
+        documentos_pendientes = DocumentoAdjunto.objects.filter(
+            expediente=expediente,
+            historial_pases__isnull=True
+        )
+        if documentos_pendientes.exists():
+            pase.documentos_adjuntos.add(*list(documentos_pendientes))
+            serializer.instance = HistorialPase.objects.prefetch_related('documentos_adjuntos').get(id=pase.id)
         
-        if expediente.estado_expediente.nombre != 'AP' and perfil_destino:
-            rol_destino = perfil_destino.rol.nombre_rol
-            
-            if rol_destino == 'LG':
-                nuevo_estado = EstadoExpediente.objects.get(nombre='LEG')
-            else:
-                nuevo_estado = EstadoExpediente.objects.get(nombre='1V')
-            
-            expediente.estado_expediente = nuevo_estado
-            # Actualiza el usuario asignado para que el expediente quede en poder de quien lo recibe.
+        if pase.usuario_destino:
             expediente.usuario_asignado = pase.usuario_destino
             expediente.save()
 
@@ -411,13 +472,35 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
         crear_notificacion_recepcion_expediente(pase.usuario_destino, expediente, pase_actual=pase)
         
     def get_queryset(self):
-        queryset = HistorialPase.objects.all()
+        queryset = (
+            HistorialPase.objects
+            .select_related(
+                'expediente',
+                'expediente__estado_expediente',
+                'expediente__postulante_titular',
+                'expediente__usuario_asignado',
+                'expediente__usuario_asignado__usuario',
+                'usuario_origen',
+                'usuario_origen__usuario',
+                'usuario_destino',
+                'usuario_destino__usuario',
+            )
+            .prefetch_related('documentos_adjuntos')
+        )
         expediente_id = self.request.query_params.get('expediente')
+        usuario_id = self.request.query_params.get('usuario')
         
-        if expediente_id:
+        if expediente_id is not None:
             queryset = queryset.filter(expediente_id=expediente_id)
+
+        if usuario_id:
+            queryset = queryset.filter(
+                Q(usuario_origen_id=usuario_id) |
+                Q(usuario_destino_id=usuario_id)
+            )
             
         return queryset
+
         
             
 class NotificacionViewSet(viewsets.ModelViewSet):
@@ -447,10 +530,88 @@ class HistorialAccionViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet)
     queryset = HistorialAccion.objects.all()
     permission_classes = [IsAnyRole]
     serializer_class = HistorialAccionSerializer
+
+
+
+
+def _dibujar_encabezado_pie_formulario(canvas, doc):
+    canvas.saveState()
+    ancho_pagina, alto_pagina = A4
+
+    # --- Rutas de los logos ---
+    logo_ipvu_path = os.path.join(
+        settings.BASE_DIR, "gestion", "static_pdf", "logo_ipvu.jpg"
+    )
+    logo_santiago_path = os.path.join(
+        settings.BASE_DIR, "gestion", "static_pdf", "logo_santiago.jpg"
+    )
+
+    # --- Logo izquierdo (I.P.V.U.) ---
+    if os.path.exists(logo_ipvu_path):
+        canvas.drawImage(
+            logo_ipvu_path,
+            x=2 * cm, y=alto_pagina - 2.3 * cm,
+            width=2 * cm, height=1.6 * cm,
+            preserveAspectRatio=True, mask='auto'
+        )
+    else:
+        logger.warning(f"No se encontró el logo IPVU en: {logo_ipvu_path}")
+
+    # --- Logo derecho (Santiago) ---
+    if os.path.exists(logo_santiago_path):
+        canvas.drawImage(
+            logo_santiago_path,
+            x=ancho_pagina - 4 * cm, y=alto_pagina - 2.3 * cm,
+            width=2 * cm, height=1.6 * cm,
+            preserveAspectRatio=True, mask='auto'
+        )
+    else:
+        logger.warning(f"No se encontró el logo Santiago en: {logo_santiago_path}")
+
+    # --- Encabezado institucional (3 líneas centradas) ---
+    y = alto_pagina - 1.3 * cm
+    canvas.setFont("Helvetica-Bold", 10)
+    canvas.drawCentredString(ancho_pagina / 2, y, "INSTITUTO PROVINCIAL DE VIVIENDA Y URBANISMO")
+    y -= 0.42 * cm
+    canvas.drawCentredString(ancho_pagina / 2, y, "Ministerio de Obras y Servicios Públicos")
+    y -= 0.42 * cm
+    canvas.drawCentredString(ancho_pagina / 2, y, "SECRETARÍA TÉCNICA DE RELACIONES PUBLICAS E INSTITUCIONALES")
+
+    # --- Fila de contacto ---
+    y -= 0.35 * cm
+    canvas.setLineWidth(0.5)
+    canvas.line(2 * cm, y, ancho_pagina - 2 * cm, y)
+    y -= 0.45 * cm
+    canvas.setFont("Helvetica-Bold", 8)
+    canvas.drawCentredString(ancho_pagina * 0.20, y, "Agustín Álvarez N° 90")
+    canvas.drawCentredString(ancho_pagina * 0.50, y, "Tel. (0385) 422-1646 / 4989")
+    canvas.drawCentredString(ancho_pagina * 0.80, y, "4200 - Santiago del Estero")
+    y -= 0.25 * cm
+    canvas.line(2 * cm, y, ancho_pagina - 2 * cm, y)
+
+    # --- Pie de página ---
+    canvas.setFont("Helvetica-Oblique", 7)
+    canvas.drawCentredString(
+        ancho_pagina / 2, 1.3 * cm,
+        "Secretaría Técnica de Relaciones Públicas - I.P.V.U. - "
+        "Lunes a Viernes de 8 a 12 hs. - Santiago del Estero"
+    )
+
+    canvas.restoreState()
     
 class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin, GenericViewSet):
     queryset = FormularioSocioHabitacional.objects.all()
     serializer_class = FormularioSocioHabitacionalSerializer
+    
+    def get_queryset(self):
+        queryset = FormularioSocioHabitacional.objects.all()
+        expediente_id = self.request.query_params.get('expediente') 
+        
+        if expediente_id:
+            queryset = queryset.filter(expediente_id = expediente_id)
+            
+        return queryset
+            
     
     def perform_create(self, serializer):
         formulario = serializer.save()
@@ -471,9 +632,160 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
         if self.action in ['create', 'update', 'partial_update']:
             return [IsTrabajadoraSocial()]
         return [IsAnyRole()]
+
+
+    @action(detail=True, methods=['get'], url_path='pdf')
+    def generar_pdf(self, request, pk=None):
+        formulario = self.get_object()
+        expediente = formulario.expediente
+
+        # --- Datos del profesional asignado ---
+        profesional = ""
+        if expediente.usuario_asignado:
+            try:
+                perfil = expediente.usuario_asignado.usuario
+                profesional = f"{perfil.apellido}, {perfil.nombre} (Mat. {perfil.matricula})"
+            except (AttributeError, ObjectDoesNotExist) as e:
+                logger.warning(
+                    f"No se pudo obtener perfil detallado para usuario_asignado "
+                    f"id={expediente.usuario_asignado_id}: {e}"
+                )
+                profesional = (
+                    f"{expediente.usuario_asignado.last_name}, "
+                    f"{expediente.usuario_asignado.first_name}"
+                )
+
+        # --- Datos del titular ---
+        domicilio = apellido = nombre = dni = ""
+        if expediente.postulante_titular:
+            titular = expediente.postulante_titular
+            domicilio = getattr(titular, 'domicilio_actual', '') or ''
+            apellido = getattr(titular, 'apellido', '') or ''
+            nombre = getattr(titular, 'nombre', '') or ''
+            dni = getattr(titular, 'dni', '') or ''
+
+        # --- Fecha ---
+        fecha = formulario.fecha_modificacion or formulario.fecha_creacion
+        meses = [
+            "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+            "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+        ]
+        dia_str = mes_str = anio_str = ""
+        if fecha:
+            dia_str = str(fecha.day)
+            mes_str = meses[fecha.month - 1]
+            anio_str = str(fecha.year)[-2:]
+
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = (
+            f'attachment; filename="Formulario_{formulario.id}.pdf"'
+        )
+        buffer = io.BytesIO()
+        
+        doc = SimpleDocTemplate(
+            response,
+            pagesize=A4,
+            topMargin=3.6 * cm,
+            bottomMargin=2.2 * cm,
+            leftMargin=2 * cm,
+            rightMargin=2 * cm,
+        )
+
+        styles = getSampleStyleSheet()
+        styles.add(ParagraphStyle(name='TituloFormulario', parent=styles['Heading1'],
+                                   alignment=TA_CENTER, fontSize=13, spaceBefore=6, spaceAfter=14))
+        styles.add(ParagraphStyle(name='CampoIdentificacion', parent=styles['Normal'],
+                                   fontSize=10, spaceAfter=8))
+        styles.add(ParagraphStyle(name='SeccionTitulo', parent=styles['Heading2'],
+                                   fontSize=11, spaceBefore=10, spaceAfter=2, textColor=colors.black))
+        styles.add(ParagraphStyle(name='SeccionBajada', parent=styles['Normal'],
+                                   fontName='Helvetica-Oblique', fontSize=8.5,
+                                   textColor=colors.grey, spaceAfter=6))
+        styles.add(ParagraphStyle(name='TextoCuerpo', parent=styles['Normal'],
+                                   fontSize=10, leading=14, spaceAfter=4))
+        styles.add(ParagraphStyle(name='FirmaLinea', parent=styles['Normal'],
+                                   alignment=TA_CENTER, fontSize=10, spaceBefore=24))
+        styles.add(ParagraphStyle(name='FirmaEtiqueta', parent=styles['Normal'],
+                                   alignment=TA_CENTER, fontSize=9, spaceBefore=2))
+
+        elementos = []
+
+        def agregar_seccion(titulo, bajada, contenido):
+            elementos.append(Paragraph(titulo, styles['SeccionTitulo']))
+            if bajada:
+                elementos.append(Paragraph(bajada, styles['SeccionBajada']))
+            texto = (contenido or '-').replace('\n', '<br/>')
+            elementos.append(Paragraph(texto, styles['TextoCuerpo']))
+
+        # ============ PÁGINA 1 ============
+        elementos.append(Paragraph("INFORME SOCIO HABITACIONAL", styles['TituloFormulario']))
+        elementos.append(Paragraph(f"<b>Profesional Actuante:</b> {profesional or '-'}", styles['CampoIdentificacion']))
+        elementos.append(Paragraph(
+            f"<b>Caso de Referencia:</b> Expediente N° {expediente.id} &nbsp;&nbsp;&nbsp; "
+            f"<b>DJ N°:</b> {expediente.DDJJ or '-'}",
+            styles['CampoIdentificacion']
+        ))
+        elementos.append(Paragraph(
+            f"<b>Domicilio:</b> {domicilio or '-'} "
+            f"(Titular: {apellido}, {nombre} - DNI: {dni or '-'})",
+            styles['CampoIdentificacion']
+        ))
+        elementos.append(Spacer(1, 6))
+
+        agregar_seccion("GRUPO FAMILIAR CONSTITUYENTE", "Tipo y Dinamia familiar. Conflictos", formulario.grupo_familiar)
+        agregar_seccion("SITUACIÓN HABITACIONAL", "Tipo de posesión y tiempo de habitabilidad", formulario.situacion_habitacional)
+        agregar_seccion("ASPECTO ECONÓMICO", "Ingresos y Calidad de Vida", formulario.aspecto_economico)
+        agregar_seccion("SITUACIÓN DE SALUD", "Discapacidad. Invalidez", formulario.situacion_salud)
+        agregar_seccion("NIVEL DE ESTUDIOS", None, formulario.nivel_estudios)
+
+        elementos.append(Spacer(1, 10))
+        elementos.append(Paragraph("_" * 45, styles['FirmaLinea']))
+        elementos.append(Paragraph("Firma y Aclaración del Entrevistado", styles['FirmaEtiqueta']))
+
+        # ============ PÁGINA 2 ============
+        elementos.append(PageBreak())
+        agregar_seccion("RELEVAMIENTO VECINAL", None, formulario.relevamiento_vecinal)
+
+        elementos.append(Spacer(1, 10))
+        elementos.append(Paragraph("_" * 40, styles['FirmaLinea']))
+        elementos.append(Paragraph("Firma y Aclaración del Entrevistado", styles['FirmaEtiqueta']))
+        elementos.append(Spacer(1, 14))
+
+        agregar_seccion("OBSERVACIONES Y/O PARTICULARIDADES", None, formulario.observaciones)
+
+        elementos.append(Spacer(1, 16))
+        elementos.append(Paragraph(
+            f"Santiago del Estero, {dia_str or '____'} de {mes_str or '____________'} de 20{anio_str or '__'}",
+            styles['TextoCuerpo']
+        ))
+        elementos.append(Spacer(1, 10))
+        elementos.append(Paragraph("Atentamente", styles['TextoCuerpo']))
+        elementos.append(Spacer(1, 24))
+        elementos.append(Paragraph("_" * 40, styles['FirmaLinea']))
+        elementos.append(Paragraph("Firma y Sello del Profesional Actuante", styles['FirmaEtiqueta']))
+
+        doc.build(
+            elementos,
+            onFirstPage=_dibujar_encabezado_pie_formulario,
+            onLaterPages=_dibujar_encabezado_pie_formulario,
+        )
+        pdf_bytes = buffer.getvalue()
+        DocumentoAdjunto.objects.create(
+            tipo_documento="Formulario Socio Habitacional",
+            archivo=ContentFile(pdf_bytes, name=f"Formulario_{formulario.id}.pdf"),
+            subido_por=request.user,
+            expediente=expediente
+        )
+
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="Formulario_{formulario.id}.pdf"'
+        
+        return response
     
 class MiLoginPersonalizadoView(TokenObtainPairView):
     serializer_class = MiLoginPersonalizadoSerializer
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
 
 
 class EstablecerPasswordInicialView(APIView):
@@ -493,6 +805,8 @@ class EstablecerPasswordInicialView(APIView):
 
 class SolicitarResetPasswordView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_classes =[ScopedRateThrottle]
+    throttle_scope = "password_reset"
 
     def post(self, request):
         serializer = SolicitarResetPasswordSerializer(data=request.data)
@@ -525,7 +839,8 @@ class SolicitarResetPasswordView(APIView):
 
 class ConfirmarResetPasswordView(APIView):
     permission_classes = [permissions.AllowAny]
-
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "password_reset"
     def post(self, request):
         serializer = ConfirmarResetPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -535,3 +850,8 @@ class ConfirmarResetPasswordView(APIView):
             "mensaje": "Contraseña actualizada correctamente."
         })
 
+
+class MiTokenRefreshView(TokenRefreshView):
+    
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "token_refresh"

@@ -5,6 +5,9 @@ import { form1Service } from '../../services/Formularios/form1Service';
 import { usuarioService } from '../../services/usuarios/usuarios';
 import { historial } from '../../services/historial/historial';
 import { AdjuntarArchivos } from '../Archivos/AdjuntarArchivo';
+import { estadoExpediente } from '../../services/estadoEpediente/estadoExpediente';
+import { formularioPdfService } from '../../services/Formularios/formularioPdfService';
+import { resolverArchivoUrl } from '../../services/documentos/documentoAdjunto';
 
 const DetailExpedientes = () => {
     const { id } = useParams()
@@ -12,35 +15,32 @@ const DetailExpedientes = () => {
     const [expediente, setExpediente] = useState(null)
     const [error, setError] = useState(null)
     const [cargando, setCargando] = useState(true)
-    const [formulario, setFormulario] = useState(null)
+    const [formulario, setFormulario] = useState([])
     const [mensajePase, setMensajePase] = useState('')
     const [errorMensaje, setErrorMensaje] = useState(false)
     const [listaUsuario, setlistaUsuario] = useState(null)
     const [rolSeleccionado, setRolSeleccionado] = useState('');
     const [usuarioDestino, setUsuarioDestino] = useState('');
     const [historialPases, setHistorialPases] = useState([]);
-    const [archivosAdjuntos, setArchivosAdjuntos] = useState([]);
 
 
-    const [estadoSeleccionado, setEstadoSeleccionado] = useState('SINI');
+    const [estadoSeleccionado, setEstadoSeleccionado] = useState('NUEVAV');
 
     // Opciones para el select de estados del expediente
     const tipo_estado = [
-        { value: 'SINI', label: 'Sin Iniciar' },
-        { value: '1V', label: '1ra Visita' },
-        { value: 'LEG', label: 'Legales' },
-        { value: 'DOCP', label: 'Doc Presentada' },
-        { value: 'AP', label: 'Apto' },
-        { value: 'NOAP', label: 'No Apto' },
         { value: 'NUEVAV', label: 'Nueva Visita' },
+        { value: 'AP', label: 'Apto' },
+        { value: 'NOAP', label: 'No Apto' }
     ];
 
+    // console.log('historialPases :>> ', historialPases);
+    // console.log('usuarioDestino :>> ', usuarioDestino);
+    console.log('formulario :>> ', formulario);
     console.log('historialPases :>> ', historialPases);
-    console.log('usuarioDestino :>> ', usuarioDestino);
 
     const rolId = Number(localStorage.getItem('rol_id'));
     const usuarioLogueado = String(localStorage.getItem('usuarioLogueado'))
-    console.log('usuarioLogueado :>> ', usuarioLogueado);
+    // console.log('usuarioLogueado :>> ', usuarioLogueado);
     console.log('expediente :>> ', expediente);
 
     useEffect(() => {
@@ -49,24 +49,34 @@ const DetailExpedientes = () => {
                 setCargando(true);
                 setError(null);
 
-                const dataExpediente = await expedienteService.getExpedienteId(id);
+                // 🚀 Disparamos las 4 peticiones en paralelo (al mismo tiempo)
+                const [dataExpediente, formularioPorExp, usuarios, pasesFiltrados] = await Promise.all([
+                    expedienteService.getExpedienteId(id),
+                    form1Service.getFormularioPorExpediente(id),
+                    usuarioService.getUsuarios(),
+                    historial.obtenerPasesPorExpediente(id)
+                ]);
+
+                // 1. Guardamos los datos del expediente
                 setExpediente(dataExpediente);
 
-                const todosLosFormularios = await form1Service.obtenerTodosLosFormularios();
-
-                if (Array.isArray(todosLosFormularios)) {
-                    const formularioFiltrado = todosLosFormularios.find(
+                // 2. Procesamos el formulario seleccionando el último del array
+                if (Array.isArray(formularioPorExp) && formularioPorExp.length > 0) {
+                    const formulariosDelExpediente = formularioPorExp.filter(
                         (form) => Number(form.expediente) === Number(id)
                     );
-                    setFormulario(formularioFiltrado || null);
+
+                    const ultimoFormulario = formulariosDelExpediente[formulariosDelExpediente.length - 1];
+                    setFormulario(ultimoFormulario || null);
+                } else {
+                    setFormulario(null);
                 }
 
-                const usuarios = await usuarioService.getUsuarios()
-                const usuarioFiltr = usuarios.filter((u) => String(u.username_display) !== String(usuarioLogueado))
-                setlistaUsuario(usuarioFiltr)
+                // 3. Filtramos la lista de usuarios
+                const usuarioFiltr = usuarios.filter((u) => String(u.username_display) !== String(usuarioLogueado));
+                setlistaUsuario(usuarioFiltr);
 
-                const pasesFiltrados = await historial.obtenerPasesPorExpediente(id)
-
+                // 4. Guardamos el historial de pases
                 if (Array.isArray(pasesFiltrados)) {
                     setHistorialPases(pasesFiltrados);
                 } else {
@@ -84,14 +94,71 @@ const DetailExpedientes = () => {
         if (id) {
             obtenerDatos();
         }
-    }, [id, usuarioLogueado]);
+    }, [id]);
 
-    console.log('listaUsuario :>> ', listaUsuario);
+    // console.log('listaUsuario :>> ', listaUsuario);
 
     const usuariosFiltrados = React.useMemo(() => {
         if (!rolSeleccionado || !listaUsuario) return [];
         return listaUsuario.filter(user => Number(user.rol) === Number(rolSeleccionado));
     }, [rolSeleccionado, listaUsuario]);
+
+    const obtenerAdjuntosMovimiento = (movimiento) => {
+        if (Array.isArray(movimiento?.documentos_adjuntos_detalle)) {
+            return movimiento.documentos_adjuntos_detalle;
+        }
+
+        return [];
+    };
+
+    const obtenerNombreAdjunto = (adjunto) => {
+        const nombreDesdeUrl = adjunto?.archivo?.split('/').pop() || adjunto?.archivo_url?.split('/').pop();
+        return adjunto?.tipo_documento || adjunto?.nombre || adjunto?.nombre_archivo || nombreDesdeUrl || 'Archivo adjunto';
+    };
+
+    const obtenerUrlAdjunto = (adjunto) => {
+        return resolverArchivoUrl(adjunto?.archivo_url || adjunto?.archivo || adjunto?.url);
+    };
+
+    const adjuntosHistorial = React.useMemo(() => {
+        if (!Array.isArray(historialPases)) return [];
+        return historialPases.flatMap((movimiento) => obtenerAdjuntosMovimiento(movimiento));
+    }, [historialPases]);
+
+    // const descargarAdjunto = (adjunto) => {
+    //     const url = obtenerUrlAdjunto(adjunto);
+    //     if (!url) return;
+
+    //     const linkDescarga = document.createElement('a');
+    //     linkDescarga.href = url;
+    //     linkDescarga.download = obtenerNombreAdjunto(adjunto);
+    //     document.body.appendChild(linkDescarga);
+    //     linkDescarga.click();
+    //     linkDescarga.remove();
+    // };
+
+    const handleGenerarPdf = async () => {
+        if (!formulario?.id) {
+            alert("No se encuentra el formulario para generar el PDF");
+            return;
+        }
+
+        try {
+            const pdfBlob = await formularioPdfService.generarPdf(formulario.id);
+            const urlPdf = window.URL.createObjectURL(pdfBlob);
+            const linkDescarga = document.createElement('a');
+
+            linkDescarga.href = urlPdf;
+            linkDescarga.download = `Formulario_${formulario.id}.pdf`;
+            document.body.appendChild(linkDescarga);
+            linkDescarga.click();
+            linkDescarga.remove();
+            window.URL.revokeObjectURL(urlPdf);
+        } catch (error) {
+            console.error("Error al generar el PDF:", error);
+            alert("No se pudo generar el PDF del formulario.");
+        }
+    };
 
 
     //boton Enviar POST
@@ -121,22 +188,27 @@ const DetailExpedientes = () => {
         //     formData.append('nuevo_estado', estadoSeleccionado);
         // }
 
-        // Adjuntamos los archivos acumulados en el array (se mantiene comentado tal cual lo tenías)
-        // archivosAdjuntos.forEach((archivo) => {
-        //     formData.append('adjuntos', archivo);
-        // });
-
         try {
-            console.log("Enviando pase...");
+            // console.log("Enviando pase...");
 
-            const nuevoPase = await historial.postHistorialPase(formData);
 
+            if (rolId === 3) {
+                // Intentá mandarlo como un objeto JSON simple en lugar de FormData
+                const datosEstado = {
+                    // Cambiá la clave según lo que pida tu backend:
+                    estado: estadoSeleccionado
+                };
+
+                // Llamamos a la función pasándole el ID y el objeto con el dato
+                await estadoExpediente.patchEstadoExp(id, datosEstado);
+            }
+
+            await historial.postHistorialPase(formData);
             alert("Pase del expediente realizado correctamente.");
 
             setMensajePase('');
             setRolSeleccionado('');
             setUsuarioDestino('');
-            setArchivosAdjuntos([]);
             setEstadoSeleccionado('SINI'); // Reseteamos al valor inicial
             navigate("/expedientes")
 
@@ -165,14 +237,29 @@ const DetailExpedientes = () => {
         );
     }
 
-    const estadoGlobal = expediente?.estado_expediente?.nombre;
-    const estadoInternoForm = formulario?.estado;
+    const estadoGlobal = typeof expediente?.estado_expediente === 'string'
+        ? expediente.estado_expediente
+        : expediente?.estado_expediente?.nombre;
 
-    let textoBotonTarea = "📋 Realizar Tarea";
-    if (estadoInternoForm === "en progreso") {
-        textoBotonTarea = "📋 Continuar Tarea";
+    const esNuevaVisitaTrabajadoraSocial = rolId === 1 && estadoGlobal === 'NUEVAV';
+    const formularioActual = esNuevaVisitaTrabajadoraSocial ? null : formulario;
+    const estadoInternoForm = esNuevaVisitaTrabajadoraSocial
+        ? 'sin iniciar'
+        : formularioActual?.estado || 'sin iniciar';
+
+    const mostrarFormularioTrabajadoraSocial = rolId === 1 && ['SINI', '1V', 'NUEVAV'].includes(estadoGlobal);
+    const mostrarAdjuntarArchivos = rolId === 2 || rolId === 3 || (rolId === 1 && estadoGlobal === 'AP');
+    const formularioCompletado = estadoInternoForm === 'completado';
+    const formularioSoloLectura = false;
+    const mostrarBotonPdf = mostrarFormularioTrabajadoraSocial && formularioCompletado && Boolean(formularioActual?.id);
+
+    let textoBotonFormulario = "Crear formulario";
+    if (esNuevaVisitaTrabajadoraSocial) {
+        textoBotonFormulario = "Realizar tarea";
+    } else if (estadoInternoForm === "en progreso") {
+        textoBotonFormulario = "Editar formulario";
     } else if (estadoInternoForm === "completado") {
-        textoBotonTarea = "📋 Ver Tarea";
+        textoBotonFormulario = "Ver formulario";
     }
 
     return (
@@ -237,37 +324,50 @@ const DetailExpedientes = () => {
                     </div>
 
                     {/* FORMULARIO COMPLETADO */}
-                    {estadoInternoForm === "completado" && rolId === 1 && (
+                    {estadoInternoForm === "completado" && rolId === 1 && estadoGlobal !== 'AP' && (
                         <div className="mb-4 inline-flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-800 px-3 py-1.5 rounded-lg text-xs font-semibold">
                             <span>✓ Ya completaste el formulario socio-habitacional</span>
                         </div>
                     )}
 
-                    {/* Legales o Administrativa */}
-                    {((rolId === 2 || rolId === 3)) && (
+                    {/* Adjuntos para Legales, Administrativa o Trabajadora Social con expediente Apto */}
+                    {mostrarAdjuntarArchivos && (
                         <div className="mb-4 p-2 bg-white rounded-xl border border-gray-200/60">
-                            <AdjuntarArchivos onArchivosChange={(archivos) => setArchivosAdjuntos(archivos)} />
+                            <AdjuntarArchivos expedienteId={id} adjuntosExcluidos={adjuntosHistorial} />
                         </div>
                     )}
 
                     <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mt-2 pt-2 border-t border-gray-200 w-full">
                         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end flex-grow">
 
-                            {rolId === 1 && (
-                                <Link
-                                    to="/form1"
-                                    state={{
-                                        idExpediente: expediente?.id,
-                                        ddjj: expediente?.DDJJ,
-                                        nombreCompletoUsuario: `${expediente?.usuario_asignado?.apellido || ''} ${expediente?.usuario_asignado?.nombre || ''}`.trim() || 'Sin usuario',
-                                        domicilio: expediente?.postulante_titular?.domicilio_actual,
-                                        idFormulario: formulario?.id || null,
-                                        datosPrevios: formulario || null
-                                    }}
-                                    className="inline-flex items-center justify-center bg-white border border-blue-600 text-blue-600 hover:bg-blue-50 font-semibold text-sm px-4 py-1.5 h-9 rounded-lg transition w-full sm:w-auto whitespace-nowrap"
-                                >
-                                    {textoBotonTarea}
-                                </Link>
+                            {mostrarFormularioTrabajadoraSocial && (
+                                <>
+                                    <Link
+                                        to="/form1"
+                                        state={{
+                                            idExpediente: expediente?.id,
+                                            ddjj: expediente?.DDJJ,
+                                            nombreCompletoUsuario: `${expediente?.usuario_asignado?.apellido || ''} ${expediente?.usuario_asignado?.nombre || ''}`.trim() || 'Sin usuario',
+                                            domicilio: expediente?.postulante_titular?.domicilio,
+                                            idFormulario: formularioActual?.id || null,
+                                            datosPrevios: formularioActual || null,
+                                            soloLectura: formularioSoloLectura
+                                        }}
+                                        className="inline-flex items-center justify-center bg-white border border-blue-600 text-blue-600 hover:bg-blue-50 font-semibold text-sm px-4 py-1.5 h-9 rounded-lg transition w-full sm:w-auto whitespace-nowrap"
+                                    >
+                                        {textoBotonFormulario}
+                                    </Link>
+
+                                    {mostrarBotonPdf && (
+                                        <button
+                                            type="button"
+                                            onClick={handleGenerarPdf}
+                                            className="inline-flex items-center justify-center bg-white border border-green-600 text-green-700 hover:bg-green-50 font-semibold text-sm px-4 py-1.5 h-9 rounded-lg transition w-full sm:w-auto whitespace-nowrap"
+                                        >
+                                            Generar PDF
+                                        </button>
+                                    )}
+                                </>
                             )}
 
                             {/* Contenedor de Selects flexibles */}
@@ -347,35 +447,71 @@ const DetailExpedientes = () => {
                 {!historialPases || historialPases.length === 0 ? (
                     <p className="text-gray-500 text-sm mt-2 italic">Este expediente aún no registra pases en el historial.</p>
                 ) : (
-                    historialPases.map((movimiento, index) => (
-                        <div key={movimiento.id || index} className="relative flex gap-4 pb-6">
-                            <div className="flex flex-col items-center">
-                                <div className="w-3 h-3 rounded-full bg-blue-500 shrink-0"></div>
-                                <div className="w-0.5 bg-blue-200 flex-1"></div>
-                            </div>
-                            <div className='bg-gray-50 border border-gray-200 rounded-xl p-4 shadow-sm w-full'>
-                                <p className="text-sm text-gray-500">
-                                    Fecha: <span className="text-gray-800 font-semibold">
-                                        {movimiento.fecha_envio
-                                            ? new Date(movimiento.fecha_envio).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })
-                                            : '---'}
-                                    </span>
-                                </p>
-                                <p className="text-sm text-gray-500 mt-1">Usuario Origen: <span className="text-gray-800 font-semibold">{movimiento.usuario_origen_display || '---'}</span></p>
-                                <p className="text-sm text-gray-500 mt-1">Usuario Destino: <span className="text-gray-800 font-semibold">{movimiento.usuario_destino_display || '---'}</span></p>
-                                <p className="text-sm text-gray-500 mt-1">Observaciones: <span className="text-gray-800 font-semibold">{movimiento.observacion || 'Sin observaciones'}</span></p>
+                    historialPases.map((movimiento, index) => {
+                        const adjuntosMovimiento = obtenerAdjuntosMovimiento(movimiento);
 
-                                <div className='flex gap-3 mt-3'>
-                                    <button className="flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white text-sm px-4 py-1.5 rounded-lg transition">
-                                        Ver Archivo
-                                    </button>
-                                    <button className="flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-sm px-4 py-1.5 rounded-lg transition">
-                                        Descargar
-                                    </button>
+                        return (
+                            <div key={movimiento.id || index} className="relative flex gap-4 pb-6">
+                                <div className="flex flex-col items-center">
+                                    <div className="w-3 h-3 rounded-full bg-blue-500 shrink-0"></div>
+                                    <div className="w-0.5 bg-blue-200 flex-1"></div>
+                                </div>
+                                <div className='bg-gray-50 border border-gray-200 rounded-xl p-4 shadow-sm w-full'>
+                                    <p className="text-sm text-gray-500">
+                                        Fecha: <span className="text-gray-800 font-semibold">
+                                            {movimiento.fecha_envio
+                                                ? new Date(movimiento.fecha_envio).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })
+                                                : '---'}
+                                        </span>
+                                    </p>
+                                    <p className="text-sm text-gray-500 mt-1">Usuario Origen: <span className="text-gray-800 font-semibold">{movimiento.usuario_origen_display || '---'}</span></p>
+                                    <p className="text-sm text-gray-500 mt-1">Usuario Destino: <span className="text-gray-800 font-semibold">{movimiento.usuario_destino_display || '---'}</span></p>
+                                    <p className="text-sm text-gray-500 mt-1">Observaciones: <span className="text-gray-800 font-semibold">{movimiento.observacion || 'Sin observaciones'}</span></p>
+
+                                    {adjuntosMovimiento.length > 0 && (
+                                        <div className="flex flex-col gap-2 mt-3">
+                                            {adjuntosMovimiento.map((adjunto, adjuntoIndex) => {
+                                                const urlAdjunto = obtenerUrlAdjunto(adjunto);
+                                                const nombreAdjunto = obtenerNombreAdjunto(adjunto);
+
+                                                return (
+                                                    <div
+                                                        key={adjunto.id || adjuntoIndex}
+                                                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2"
+                                                    >
+                                                        <span className="text-sm font-semibold text-gray-700 truncate" title={nombreAdjunto}>
+                                                            {nombreAdjunto}
+                                                        </span>
+                                                        <div className="flex gap-2">
+                                                            {urlAdjunto && (
+                                                                <a
+                                                                    href={urlAdjunto}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    className="flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white text-sm px-4 py-1.5 rounded-lg transition"
+                                                                >
+                                                                    Ver Archivo
+                                                                </a>
+                                                            )}
+                                                            {/* {urlAdjunto && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => descargarAdjunto(adjunto)}
+                                                                    className="flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-sm px-4 py-1.5 rounded-lg transition"
+                                                                >
+                                                                    Descargar
+                                                                </button>
+                                                            )} */}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
             </div>
         </div>
