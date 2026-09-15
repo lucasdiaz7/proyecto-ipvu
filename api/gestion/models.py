@@ -9,6 +9,10 @@ class PostulanteTitular(models.Model):
     dni = models.CharField (max_length=15, unique=True)
     domicilio_actual = models.CharField (max_length=200)
     email = models.EmailField(null=True, blank=True)
+    # Usamos DecimalField para la plata, así te permite poner centavos si querés
+    ingresos = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    # Un booleano simple para la discapacidad (por defecto arranca en falso)
+    tiene_discapacidad = models.BooleanField(default=False)
     
     #fechas
     fecha_creacion = models.DateTimeField (auto_now_add=True)

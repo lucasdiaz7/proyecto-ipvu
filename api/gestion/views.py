@@ -165,19 +165,23 @@ class EstadoExpedienteViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet
     serializer_class = EstadoExpedienteSerializer
 
 
+#Algoritmo de asignacion de trabajadoras sociales para la creacion de expedientes
 def obtener_siguiente_trabajadora_social():
+    # 1. ¡Acá está el cambio! Solo traemos a las TS que están activas
     trabajadoras = list(
         User.objects
-        .filter(usuario__rol__nombre_rol="TS")
+        .filter(usuario__rol__nombre_rol="TS", usuario__activo=True)
         .order_by("id")
     )
 
     if not trabajadoras:
         return None
 
+    # 2. Buscamos el último expediente (ya no hace falta filtrar activo acá, 
+    # pero dejarlo no hace daño)
     ultimo_expediente = (
         Expediente.objects
-        .filter(usuario_asignado__usuario__rol__nombre_rol="TS", usuario_asignado__usuario__activo= True)
+        .filter(usuario_asignado__usuario__rol__nombre_rol="TS")
         .order_by("-id")
         .first()
     )
@@ -187,17 +191,26 @@ def obtener_siguiente_trabajadora_social():
 
     ultimo_usuario = ultimo_expediente.usuario_asignado
 
+    # 3. Si el último usuario se dio de baja y ya no está en la lista de activas, 
+    # va a saltar al 'except' y arrancar desde el principio. ¡Perfecto!
     try:
         indice_actual = trabajadoras.index(ultimo_usuario)
+        siguiente_indice = indice_actual + 1
+        
+        if siguiente_indice >= len(trabajadoras):
+            siguiente_indice = 0
+            
+        return trabajadoras[siguiente_indice]
+        
     except ValueError:
-        return trabajadoras[0]
-
-    siguiente_indice = indice_actual + 1
-
-    if siguiente_indice >= len(trabajadoras):
-        siguiente_indice = 0
-
-    return trabajadoras[siguiente_indice]
+        # Si el último usuario se dio de baja, buscamos a la siguiente TS 
+        # que tenga un ID mayor al que se fue.
+        siguientes = [t for t in trabajadoras if t.id > ultimo_usuario.id]
+        
+        if siguientes:
+            return siguientes[0] # Le toca al próximo en la fila
+        else:
+            return trabajadoras[0] # Si el que se fue era el último, volvemos a empezar
 
 class ExpedienteViewSet(viewsets.ModelViewSet,):
     queryset = Expediente.objects.all().order_by('-id')[:5]
