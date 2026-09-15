@@ -151,14 +151,15 @@ class Notificacion(models.Model):
 
 
 class HistorialAccion(models.Model):
-    mensaje_accion=models.CharField(max_length=300)
+    mensaje_accion = models.CharField(max_length=300)
 
     #fecha
-    fecha_accion=models.DateTimeField(auto_now_add=True)
+    fecha_accion = models.DateTimeField(auto_now_add=True)
 
     #fk
-    id_usuario_accion=models.ForeignKey("Usuario",on_delete=models.PROTECT)
-    id_expediente=models.ForeignKey(Expediente,on_delete=models.PROTECT)
+    id_usuario_accion = models.ForeignKey("Usuario", on_delete=models.PROTECT)
+    
+    id_expediente = models.ForeignKey(Expediente, on_delete=models.PROTECT, null=True, blank=True)
 
     def __str__(self):
         return f"ID Accion: {self.id}, mensaje: {self.mensaje_accion}"

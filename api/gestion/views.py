@@ -430,15 +430,72 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             return Response({"error_fatal": f"Error: {str(e)}",
                 "detalle": traceback.format_exc()
             }, status=500)
+    
+    # auditoría creación de usuarios
+    def perform_create(self, serializer):
+        #se guarda el nuevo usuario
+        nuevo_usuario = serializer.save()
         
+        # Se busca el perfil de 'Usuario' del administrador que hace la petición
+        usuario_admin = Usuario.objects.get(usuario=self.request.user)
+        
+        # Se deja constancia en la tabla de auditoría
+        HistorialAccion.objects.create(
+            id_usuario_accion=usuario_admin,
+            mensaje_accion=f'CREATE_USER: Creó el perfil de usuario para: {nuevo_usuario.nombre} {nuevo_usuario.apellido}.'
+        )
+    
+    # auditoría modificación de usuarios
+    def perform_update(self, serializer):
+        #se guarda cambio del usuario actualizado
+        usuario_actualizado = serializer.save()
+        
+        #se registra la modificación
+        HistorialAccion.objects.create(
+            usuario=self.request.user,
+            accion='UPDATE_USER',
+            detalle=f'Modificó los datos o el estado del usuario: {usuario_actualizado.nombre} {usuario_actualizado.apellido}'     
+        )  
+   
+    # auditoría eliminación de usuarios
+    def perform_destroy(self, instance):
+        # 1. Borrado lógico del modelo Usuario personalizado
+        instance.activo = False
+        instance.save()
+
+        # 2. Borrado lógico del User nativo de Django (para deshabilitar el login)
+        user_django = instance.usuario
+        user_django.is_active = False
+        user_django.save()
+
+        # 3. Se busca el perfil del administrador que hace la petición
+        usuario_admin = Usuario.objects.get(usuario=self.request.user)
+        nombre_completo = f"{instance.nombre} {instance.apellido}"
+        
+        # 4. Se deja constancia en la tabla de auditoría
+        HistorialAccion.objects.create(
+            id_usuario_accion=usuario_admin,
+            mensaje_accion=f'DELETE_USER: Dio de baja lógica al usuario {nombre_completo}.'
+        )      
+        
+        
+            
         
 class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
     queryset = DocumentoAdjunto.objects.all()
     permission_classes = [IsAnyRole]
     serializer_class = DocumentoAdjuntoSerializer   
     
+    #auditoría de subida 
     def perform_create(self, serializer):
-        serializer.save(subido_por = self.request.user)
+        documento = serializer.save(subido_por = self.request.user)
+        
+        HistorialAccion.objects.create(
+            usuario=self.request.user,
+            accion='UPLOAD',
+            expediente=documento.expediente,
+            detalle=f'Se subió el archivo: {documento.archivo.name}'
+                 ) 
     
     def get_queryset(self):
         queryset = DocumentoAdjunto.objects.all()
@@ -449,14 +506,38 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
             
         return queryset
     
+    #auditoría de borrado
     def perform_destroy(self, instance):
-        archivo = instance.archivo
-        instance.delete()
+        nombre_completo = f"{instance.nombre} {instance.apellido}"
         
-        if archivo:
-            archivo.delete(save=False)
+        # 1. Borrado lógico en tu modelo Usuario
+        instance.activo = False
+        instance.save()
+
+        # 2. También bloqueamos al usuario base de Django para que no pueda hacer Login
+        user_django = instance.usuario
+        user_django.is_active = False
+        user_django.save()
+        
+        # 3. Registramos la acción en la auditoría
+        HistorialAccion.objects.create(
+            usuario=self.request.user,
+            accion='DELETE_USER',
+            detalle=f'Dio de baja (borrado lógico) al usuario: {nombre_completo}.'
+        )
     
-             
+    #nueva ruta: auditoría de descarga
+    @action(detail=True, methods=['get'], url_path='registrar-descarga')
+    def registrar_descarga(self, request, pk=None):
+        documento = self.get_object()
+        
+        HistorialAccion.objects.create(
+            usuario=request.user,
+            accion='DOWNLOAD',
+            expediente=documento.expediente,
+            detalle=f'Descargó el archivo: {documento.archivo.name}'
+        )
+        return Response({'mensaje': 'Descarga registrada exitosamente'})    
 
 
 class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, GenericViewSet):
@@ -706,20 +787,20 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
 
         styles = getSampleStyleSheet()
         styles.add(ParagraphStyle(name='TituloFormulario', parent=styles['Heading1'],
-                                   alignment=TA_CENTER, fontSize=13, spaceBefore=6, spaceAfter=14))
+                                  alignment=TA_CENTER, fontSize=13, spaceBefore=6, spaceAfter=14))
         styles.add(ParagraphStyle(name='CampoIdentificacion', parent=styles['Normal'],
-                                   fontSize=10, spaceAfter=8))
+                                  fontSize=10, spaceAfter=8))
         styles.add(ParagraphStyle(name='SeccionTitulo', parent=styles['Heading2'],
-                                   fontSize=11, spaceBefore=10, spaceAfter=2, textColor=colors.black))
+                                  fontSize=11, spaceBefore=10, spaceAfter=2, textColor=colors.black))
         styles.add(ParagraphStyle(name='SeccionBajada', parent=styles['Normal'],
-                                   fontName='Helvetica-Oblique', fontSize=8.5,
-                                   textColor=colors.grey, spaceAfter=6))
+                                  fontName='Helvetica-Oblique', fontSize=8.5,
+                                  textColor=colors.grey, spaceAfter=6))
         styles.add(ParagraphStyle(name='TextoCuerpo', parent=styles['Normal'],
-                                   fontSize=10, leading=14, spaceAfter=4))
+                                  fontSize=10, leading=14, spaceAfter=4))
         styles.add(ParagraphStyle(name='FirmaLinea', parent=styles['Normal'],
-                                   alignment=TA_CENTER, fontSize=10, spaceBefore=24))
+                                  alignment=TA_CENTER, fontSize=10, spaceBefore=24))
         styles.add(ParagraphStyle(name='FirmaEtiqueta', parent=styles['Normal'],
-                                   alignment=TA_CENTER, fontSize=9, spaceBefore=2))
+                                  alignment=TA_CENTER, fontSize=9, spaceBefore=2))
 
         elementos = []
 
@@ -766,16 +847,35 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
 
         agregar_seccion("OBSERVACIONES Y/O PARTICULARIDADES", None, formulario.observaciones)
 
-        elementos.append(Spacer(1, 16))
-        elementos.append(Paragraph(
-            f"Santiago del Estero, {dia_str or '____'} de {mes_str or '____________'} de 20{anio_str or '__'}",
+        # --- Bloque final estructurado en tabla para anclar al pie de la hoja ---
+        texto_fecha = Paragraph(
+            f"Santiago del Estero, {dia_str or '_'} de {mes_str or '____'} de 20{anio_str or '_'}",
             styles['TextoCuerpo']
-        ))
-        elementos.append(Spacer(1, 10))
-        elementos.append(Paragraph("Atentamente", styles['TextoCuerpo']))
-        elementos.append(Spacer(1, 24))
-        elementos.append(Paragraph("_" * 40, styles['FirmaLinea']))
-        elementos.append(Paragraph("Firma y Sello del Profesional Actuante", styles['FirmaEtiqueta']))
+        )
+        texto_atentamente = Paragraph("Atentamente", styles['TextoCuerpo'])
+        linea_firma = Paragraph("_" * 40, styles['FirmaLinea'])
+        etiqueta_firma = Paragraph("Firma y Sello del Profesional Actuante", styles['FirmaEtiqueta'])
+
+        tabla_firma_profesional = Table(
+            [
+                [texto_fecha],
+                [Spacer(1, 4)],
+                [texto_atentamente],
+                [Spacer(1, 14)],
+                [linea_firma],
+                [etiqueta_firma]
+            ],
+            colWidths=[17 * cm]
+        )
+        tabla_firma_profesional.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ]))
+
+        elementos.append(Spacer(1, 40))
+        elementos.append(tabla_firma_profesional)
 
         doc.build(
             elementos,
@@ -799,7 +899,33 @@ class MiLoginPersonalizadoView(TokenObtainPairView):
     serializer_class = MiLoginPersonalizadoSerializer
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "login"
+    
+    #interceptar login para que superadmin consulte en auditoría
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        
+        # si el login fue un exito, o sea, status 200, se registra la acción
+        if response.status_code == 200:
+            try:
+                #  Se busca el User nativo de Django usando el username de la petición
+                usuario_django = User.objects.get(username=request.data.get('username'))
+                
+                #  Se busca tu modelo Usuario personalizado vinculado a ese User
+                usuario_personalizado = Usuario.objects.get(usuario=usuario_django)
 
+                #  Se crea el registro en el historial con el modelo correcto
+                HistorialAccion.objects.create(
+                    id_usuario_accion=usuario_personalizado,
+                    mensaje_accion='LOGIN: El usuario inició sesión en el sistema.'
+                )
+            except User.DoesNotExist:
+                pass
+            except Usuario.DoesNotExist:
+                pass
+                
+        return response           
+          
+   
 
 class EstablecerPasswordInicialView(APIView):
     authentication_classes = [JWTAuthentication]
