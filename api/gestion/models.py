@@ -87,7 +87,7 @@ class Usuario(models.Model):
     usuario = models.OneToOneField(User, on_delete=models.CASCADE)
     nombre = models.CharField(max_length=50,)
     apellido = models.CharField(max_length=50,)
-    matricula = models.CharField(max_length=20, unique=True,)
+    matricula = models.CharField(max_length=20, unique=True, null=True, blank=True)
     dni = models.CharField(max_length=15)
     email= models.EmailField(unique=True, null=True, blank=True)
     activo = models.BooleanField(default=True)
@@ -157,7 +157,7 @@ class HistorialAccion(models.Model):
 
     #fk
     id_usuario_accion=models.ForeignKey("Usuario",on_delete=models.PROTECT)
-    id_expediente=models.ForeignKey(Expediente,on_delete=models.PROTECT)
+    id_expediente=models.ForeignKey(Expediente,on_delete=models.PROTECT, null=True, blank=True)
 
     def __str__(self):
         return f"ID Accion: {self.id}, mensaje: {self.mensaje_accion}"

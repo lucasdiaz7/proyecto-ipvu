@@ -4,11 +4,15 @@ import {
     ArrowLeftIcon,
     BriefcaseIcon,
     ArrowPathIcon,
-    EyeIcon
+    EyeIcon,
+    ClipboardDocumentListIcon,
+    ClockIcon
 } from '@heroicons/react/24/outline';
 import { usuarioService } from '../../../services/usuarios/usuarios';
 import { auditoriaService } from '../../../services/auditoria/auditoria';
 import { historial } from '../../../services/historial/historial';
+import { usePaginacion } from '../../../hooks/usePaginacion';
+import Paginacion from '../../Paginacion/Paginacion';
 
 const CONFIG_ESTADOS = {
     SINI: { texto: 'Sin Iniciar', color: 'bg-gray-100 text-gray-800 border-gray-300 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600' },
@@ -28,13 +32,34 @@ const obtenerCodigoEstado = (expediente) => {
     return expediente.estado_expediente.nombre;
 };
 
+const formatearFechaHora = (fecha) => {
+    if (!fecha) return '---';
+    return new Date(fecha).toLocaleString('es-AR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+};
+
 const DetalleUsuario = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const rolId = Number(localStorage.getItem('rol_id'));
+    const esSuperUsuario = rolId === 4;
+
     const [usuario, setUsuario] = useState(null);
     const [expedientes, setExpedientes] = useState([]);
+    const [expedientesPorId, setExpedientesPorId] = useState(new Map());
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState(null);
+
+    const [vista, setVista] = useState('expedientes');
+    const [auditorias, setAuditorias] = useState([]);
+    const [auditoriaCargada, setAuditoriaCargada] = useState(false);
+    const [cargandoAuditoria, setCargandoAuditoria] = useState(false);
+    const [errorAuditoria, setErrorAuditoria] = useState(null);
 
     useEffect(() => {
         const cargarDetalle = async () => {
@@ -74,6 +99,7 @@ const DetalleUsuario = () => {
 
                 setUsuario(perfil);
                 setExpedientes(expedientesTrabajados.length > 0 ? expedientesTrabajados : expedientesAsignados);
+                setExpedientesPorId(new Map(todosLosExpedientes.map((exp) => [Number(exp.id), exp])));
             } catch (err) {
                 console.error(err);
                 setError("No se pudo cargar el detalle del usuario.");
@@ -97,6 +123,48 @@ const DetalleUsuario = () => {
             enEjecucion: expedientes.filter((exp) => ESTADOS_EN_EJECUCION.includes(obtenerCodigoEstado(exp))).length
         };
     }, [expedientes]);
+
+    const {
+        paginaActual: paginaExpedientes,
+        setPaginaActual: setPaginaExpedientes,
+        totalPaginas: totalPaginasExpedientes,
+        itemsPaginados: expedientesPaginados,
+        totalItems: totalExpedientes
+    } = usePaginacion(expedientes);
+
+    const {
+        paginaActual: paginaAuditorias,
+        setPaginaActual: setPaginaAuditorias,
+        totalPaginas: totalPaginasAuditorias,
+        itemsPaginados: auditoriasPaginadas,
+        totalItems: totalAuditorias
+    } = usePaginacion(auditorias);
+
+    const handleVerAuditoria = async () => {
+        setVista('auditoria');
+
+        if (auditoriaCargada || !usuario) return;
+
+        try {
+            setCargandoAuditoria(true);
+            setErrorAuditoria(null);
+
+            const todasLasAcciones = await auditoriaService.getHistorialAcciones();
+            const idPerfil = usuario.id;
+
+            const propias = todasLasAcciones
+                .filter((accion) => Number(accion.id_usuario_accion) === Number(idPerfil))
+                .sort((a, b) => new Date(b.fecha_accion) - new Date(a.fecha_accion));
+
+            setAuditorias(propias);
+            setAuditoriaCargada(true);
+        } catch (err) {
+            console.error(err);
+            setErrorAuditoria("No se pudo cargar la auditoría de este usuario.");
+        } finally {
+            setCargandoAuditoria(false);
+        }
+    };
 
     if (cargando) {
         return (
@@ -170,58 +238,150 @@ const DetalleUsuario = () => {
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-sm rounded-2xl p-6 transition-colors">
-                    <div className="mb-4">
-                        <h3 className="text-gray-800 dark:text-slate-100 font-bold text-lg">Expedientes</h3>
-                    </div>
+                <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-sm rounded-2xl p-4 sm:p-6 transition-colors">
+                    <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
+                        <h3 className="text-gray-800 dark:text-slate-100 font-bold text-lg">
+                            {vista === 'auditoria' ? 'Auditoría del usuario' : 'Expedientes'}
+                        </h3>
 
-                    <div className="overflow-x-auto">
-                        <div className="grid grid-cols-6 gap-2 min-w-[980px] bg-gray-50 dark:bg-slate-800 p-3 rounded-xl text-gray-500 dark:text-slate-400 font-bold text-xs uppercase tracking-wider">
-                            <span>DD.JJ</span>
-                            <span>Titular</span>
-                            <span>DNI</span>
-                            <span>Estado</span>
-                            <span>Fecha</span>
-                            <span>Acción</span>
-                        </div>
-
-                        {expedientes.length === 0 ? (
-                            <div className="text-center py-8 text-gray-400 dark:text-slate-500 font-medium">
-                                No posee expedientes asignados actualmente.
-                            </div>
-                        ) : (
-                            expedientes.map((exp) => {
-                                const codEstado = obtenerCodigoEstado(exp);
-                                const configEst = CONFIG_ESTADOS[codEstado] || { texto: codEstado || 'Sin estado', color: 'bg-gray-100 text-gray-800 border-gray-300 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600' };
-                                const titular = exp.postulante_titular;
-                                const fecha = exp.fecha_creacion ? new Date(exp.fecha_creacion).toLocaleDateString('es-AR') : '---';
-
-                                return (
-                                    <div
-                                        key={exp.id}
-                                        className="grid grid-cols-6 gap-2 items-center w-full min-w-[980px] text-left p-4 border-b border-gray-100 dark:border-slate-800 hover:bg-gray-50/80 dark:hover:bg-slate-800/60 transition text-sm"
-                                    >
-                                        <span className="font-bold text-gray-800 dark:text-slate-100">{exp.DDJJ || `#${exp.id}`}</span>
-                                        <span className="text-gray-600 dark:text-slate-300 capitalize">{titular ? `${titular.apellido} ${titular.nombre}` : 'Sin titular'}</span>
-                                        <span className="text-gray-500 dark:text-slate-400 font-mono">{titular?.dni || '---'}</span>
-                                        <span>
-                                            <span className={`px-2.5 py-1 text-xs rounded-full border font-bold ${configEst.color}`}>
-                                                {configEst.texto}
-                                            </span>
-                                        </span>
-                                        <span className="text-gray-500 dark:text-slate-400">{fecha}</span>
-                                        <Link
-                                            to={`/Expediente/${exp.id}`}
-                                            className="inline-flex items-center justify-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-lg font-medium w-max"
-                                        >
-                                            <EyeIcon className="w-4 h-4" />
-                                            Ver expediente
-                                        </Link>
-                                    </div>
-                                );
-                            })
+                        {esSuperUsuario && (
+                            <button
+                                type="button"
+                                onClick={() => (vista === 'auditoria' ? setVista('expedientes') : handleVerAuditoria())}
+                                className="inline-flex items-center gap-2 text-sm font-semibold px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white transition shrink-0"
+                            >
+                                {vista === 'auditoria' ? (
+                                    <>
+                                        <BriefcaseIcon className="w-4 h-4" />
+                                        Ver expedientes
+                                    </>
+                                ) : (
+                                    <>
+                                        <ClipboardDocumentListIcon className="w-4 h-4" />
+                                        Ver auditoría
+                                    </>
+                                )}
+                            </button>
                         )}
                     </div>
+
+                    {vista === 'expedientes' ? (
+                        <>
+                            <div className="overflow-x-auto">
+                                <div className="grid grid-cols-6 gap-2 min-w-[980px] bg-gray-50 dark:bg-slate-800 p-3 rounded-xl text-gray-500 dark:text-slate-400 font-bold text-xs uppercase tracking-wider">
+                                    <span>DD.JJ</span>
+                                    <span>Titular</span>
+                                    <span>DNI</span>
+                                    <span>Estado</span>
+                                    <span>Fecha</span>
+                                    <span>Acción</span>
+                                </div>
+
+                                {expedientesPaginados.length === 0 ? (
+                                    <div className="text-center py-8 text-gray-400 dark:text-slate-500 font-medium">
+                                        No posee expedientes asignados actualmente.
+                                    </div>
+                                ) : (
+                                    expedientesPaginados.map((exp) => {
+                                        const codEstado = obtenerCodigoEstado(exp);
+                                        const configEst = CONFIG_ESTADOS[codEstado] || { texto: codEstado || 'Sin estado', color: 'bg-gray-100 text-gray-800 border-gray-300 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600' };
+                                        const titular = exp.postulante_titular;
+                                        const fecha = exp.fecha_creacion ? new Date(exp.fecha_creacion).toLocaleDateString('es-AR') : '---';
+
+                                        return (
+                                            <div
+                                                key={exp.id}
+                                                className="grid grid-cols-6 gap-2 items-center w-full min-w-[980px] text-left p-4 border-b border-gray-100 dark:border-slate-800 hover:bg-gray-50/80 dark:hover:bg-slate-800/60 transition text-sm"
+                                            >
+                                                <span className="font-bold text-gray-800 dark:text-slate-100">{exp.DDJJ || `#${exp.id}`}</span>
+                                                <span className="text-gray-600 dark:text-slate-300 capitalize">{titular ? `${titular.apellido} ${titular.nombre}` : 'Sin titular'}</span>
+                                                <span className="text-gray-500 dark:text-slate-400 font-mono">{titular?.dni || '---'}</span>
+                                                <span>
+                                                    <span className={`px-2.5 py-1 text-xs rounded-full border font-bold ${configEst.color}`}>
+                                                        {configEst.texto}
+                                                    </span>
+                                                </span>
+                                                <span className="text-gray-500 dark:text-slate-400">{fecha}</span>
+                                                <Link
+                                                    to={`/Expediente/${exp.id}`}
+                                                    className="inline-flex items-center justify-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-lg font-medium w-max"
+                                                >
+                                                    <EyeIcon className="w-4 h-4" />
+                                                    Ver expediente
+                                                </Link>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+
+                            <Paginacion
+                                paginaActual={paginaExpedientes}
+                                totalPaginas={totalPaginasExpedientes}
+                                onCambiarPagina={setPaginaExpedientes}
+                                totalItems={totalExpedientes}
+                            />
+                        </>
+                    ) : (
+                        <>
+                            {cargandoAuditoria ? (
+                                <div className="text-center py-10 text-gray-500 dark:text-slate-400 font-medium animate-pulse">
+                                    Cargando auditoría del usuario...
+                                </div>
+                            ) : errorAuditoria ? (
+                                <div className="text-center py-8 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 rounded-xl border border-red-100 dark:border-red-500/20 text-sm">
+                                    {errorAuditoria}
+                                </div>
+                            ) : auditoriasPaginadas.length === 0 ? (
+                                <div className="text-center py-8 text-gray-400 dark:text-slate-500 font-medium">
+                                    Este usuario no registra actividad en el sistema.
+                                </div>
+                            ) : (
+                                <div className="flex flex-col divide-y divide-gray-100 dark:divide-slate-800 border-t border-gray-100 dark:border-slate-800">
+                                    {auditoriasPaginadas.map((accion) => {
+                                        const expedienteRelacionado = accion.id_expediente
+                                            ? expedientesPorId.get(Number(accion.id_expediente))
+                                            : null;
+
+                                        return (
+                                            <div
+                                                key={accion.id}
+                                                className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 py-4 px-1 hover:bg-gray-50/80 dark:hover:bg-slate-800/60 transition"
+                                            >
+                                                <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 dark:text-slate-400 sm:w-40 shrink-0">
+                                                    <ClockIcon className="w-4 h-4 shrink-0" />
+                                                    {formatearFechaHora(accion.fecha_accion)}
+                                                </div>
+
+                                                <p className="flex-1 text-sm text-gray-700 dark:text-slate-200 break-words">
+                                                    {accion.mensaje_accion}
+                                                </p>
+
+                                                {accion.id_expediente && (
+                                                    <Link
+                                                        to={`/Expediente/${accion.id_expediente}`}
+                                                        className="inline-flex items-center justify-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-lg font-medium w-max shrink-0"
+                                                    >
+                                                        <EyeIcon className="w-4 h-4" />
+                                                        {expedienteRelacionado?.DDJJ || `Expediente #${accion.id_expediente}`}
+                                                    </Link>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {!cargandoAuditoria && !errorAuditoria && (
+                                <Paginacion
+                                    paginaActual={paginaAuditorias}
+                                    totalPaginas={totalPaginasAuditorias}
+                                    onCambiarPagina={setPaginaAuditorias}
+                                    totalItems={totalAuditorias}
+                                />
+                            )}
+                        </>
+                    )}
                 </div>
             </div>
         </div>

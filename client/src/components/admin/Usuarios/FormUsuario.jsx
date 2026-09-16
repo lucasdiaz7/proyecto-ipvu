@@ -38,7 +38,10 @@ const FormUsuario = () => {
                 rol: data.rol_id
             };
 
-
+            const matricula = data.matricula?.trim();
+            if (matricula) {
+                payload.matricula = matricula;
+            }
 
             const crearUsuario = await usuarioService.postUsuario(payload)
             console.log('crearUsuario :>> ', crearUsuario);
@@ -111,6 +114,18 @@ const FormUsuario = () => {
                         className="w-full px-3 py-2 font-normal text-sm border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 text-gray-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-500/40 focus:border-blue-400 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-all duration-200 rounded-md"
                     />
                     {errors.dni && <p className="text-xs text-red-600 dark:text-red-400 ml-1">{errors.dni.message}</p>}
+                </div>
+
+                <div className='grid grid-cols-1 gap-1.5'>
+                    <label className="text-gray-800 dark:text-slate-200 font-semibold text-sm ml-1">Matrícula <span className="text-gray-400 dark:text-slate-500 font-normal">(opcional)</span></label>
+                    <input
+                        type="text"
+                        {...register('matricula', {
+                            maxLength: { value: 20, message: "La matrícula debe tener menos de 20 caracteres" }
+                        })}
+                        className="w-full px-3 py-2 font-normal text-sm border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 text-gray-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-500/40 focus:border-blue-400 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-all duration-200 rounded-md"
+                    />
+                    {errors.matricula && <p className="text-xs text-red-600 dark:text-red-400 ml-1">{errors.matricula.message}</p>}
                 </div>
 
                 <div className='grid grid-cols-1 gap-1.5'>
