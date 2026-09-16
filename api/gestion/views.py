@@ -442,20 +442,22 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         # Se deja constancia en la tabla de auditoría
         HistorialAccion.objects.create(
             id_usuario_accion=usuario_admin,
-            mensaje_accion=f'CREATE_USER: Creó el perfil de usuario para: {nuevo_usuario.nombre} {nuevo_usuario.apellido}.'
+            mensaje_accion=f'Crear usuario: Creó el perfil de usuario para: {nuevo_usuario.nombre} {nuevo_usuario.apellido}.'
         )
     
     # auditoría modificación de usuarios
     def perform_update(self, serializer):
         #se guarda cambio del usuario actualizado
         usuario_actualizado = serializer.save()
-        
+
+        # Se busca el perfil del administrador que hace la petición
+        usuario_admin = Usuario.objects.get(usuario=self.request.user)
+
         #se registra la modificación
         HistorialAccion.objects.create(
-            usuario=self.request.user,
-            accion='UPDATE_USER',
-            detalle=f'Modificó los datos o el estado del usuario: {usuario_actualizado.nombre} {usuario_actualizado.apellido}'     
-        )  
+            id_usuario_accion=usuario_admin,
+            mensaje_accion=f'Actualizar usuario: Modificó los datos o el estado del usuario: {usuario_actualizado.nombre} {usuario_actualizado.apellido}.'
+        )
    
     # auditoría eliminación de usuarios
     def perform_destroy(self, instance):
@@ -475,7 +477,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         # 4. Se deja constancia en la tabla de auditoría
         HistorialAccion.objects.create(
             id_usuario_accion=usuario_admin,
-            mensaje_accion=f'DELETE_USER: Dio de baja lógica al usuario {nombre_completo}.'
+            mensaje_accion=f'Borrar usuario: Dio de baja al usuario {nombre_completo}.'
         )      
         
         
@@ -486,16 +488,17 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAnyRole]
     serializer_class = DocumentoAdjuntoSerializer   
     
-    #auditoría de subida 
+    #auditoría de subida
     def perform_create(self, serializer):
         documento = serializer.save(subido_por = self.request.user)
-        
-        HistorialAccion.objects.create(
-            usuario=self.request.user,
-            accion='UPLOAD',
-            expediente=documento.expediente,
-            detalle=f'Se subió el archivo: {documento.archivo.name}'
-                 ) 
+
+        perfil_usuario = getattr(self.request.user, 'usuario', None)
+        if perfil_usuario:
+            HistorialAccion.objects.create(
+                id_usuario_accion=perfil_usuario,
+                id_expediente=documento.expediente,
+                mensaje_accion=f'UPLOAD: Se subió el archivo "{documento.archivo.name}".'
+            )
     
     def get_queryset(self):
         queryset = DocumentoAdjunto.objects.all()
@@ -508,36 +511,34 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
     
     #auditoría de borrado
     def perform_destroy(self, instance):
-        nombre_completo = f"{instance.nombre} {instance.apellido}"
-        
-        # 1. Borrado lógico en tu modelo Usuario
-        instance.activo = False
-        instance.save()
+        # DocumentoAdjunto no tiene borrado lógico (no posee campo "activo"),
+        # por eso se elimina el registro real.
+        nombre_archivo = instance.archivo.name if instance.archivo else instance.tipo_documento
+        expediente = instance.expediente
 
-        # 2. También bloqueamos al usuario base de Django para que no pueda hacer Login
-        user_django = instance.usuario
-        user_django.is_active = False
-        user_django.save()
-        
-        # 3. Registramos la acción en la auditoría
-        HistorialAccion.objects.create(
-            usuario=self.request.user,
-            accion='DELETE_USER',
-            detalle=f'Dio de baja (borrado lógico) al usuario: {nombre_completo}.'
-        )
+        instance.delete()
+
+        perfil_usuario = getattr(self.request.user, 'usuario', None)
+        if perfil_usuario:
+            HistorialAccion.objects.create(
+                id_usuario_accion=perfil_usuario,
+                id_expediente=expediente,
+                mensaje_accion=f'Borrar documento: Eliminó el archivo "{nombre_archivo}".'
+            )
     
     #nueva ruta: auditoría de descarga
     @action(detail=True, methods=['get'], url_path='registrar-descarga')
     def registrar_descarga(self, request, pk=None):
         documento = self.get_object()
-        
-        HistorialAccion.objects.create(
-            usuario=request.user,
-            accion='DOWNLOAD',
-            expediente=documento.expediente,
-            detalle=f'Descargó el archivo: {documento.archivo.name}'
-        )
-        return Response({'mensaje': 'Descarga registrada exitosamente'})    
+
+        perfil_usuario = getattr(request.user, 'usuario', None)
+        if perfil_usuario:
+            HistorialAccion.objects.create(
+                id_usuario_accion=perfil_usuario,
+                id_expediente=documento.expediente,
+                mensaje_accion=f'DOWNLOAD: Descargó el archivo "{documento.archivo.name}".'
+            )
+        return Response({'mensaje': 'Descarga registrada exitosamente'})
 
 
 class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, GenericViewSet):
@@ -916,7 +917,7 @@ class MiLoginPersonalizadoView(TokenObtainPairView):
                 #  Se crea el registro en el historial con el modelo correcto
                 HistorialAccion.objects.create(
                     id_usuario_accion=usuario_personalizado,
-                    mensaje_accion='LOGIN: El usuario inició sesión en el sistema.'
+                    mensaje_accion='Login: El usuario inició sesión en el sistema.'
                 )
             except User.DoesNotExist:
                 pass

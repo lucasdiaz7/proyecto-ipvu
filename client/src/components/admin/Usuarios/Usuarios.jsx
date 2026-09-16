@@ -5,6 +5,8 @@ import { Link, useNavigate } from 'react-router';
 import { auditoriaService } from '../../../services/auditoria/auditoria';
 import AdminQuickLinks from '../AdminQuickLinks';
 import { useToast } from '../../../context/ToastContext';
+import { usePaginacion } from '../../../hooks/usePaginacion';
+import Paginacion from '../../Paginacion/Paginacion';
 
 const obtenerUsuarioId = (usuario) => Number(usuario?.usuario ?? usuario?.id);
 
@@ -111,6 +113,8 @@ const Usuarios = () => {
         return pasaPerfil && pasaBusqueda;
     });
 
+    const { paginaActual, setPaginaActual, totalPaginas, itemsPaginados, totalItems } = usePaginacion(usuariosFiltrados);
+
     return (
         <div className="w-full flex justify-center items-start p-4 py-8">
             <div className="w-full max-w-6xl flex flex-col gap-4">
@@ -179,12 +183,12 @@ const Usuarios = () => {
                             <div className="text-center p-8 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 rounded-xl border border-red-100 dark:border-red-500/20 text-sm mt-2">
                                 {error}
                             </div>
-                        ) : usuariosFiltrados.length === 0 ? ( // Cambiado a usuariosFiltrados para que muestre el aviso si la búsqueda no da resultados
+                        ) : itemsPaginados.length === 0 ? (
                             <div className="text-center p-8 text-gray-400 dark:text-slate-500 text-sm">
                                 No se encontraron usuarios con esos criterios.
                             </div>
                         ) : (
-                            usuariosFiltrados.map((e) => (
+                            itemsPaginados.map((e) => (
                                 <div
                                     key={e.id}
                                     onClick={() => navigate(`/DetalleUsuario/${e.id}`)}
@@ -250,6 +254,15 @@ const Usuarios = () => {
                             ))
                         )}
                     </div>
+
+                    {!cargando && !error && (
+                        <Paginacion
+                            paginaActual={paginaActual}
+                            totalPaginas={totalPaginas}
+                            onCambiarPagina={setPaginaActual}
+                            totalItems={totalItems}
+                        />
+                    )}
                 </div>
             </div>
         </div>

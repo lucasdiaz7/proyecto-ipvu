@@ -3,6 +3,8 @@ import { Link } from 'react-router';
 import { usuarioService } from '../../../services/usuarios/usuarios';
 import { auditoriaService } from '../../../services/auditoria/auditoria';
 import AdminQuickLinks from '../AdminQuickLinks';
+import { usePaginacion } from '../../../hooks/usePaginacion';
+import Paginacion from '../../Paginacion/Paginacion';
 
 const ESTADOS_EN_EJECUCION = ['SINI', '1V', 'LEG', 'DOCP', 'NUEVAV'];
 
@@ -63,6 +65,8 @@ const TrabajadorSocial = () => {
         );
     });
 
+    const { paginaActual, setPaginaActual, totalPaginas, itemsPaginados, totalItems } = usePaginacion(tsFiltrados);
+
     if (cargando) {
         return (
             <div className="w-full flex justify-center items-start p-4 py-8">
@@ -114,12 +118,12 @@ const TrabajadorSocial = () => {
                             <span>En ejecución</span>
                         </div>
 
-                        {!error && tsFiltrados.length === 0 ? (
+                        {!error && itemsPaginados.length === 0 ? (
                             <div className="text-center py-10 text-gray-500 dark:text-slate-400 font-medium border-b dark:border-slate-800">
                                 No se encontraron Trabajadoras Sociales registradas en el sistema.
                             </div>
                         ) : (
-                            tsFiltrados.map((ts) => {
+                            itemsPaginados.map((ts) => {
                                 const metricas = obtenerMetricasTS(ts);
 
                                 return (
@@ -139,6 +143,15 @@ const TrabajadorSocial = () => {
                             })
                         )}
                     </div>
+
+                    {!error && (
+                        <Paginacion
+                            paginaActual={paginaActual}
+                            totalPaginas={totalPaginas}
+                            onCambiarPagina={setPaginaActual}
+                            totalItems={totalItems}
+                        />
+                    )}
                 </div>
             </div>
         </div>

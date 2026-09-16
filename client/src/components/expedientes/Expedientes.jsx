@@ -14,6 +14,8 @@ import { Link } from 'react-router';
 import { expedienteService } from '../../services/expedientes/expediente';
 import AdminQuickLinks from '../admin/AdminQuickLinks';
 import { nombreUsuarioAsignado } from '../../utils/expedienteHelpers';
+import { usePaginacion } from '../../hooks/usePaginacion';
+import Paginacion from '../Paginacion/Paginacion';
 
 const obtenerCodigoEstado = (expediente) => {
     if (!expediente?.estado_expediente) return null;
@@ -159,6 +161,7 @@ const Expedientes = () => {
         });
     }, [expedientes, selectedEstado, searchTerm, verSoloNuevos, sortConfig]);
 
+    const { paginaActual, setPaginaActual, totalPaginas, itemsPaginados, totalItems } = usePaginacion(expedientesFinales);
 
     const renderSortIcon = (key) => {
         if (sortConfig.key !== key) {
@@ -313,14 +316,14 @@ const Expedientes = () => {
                             )}
                         </div>
 
-                        {expedientesFinales.length === 0 ? (
+                        {itemsPaginados.length === 0 ? (
                             <div className="text-center py-10 text-gray-500 dark:text-slate-400 font-medium border-b dark:border-slate-800">
                                 {verSoloNuevos
                                     ? "No tenés nuevos expedientes asignados sin ver."
                                     : "No se encontraron expedientes que coincidan con los filtros aplicados."}
                             </div>
                         ) : (
-                            expedientesFinales.map((e) => {
+                            itemsPaginados.map((e) => {
                                 const esObjeto = e.postulante_titular && typeof e.postulante_titular === 'object';
                                 const nombre = esObjeto ? e.postulante_titular.nombre : "Sin Registrar";
                                 const apellido = esObjeto ? e.postulante_titular.apellido : "";
@@ -367,6 +370,13 @@ const Expedientes = () => {
                             })
                         )}
                     </div>
+
+                    <Paginacion
+                        paginaActual={paginaActual}
+                        totalPaginas={totalPaginas}
+                        onCambiarPagina={setPaginaActual}
+                        totalItems={totalItems}
+                    />
                 </div>
             </div>
         </div>
