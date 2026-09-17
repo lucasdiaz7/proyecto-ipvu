@@ -10,12 +10,25 @@ from django.utils import timezone
 
 
 class PostulanteTitularSerializer(serializers.ModelSerializer):
-    ddjj= serializers.CharField(write_only = True)
+    ddjj = serializers.CharField(write_only=True)
+    discapacidad = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    fecha_inscripcion = serializers.CharField(write_only=True, required=False, allow_blank=True)
     
     class Meta:
         model = PostulanteTitular
         fields = '__all__'
         read_only_fields = ('fecha_creacion', 'fecha_modificacion')
+
+    def create(self, validated_data):
+        discapacidad_val = validated_data.pop('discapacidad', None)
+        validated_data.pop('fecha_inscripcion', None)
+
+        if discapacidad_val:
+            discapacidad_clean = str(discapacidad_val).strip().lower()
+            if discapacidad_clean and discapacidad_clean not in ['ninguna', 'no', 'sin', 'sin discapacidad', '0', 'false']:
+                validated_data['tiene_discapacidad'] = True
+
+        return super().create(validated_data)
         
         
 class EstadoExpedienteSerializer(serializers.ModelSerializer):
