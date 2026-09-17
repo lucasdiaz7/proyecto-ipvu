@@ -1,23 +1,19 @@
-import { useState } from "react"; // <-- 1. Agregamos useState aquí
+import { useState } from "react";
 import { useNavigate } from "react-router";
 import { useForm } from "react-hook-form";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
 import { postulanteTitular } from "../../services/DataEntry/formDataEntry";
 import { useToast } from "../../context/ToastContext";
-import { api } from "../../api/axiosConfig"; // <-- 2. Importamos 'api' para hacer la petición
+import { api } from "../../api/axiosConfig";
 
 const FormExpedientes = () => {
-    // 3. Agregamos 'setValue' dentro de las llaves de useForm()
     const { register, formState: { errors }, handleSubmit, setValue } = useForm();
     const toast = useToast();
     const navigate = useNavigate();
 
-    // 4. Creamos el estado para el mensaje de "Procesando..."
     const [isProcessing, setIsProcessing] = useState(false);
 
     const onSubmit = async (data) => {
-
-
         const datos = {
             ddjj: data.ddjj,
             nombre: data.nombre,
@@ -38,11 +34,11 @@ const FormExpedientes = () => {
             console.log("Respuesta de Django:", crearPostualnte);
             navigate("/expedientes");
         } catch (error) {
-            console.log(error)
+            console.log(error);
         }
     };
 
-    // --- PEGA LA FUNCIÓN NUEVA AQUÍ ---
+    // --- FUNCIÓN DE PROCESAMIENTO DE DOCUMENTO (OCR / PyMuPDF) ---
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -60,26 +56,29 @@ const FormExpedientes = () => {
 
             const datosExtraidos = response.data;
 
-            // Autocompletamos los campos del formulario dinámicamente
-            if (datosExtraidos.ddjj) setValue("ddjj", datosExtraidos.ddjj);
-            if (datosExtraidos.nombre) setValue("nombre", datosExtraidos.nombre);
-            if (datosExtraidos.apellido) setValue("apellido", datosExtraidos.apellido);
-            if (datosExtraidos.dni) setValue("dni", datosExtraidos.dni);
-            if (datosExtraidos.telefono) setValue("telefono", datosExtraidos.telefono);
-            if (datosExtraidos.domicilio_actual) setValue("domicilio_actual", datosExtraidos.domicilio_actual);
-            if (datosExtraidos.email) setValue("email", datosExtraidos.email);
-            if (datosExtraidos.discapacidad) setValue("discapacidad", datosExtraidos.discapacidad);
-            if (datosExtraidos.fecha_inscripcion) setValue("fecha_inscripcion", datosExtraidos.fecha_inscripcion);
+            // Autocompletamos los campos del formulario dinámicamente con validación activa
+            const opciones = { shouldValidate: true, shouldDirty: true };
+            if (datosExtraidos.ddjj) setValue("ddjj", datosExtraidos.ddjj, opciones);
+            if (datosExtraidos.nombre) setValue("nombre", datosExtraidos.nombre, opciones);
+            if (datosExtraidos.apellido) setValue("apellido", datosExtraidos.apellido, opciones);
+            if (datosExtraidos.dni) setValue("dni", datosExtraidos.dni, opciones);
+            if (datosExtraidos.telefono) setValue("telefono", datosExtraidos.telefono, opciones);
+            if (datosExtraidos.domicilio_actual) setValue("domicilio_actual", datosExtraidos.domicilio_actual, opciones);
+            if (datosExtraidos.email) setValue("email", datosExtraidos.email, opciones);
+            if (datosExtraidos.discapacidad) setValue("discapacidad", datosExtraidos.discapacidad, opciones);
+            if (datosExtraidos.fecha_inscripcion) setValue("fecha_inscripcion", datosExtraidos.fecha_inscripcion, opciones);
 
-            toast.success("Documento procesado correctamente.");
+            toast.success("¡Documento procesado con éxito! Campos autocompletados.");
         } catch (error) {
             console.error("Error procesando documento:", error);
-            toast.error("No se pudo procesar el documento.");
+            const mensajeError = error.response?.data?.error || "No se pudo procesar el documento. Intenta manualmente.";
+            toast.error(mensajeError);
         } finally {
             setIsProcessing(false);
+            e.target.value = ""; // Permite seleccionar el mismo archivo nuevamente si es necesario
         }
     };
-    //fin de la funcion nueva
+    // Fin de función de procesamiento
 
     return (
         <div className="w-full flex flex-col items-center p-4 py-8">
@@ -101,9 +100,9 @@ const FormExpedientes = () => {
                         Crear Nuevo Expediente
                     </h3>
 
-                    {/* --- SECCIÓN DE CARGA AUTOMÁTICA --- */}
-                    <div className="col-span-full mb-6 p-5 border-2 border-dashed border-blue-300 bg-blue-50/50 dark:border-slate-600 dark:bg-slate-800 rounded-xl flex flex-col items-center justify-center transition-all hover:bg-blue-50">
-                        <label className="text-gray-700 dark:text-slate-300 font-semibold mb-3 text-center">
+                    {/* --- SECCIÓN DE CARGA DE DOCUMENTO (Siempre visible para autocompletar) --- */}
+                    <div className="col-span-full mb-2 p-5 border-2 border-dashed border-blue-300 bg-blue-50/50 dark:border-slate-600 dark:bg-slate-800 rounded-xl flex flex-col items-center justify-center transition-all hover:bg-blue-50">
+                        <label className="text-gray-700 dark:text-slate-300 font-semibold mb-3 text-center text-sm sm:text-base">
                             ¿Tienes el documento digitalizado? Adjúntalo para autocompletar (PDF, PNG, JPG)
                         </label>
                         <input
@@ -116,9 +115,12 @@ const FormExpedientes = () => {
                         {isProcessing && (
                             <p className="mt-4 text-blue-600 dark:text-blue-400 font-semibold text-sm animate-pulse flex items-center gap-2">
                                 <svg className="animate-spin h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                Extrayendo datos del documento...
+                                Extrayendo datos del documento con IA/OCR...
                             </p>
                         )}
+                        <span className="text-xs text-gray-400 dark:text-slate-400 mt-2">
+                            O completa directamente los campos que aparecen a continuación a mano.
+                        </span>
                     </div>
                     {/* --- FIN SECCIÓN CARGA --- */}
 

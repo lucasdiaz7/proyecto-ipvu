@@ -995,3 +995,45 @@ class MiTokenRefreshView(TokenRefreshView):
     
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "token_refresh"
+
+
+from rest_framework.decorators import api_view, parser_classes, permission_classes
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework import status
+from .document_processor import procesar_archivo_documento
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+@parser_classes([MultiPartParser, FormParser])
+def procesar_documento(request):
+    """
+    Endpoint para procesar un documento (PDF o imagen) mediante PyMuPDF y pytesseract (OCR).
+    Recibe el archivo en el campo 'documento' (multipart/form-data) y extrae los datos del postulante.
+    """
+    if 'documento' not in request.FILES:
+        return Response(
+            {"error": "No se adjuntó ningún archivo. Debe enviarse un archivo con el campo 'documento'."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    archivo = request.FILES['documento']
+    nombre_archivo = archivo.name.lower()
+
+    extensiones_permitidas = ('.pdf', '.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tiff')
+    if not nombre_archivo.endswith(extensiones_permitidas):
+        return Response(
+            {"error": f"Formato no soportado. Extensiones válidas: {', '.join(extensiones_permitidas)}"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        datos_extraidos = procesar_archivo_documento(archivo)
+        return Response(datos_extraidos, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"Error procesando documento {nombre_archivo}: {e}", exc_info=True)
+        return Response(
+            {"error": f"Ocurrió un error al procesar el archivo con OCR/PyMuPDF: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
