@@ -39,9 +39,6 @@ urlpatterns = [
     path('api/password-reset/solicitar/', SolicitarResetPasswordView.as_view(), name='password_reset_solicitar'),
     path('api/password-reset/confirmar/', ConfirmarResetPasswordView.as_view(), name='password_reset_confirmar'),
 
-    # Procesamiento de documentos con PyMuPDF y pytesseract OCR
-    path('api/procesar-documento/', procesar_documento, name='procesar_documento'),
-    path('procesar-documento/', procesar_documento, name='procesar_documento_direct'),
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
