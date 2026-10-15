@@ -9,6 +9,10 @@ from django.contrib.auth.tokens import default_token_generator
 from django.utils import timezone
 
 
+# textos que, cargados en el campo discapacidad, significan que el postulante no tiene discapacidad
+VALORES_SIN_DISCAPACIDAD = {'', 'ninguna', 'no', 'sin', 'sin discapacidad', '0', 'false'}
+
+
 class PostulanteTitularSerializer(serializers.ModelSerializer):
     ddjj = serializers.CharField(write_only=True)
     discapacidad = serializers.CharField(write_only=True, required=False, allow_blank=True)
@@ -19,16 +23,15 @@ class PostulanteTitularSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('fecha_creacion', 'fecha_modificacion')
 
-    def create(self, validated_data):
-        discapacidad_val = validated_data.pop('discapacidad', None)
-        validated_data.pop('fecha_inscripcion', None)
+    def validate(self, attrs):
+        # traduce el texto libre de discapacidad al booleano del modelo, tanto al crear como al editar
+        discapacidad = attrs.pop('discapacidad', None)
+        if discapacidad is not None:
+            attrs['tiene_discapacidad'] = str(discapacidad).strip().lower() not in VALORES_SIN_DISCAPACIDAD
 
-        if discapacidad_val:
-            discapacidad_clean = str(discapacidad_val).strip().lower()
-            if discapacidad_clean and discapacidad_clean not in ['ninguna', 'no', 'sin', 'sin discapacidad', '0', 'false']:
-                validated_data['tiene_discapacidad'] = True
-
-        return super().create(validated_data)
+        # fecha_inscripcion todavia no existe en el modelo: se descarta hasta que el equipo decida si se persiste
+        attrs.pop('fecha_inscripcion', None)
+        return attrs
         
         
 class EstadoExpedienteSerializer(serializers.ModelSerializer):
