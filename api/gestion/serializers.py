@@ -54,7 +54,8 @@ class ExpedienteSerializer(serializers.ModelSerializer):
         response = super().to_representation(instance)
         
          #calculo de dias en poder
-        ultimo_pase = instance.historial_pases.order_by('-fecha_envio').first()
+        # se calcula en Python sobre los pases ya precargados (prefetch_related en la vista) para no consultar la base por cada expediente
+        ultimo_pase = max(instance.historial_pases.all(), key=lambda pase: pase.fecha_envio, default=None)
         fecha_referencia = None
 
         if ultimo_pase and ultimo_pase.fecha_envio:
@@ -107,35 +108,22 @@ class ExpedienteSerializer(serializers.ModelSerializer):
         else:
             response['usuario_asignado'] = None
 
-        response['documentos_adjuntos'] = [
-            {
-                'id': documento.id,
-                'tipo_documento': documento.tipo_documento,
-                'archivo': documento.archivo.name if documento.archivo else None,
-                'archivo_url': documento.archivo.url if documento.archivo else None,
-                'historial_pases': list(documento.historial_pases.values_list('id', flat=True)),
-                'pendiente_pase': not documento.historial_pases.exists(),
-            }
-            for documento in instance.documentos.all()
-        ]
-
         return response
-    
+
     def get_documentos_adjuntos(self, obj):
-        documentos = DocumentoAdjunto.objects.filter(expediente=obj)
-        
-        if documentos.exists():
-            return [
-                {
-                    "id": doc.id,
-                    "tipo_documento": doc.tipo_documento,
-                    "archivo": doc.archivo.name if doc.archivo else None,
-                    "archivo_url": doc.archivo.url if doc.archivo else None,
-                    "historial_pases": list(doc.historial_pases.values_list('id', flat=True)),
-                    "pendiente_pase": not doc.historial_pases.exists(),
-                } for doc in documentos
-            ]
-        return []
+        # .all() reutiliza los documentos y pases precargados por la vista en lugar de hacer 2 consultas por documento
+        documentos_adjuntos = []
+        for doc in obj.documentos.all():
+            pases_ids = [pase.id for pase in doc.historial_pases.all()]
+            documentos_adjuntos.append({
+                "id": doc.id,
+                "tipo_documento": doc.tipo_documento,
+                "archivo": doc.archivo.name if doc.archivo else None,
+                "archivo_url": doc.archivo.url if doc.archivo else None,
+                "historial_pases": pases_ids,
+                "pendiente_pase": not pases_ids,
+            })
+        return documentos_adjuntos
     
     def update(self, instance, validated_data):
         # Obligamos a que sí o sí usen tu @action "cambiar_estado"

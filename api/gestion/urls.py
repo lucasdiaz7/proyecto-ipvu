@@ -39,6 +39,8 @@ urlpatterns = [
     path('api/password-reset/solicitar/', SolicitarResetPasswordView.as_view(), name='password_reset_solicitar'),
     path('api/password-reset/confirmar/', ConfirmarResetPasswordView.as_view(), name='password_reset_confirmar'),
 
+    # precarga del formulario de nuevo expediente con los datos que extrae el microservicio de IA
+    path('api/procesar-documento/', ProcesarDocumentoView.as_view(), name='procesar_documento'),
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -179,6 +179,12 @@ CORS_ALLOW_ALL_ORIGINS = True
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR,'media')
 
+# microservicio de IA que extrae los datos de las DDJJ (ver gestion/ia_client.py)
+IA_API_URL = os.environ.get('IA_API_URL', 'http://localhost:8001')
+IA_API_KEY = os.environ.get('IA_API_KEY', '')
+# en segundos: el OCR de una foto tarda ~15s y un servicio dormido en Render hasta ~60s en despertar
+IA_API_TIMEOUT = int(os.environ.get('IA_API_TIMEOUT', '90'))
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,

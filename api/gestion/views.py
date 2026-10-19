@@ -17,6 +17,8 @@ from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateMode
 from rest_framework.viewsets import GenericViewSet
 from django.contrib.auth.models import User
 from rest_framework.views import APIView
+from rest_framework.parsers import MultiPartParser
+from rest_framework import status
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.conf import settings
 from django.core.mail import send_mail
@@ -41,6 +43,7 @@ from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table, Tab
 from reportlab.lib import colors
 from django.core.files.base import ContentFile
 from django.conf import settings
+from . import ia_client
 
 logger = logging.getLogger(__name__)
 
@@ -268,6 +271,16 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
             queryset = Expediente.objects.filter(usuario_asignado= usuario)
         else:
             queryset = Expediente.objects.all()
+
+        # trae de una vez todo lo que usa ExpedienteSerializer: sin esto se hacian ~9 consultas por expediente
+        queryset = queryset.select_related(
+            'estado_expediente',
+            'postulante_titular',
+            'usuario_asignado__usuario__rol',
+        ).prefetch_related(
+            'historial_pases',
+            'documentos__historial_pases',
+        )
 
         if buscar:
             palabras = buscar.split()
@@ -992,6 +1005,56 @@ class ConfirmarResetPasswordView(APIView):
 
 
 class MiTokenRefreshView(TokenRefreshView):
-    
+
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "token_refresh"
+
+
+class ProcesarDocumentoView(APIView):
+    """
+    Recibe la DDJJ (PDF o foto), la reenvia al microservicio de IA y devuelve los datos extraidos
+    para precargar el formulario de nuevo expediente. No guarda nada: la operadora revisa los
+    campos y recien al crear el expediente se persisten.
+    """
+    permission_classes = [IsDataEntryOrSuperAdmin]
+    parser_classes = [MultiPartParser]
+
+    EXTENSIONES_PERMITIDAS = ('.pdf', '.png', '.jpg', '.jpeg')
+    TAMANIO_MAXIMO_MB = 10
+
+    def post(self, request):
+        archivo = request.FILES.get('documento')
+        if archivo is None:
+            return Response(
+                {"error": "Debe adjuntar el documento en el campo 'documento'."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if not archivo.name.lower().endswith(self.EXTENSIONES_PERMITIDAS):
+            return Response(
+                {"error": f"Formato no soportado. Formatos válidos: {', '.join(self.EXTENSIONES_PERMITIDAS)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if archivo.size > self.TAMANIO_MAXIMO_MB * 1024 * 1024:
+            return Response(
+                {"error": f"El archivo supera los {self.TAMANIO_MAXIMO_MB} MB permitidos."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            datos = ia_client.autocompletar_ddjj(archivo)
+        except ia_client.IAServiceRejected as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except ia_client.IAServiceUnavailable as e:
+            logger.warning(f"Servicio de IA no disponible procesando {archivo.name}: {e}")
+            return Response(
+                {"error": f"{e} Intentá de nuevo en unos segundos o completá los campos a mano."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        except ia_client.IAServiceError as e:
+            logger.error(f"Error del servicio de IA procesando {archivo.name}: {e}")
+            return Response(
+                {"error": "El servicio de IA no pudo procesar el documento. Completá los campos a mano."},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+        return Response(datos)
