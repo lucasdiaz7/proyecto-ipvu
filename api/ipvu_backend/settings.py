@@ -18,6 +18,24 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+# Toda la configuracion sensible se lee de variables de entorno (archivo .env en local).
+# Ver .env.example y SEGURIDAD_DEPLOY.md para la lista completa y que cargar en produccion.
+# Los valores por defecto son los de desarrollo local.
+# una variable vacia en el .env (ej. "ALLOWED_HOSTS=") cuenta como no definida y usa el default
+def env_str(nombre, default=''):
+    valor = os.environ.get(nombre, '').strip()
+    return valor or default
+
+
+def env_bool(nombre, default=False):
+    return env_str(nombre, str(default)).lower() in ('1', 'true', 'si', 'yes')
+
+
+def env_lista(nombre, default=''):
+    return [valor.strip() for valor in env_str(nombre, default).split(',') if valor.strip()]
+
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -26,12 +44,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY', default='your secret key')
+# firma los tokens JWT y los links de reseteo de contrasena: en produccion SIEMPRE definir SECRET_KEY
+SECRET_KEY = env_str('SECRET_KEY', 'your secret key')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = env_bool('DEBUG', False)
 
-ALLOWED_HOSTS = ['*']
+# dominios desde los que se sirve el backend, separados por coma (ej: api.ipvu.gob.ar)
+ALLOWED_HOSTS = env_lista('ALLOWED_HOSTS', '*')
 
 RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 
@@ -137,11 +157,17 @@ STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# para testear el reseteo de la contraseña en el terminal del backend en lugar de 
-# enviar un correo real
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-DEFAULT_FROM_EMAIL = 'noreply@ipvu.com'
-FRONTEND_URL = 'http://localhost:3000' 
+# por defecto los correos (reseteo de contrasena) se imprimen en la terminal del backend;
+# en produccion usar EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend y completar los datos SMTP
+EMAIL_BACKEND = env_str('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+EMAIL_HOST = env_str('EMAIL_HOST', 'localhost')
+EMAIL_PORT = int(env_str('EMAIL_PORT', '587'))
+EMAIL_HOST_USER = env_str('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = env_str('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = env_bool('EMAIL_USE_TLS', True)
+DEFAULT_FROM_EMAIL = env_str('DEFAULT_FROM_EMAIL', 'noreply@ipvu.com')
+# direccion del frontend, se usa para armar el link del correo de reseteo de contrasena
+FRONTEND_URL = env_str('FRONTEND_URL', 'http://localhost:3000')
 
 
 REST_FRAMEWORK = {
@@ -166,18 +192,37 @@ REST_FRAMEWORK = {
 }
 
 
-# para el timeout de sesión al cabo de 5 min de inactividad  
+# para el timeout de sesiÃ³n al cabo de 5 min de inactividad  
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=300),
 }
 
 
-#cuando se use el sistema, esto tiene que ir false
-CORS_ALLOW_ALL_ORIGINS = True
+# origenes del frontend que pueden llamar a la API, separados por coma (ej: https://ipvu.gob.ar).
+# si no se define, se permite cualquier origen (solo aceptable en desarrollo)
+CORS_ALLOWED_ORIGINS = env_lista('CORS_ALLOWED_ORIGINS')
+CORS_ALLOW_ALL_ORIGINS = not CORS_ALLOWED_ORIGINS
+
+# activar con USAR_HTTPS=True cuando el servidor tenga certificado: cookies solo por HTTPS,
+# redireccion de http a https y HSTS. Si hay un proxy (nginx) delante, este reenvia X-Forwarded-Proto.
+USAR_HTTPS = env_bool('USAR_HTTPS', False)
+if USAR_HTTPS:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    # una hora para empezar; subirlo (ej. 31536000) cuando se confirme que todo funciona por HTTPS
+    SECURE_HSTS_SECONDS = int(env_str('SECURE_HSTS_SECONDS', '3600'))
 
 # archivos subidos
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR,'media')
+
+# microservicio de IA que extrae los datos de las DDJJ (ver gestion/ia_client.py)
+IA_API_URL = env_str('IA_API_URL', 'http://localhost:8001')
+IA_API_KEY = env_str('IA_API_KEY', '')
+# en segundos: el OCR de una foto tarda ~15s y un servicio dormido en Render hasta ~60s en despertar
+IA_API_TIMEOUT = int(env_str('IA_API_TIMEOUT', '90'))
 
 LOGGING = {
     'version': 1,

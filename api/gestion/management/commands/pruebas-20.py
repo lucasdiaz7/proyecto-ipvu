@@ -1,14 +1,19 @@
+import os
 import requests
 import random
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # 1. Tus URLs
 URL_LOGIN = "http://127.0.0.1:8000/api/login/"
 URL_API = "http://127.0.0.1:8000/api/postulantetitular/"
 
-# 2. Tus datos
+# 2. Tus datos: se leen del .env (PRUEBAS_USUARIO y PRUEBAS_PASSWORD) para no dejar contraseñas en el codigo
 credenciales = {
-    "username": "44444444",
-    "password": "piero12345!Zuffe"
+    "username": os.environ.get("PRUEBAS_USUARIO", ""),
+    "password": os.environ.get("PRUEBAS_PASSWORD", "")
 }
 
 print("Iniciando sesión...")

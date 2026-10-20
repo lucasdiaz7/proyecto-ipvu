@@ -9,3 +9,9 @@ test_pdf.py
 test_output.pdf
 *.pdf
 node_modules/
+
+# variables de entorno con claves: nunca al repositorio (la plantilla .env.example si)
+# OJO: el .env todavia esta trackeado; esto recien aplica despues de "git rm --cached .env" (ver SEGURIDAD_DEPLOY.md)
+.env
+.env.*
+!.env.example

@@ -32,7 +32,6 @@ function App() {
               <Route path="/CambiarContraseña" element={<CambiarContraseña />} />
               <Route path="/expedientes" element={<Expedientes />} />
               <Route path="/Expediente/:id" element={<DetailExpedientes />} />
-              <Route path="/nuevoExpediente" element={<FormExpedientes />} />
 
               {/* Trabajadora social (1) */}
               <Route element={<ProtectedRoute allowedRoles={["1", "4"]} />}>
@@ -43,6 +42,7 @@ function App() {
               {/* Data entry (3) */}
               <Route element={<ProtectedRoute allowedRoles={["3", "4"]} />}>
                 <Route path="/dataEntry" element={<Home />} />
+                <Route path="/nuevoExpediente" element={<FormExpedientes />} />
               </Route>
 
               {/* Administración: solo rol 4 */}
