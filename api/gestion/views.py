@@ -39,7 +39,8 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER
-from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, PageBreak)
+from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, PageBreak, KeepTogether)
+from xml.sax.saxutils import escape
 from reportlab.lib import colors
 from django.core.files.base import ContentFile
 from django.conf import settings
@@ -746,168 +747,226 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
     def generar_pdf(self, request, pk=None):
         formulario = self.get_object()
         expediente = formulario.expediente
+        pdf_bytes = _construir_pdf_formulario(formulario)
+        nombre_archivo = f"Formulario_{formulario.id}.pdf"
 
-        # --- Datos del profesional asignado ---
-        profesional = ""
-        if expediente.usuario_asignado:
-            try:
-                perfil = expediente.usuario_asignado.usuario
-                profesional = f"{perfil.apellido}, {perfil.nombre} (Mat. {perfil.matricula})"
-            except (AttributeError, ObjectDoesNotExist) as e:
-                logger.warning(
-                    f"No se pudo obtener perfil detallado para usuario_asignado "
-                    f"id={expediente.usuario_asignado_id}: {e}"
-                )
-                profesional = (
-                    f"{expediente.usuario_asignado.last_name}, "
-                    f"{expediente.usuario_asignado.first_name}"
-                )
-
-        # --- Datos del titular ---
-        domicilio = apellido = nombre = dni = ""
-        if expediente.postulante_titular:
-            titular = expediente.postulante_titular
-            domicilio = getattr(titular, 'domicilio_actual', '') or ''
-            apellido = getattr(titular, 'apellido', '') or ''
-            nombre = getattr(titular, 'nombre', '') or ''
-            dni = getattr(titular, 'dni', '') or ''
-
-        # --- Fecha ---
-        fecha = formulario.fecha_modificacion or formulario.fecha_creacion
-        meses = [
-            "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-            "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-        ]
-        dia_str = mes_str = anio_str = ""
-        if fecha:
-            dia_str = str(fecha.day)
-            mes_str = meses[fecha.month - 1]
-            anio_str = str(fecha.year)[-2:]
-
-        response = HttpResponse(content_type='application/pdf')
-        response['Content-Disposition'] = (
-            f'attachment; filename="Formulario_{formulario.id}.pdf"'
+        # regenerar el PDF reemplaza la copia que todavia no viajo en ningun pase, en lugar de sumar
+        # otra cada vez; las copias que ya se enviaron en un pase quedan intactas como parte del historial
+        documento = (
+            DocumentoAdjunto.objects
+            .filter(expediente=expediente, tipo_documento=TIPO_DOCUMENTO_FORMULARIO, historial_pases__isnull=True)
+            .order_by('-id')
+            .first()
         )
-        buffer = io.BytesIO()
-        
-        doc = SimpleDocTemplate(
-            response,
-            pagesize=A4,
-            topMargin=3.6 * cm,
-            bottomMargin=2.2 * cm,
-            leftMargin=2 * cm,
-            rightMargin=2 * cm,
-        )
-
-        styles = getSampleStyleSheet()
-        styles.add(ParagraphStyle(name='TituloFormulario', parent=styles['Heading1'],
-                                  alignment=TA_CENTER, fontSize=13, spaceBefore=6, spaceAfter=14))
-        styles.add(ParagraphStyle(name='CampoIdentificacion', parent=styles['Normal'],
-                                  fontSize=10, spaceAfter=8))
-        styles.add(ParagraphStyle(name='SeccionTitulo', parent=styles['Heading2'],
-                                  fontSize=11, spaceBefore=10, spaceAfter=2, textColor=colors.black))
-        styles.add(ParagraphStyle(name='SeccionBajada', parent=styles['Normal'],
-                                  fontName='Helvetica-Oblique', fontSize=8.5,
-                                  textColor=colors.grey, spaceAfter=6))
-        styles.add(ParagraphStyle(name='TextoCuerpo', parent=styles['Normal'],
-                                  fontSize=10, leading=14, spaceAfter=4))
-        styles.add(ParagraphStyle(name='FirmaLinea', parent=styles['Normal'],
-                                  alignment=TA_CENTER, fontSize=10, spaceBefore=24))
-        styles.add(ParagraphStyle(name='FirmaEtiqueta', parent=styles['Normal'],
-                                  alignment=TA_CENTER, fontSize=9, spaceBefore=2))
-
-        elementos = []
-
-        def agregar_seccion(titulo, bajada, contenido):
-            elementos.append(Paragraph(titulo, styles['SeccionTitulo']))
-            if bajada:
-                elementos.append(Paragraph(bajada, styles['SeccionBajada']))
-            texto = (contenido or '-').replace('\n', '<br/>')
-            elementos.append(Paragraph(texto, styles['TextoCuerpo']))
-
-        # ============ PÁGINA 1 ============
-        elementos.append(Paragraph("INFORME SOCIO HABITACIONAL", styles['TituloFormulario']))
-        elementos.append(Paragraph(f"<b>Profesional Actuante:</b> {profesional or '-'}", styles['CampoIdentificacion']))
-        elementos.append(Paragraph(
-            f"<b>Caso de Referencia:</b> Expediente N° {expediente.id} &nbsp;&nbsp;&nbsp; "
-            f"<b>DJ N°:</b> {expediente.DDJJ or '-'}",
-            styles['CampoIdentificacion']
-        ))
-        elementos.append(Paragraph(
-            f"<b>Domicilio:</b> {domicilio or '-'} "
-            f"(Titular: {apellido}, {nombre} - DNI: {dni or '-'})",
-            styles['CampoIdentificacion']
-        ))
-        elementos.append(Spacer(1, 6))
-
-        agregar_seccion("GRUPO FAMILIAR CONSTITUYENTE", "Tipo y Dinamia familiar. Conflictos", formulario.grupo_familiar)
-        agregar_seccion("SITUACIÓN HABITACIONAL", "Tipo de posesión y tiempo de habitabilidad", formulario.situacion_habitacional)
-        agregar_seccion("ASPECTO ECONÓMICO", "Ingresos y Calidad de Vida", formulario.aspecto_economico)
-        agregar_seccion("SITUACIÓN DE SALUD", "Discapacidad. Invalidez", formulario.situacion_salud)
-        agregar_seccion("NIVEL DE ESTUDIOS", None, formulario.nivel_estudios)
-
-        elementos.append(Spacer(1, 10))
-        elementos.append(Paragraph("_" * 45, styles['FirmaLinea']))
-        elementos.append(Paragraph("Firma y Aclaración del Entrevistado", styles['FirmaEtiqueta']))
-
-        # ============ PÁGINA 2 ============
-        elementos.append(PageBreak())
-        agregar_seccion("RELEVAMIENTO VECINAL", None, formulario.relevamiento_vecinal)
-
-        elementos.append(Spacer(1, 10))
-        elementos.append(Paragraph("_" * 40, styles['FirmaLinea']))
-        elementos.append(Paragraph("Firma y Aclaración del Entrevistado", styles['FirmaEtiqueta']))
-        elementos.append(Spacer(1, 14))
-
-        agregar_seccion("OBSERVACIONES Y/O PARTICULARIDADES", None, formulario.observaciones)
-
-        # --- Bloque final estructurado en tabla para anclar al pie de la hoja ---
-        texto_fecha = Paragraph(
-            f"Santiago del Estero, {dia_str or '_'} de {mes_str or '____'} de 20{anio_str or '_'}",
-            styles['TextoCuerpo']
-        )
-        texto_atentamente = Paragraph("Atentamente", styles['TextoCuerpo'])
-        linea_firma = Paragraph("_" * 40, styles['FirmaLinea'])
-        etiqueta_firma = Paragraph("Firma y Sello del Profesional Actuante", styles['FirmaEtiqueta'])
-
-        tabla_firma_profesional = Table(
-            [
-                [texto_fecha],
-                [Spacer(1, 4)],
-                [texto_atentamente],
-                [Spacer(1, 14)],
-                [linea_firma],
-                [etiqueta_firma]
-            ],
-            colWidths=[17 * cm]
-        )
-        tabla_firma_profesional.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-            ('TOPPADDING', (0, 0), (-1, -1), 0),
-        ]))
-
-        elementos.append(Spacer(1, 40))
-        elementos.append(tabla_firma_profesional)
-
-        doc.build(
-            elementos,
-            onFirstPage=_dibujar_encabezado_pie_formulario,
-            onLaterPages=_dibujar_encabezado_pie_formulario,
-        )
-        pdf_bytes = buffer.getvalue()
-        DocumentoAdjunto.objects.create(
-            tipo_documento="Formulario Socio Habitacional",
-            archivo=ContentFile(pdf_bytes, name=f"Formulario_{formulario.id}.pdf"),
-            subido_por=request.user,
-            expediente=expediente
-        )
+        if documento is None:
+            DocumentoAdjunto.objects.create(
+                tipo_documento=TIPO_DOCUMENTO_FORMULARIO,
+                archivo=ContentFile(pdf_bytes, name=nombre_archivo),
+                subido_por=request.user,
+                expediente=expediente
+            )
+        else:
+            # se borra el archivo anterior solo si ningun otro documento lo usa: como la base es compartida y
+            # los archivos se guardan en la compu de cada uno, dos documentos pueden terminar con el mismo nombre
+            archivo_compartido = (
+                DocumentoAdjunto.objects.filter(archivo=documento.archivo.name).exclude(id=documento.id).exists()
+            )
+            if documento.archivo and not archivo_compartido:
+                documento.archivo.delete(save=False)
+            documento.subido_por = request.user
+            documento.archivo.save(nombre_archivo, ContentFile(pdf_bytes), save=True)
 
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="Formulario_{formulario.id}.pdf"'
-        
+        response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
         return response
+
+
+TIPO_DOCUMENTO_FORMULARIO = "Formulario Socio Habitacional"
+
+# estilo del cuerpo del informe; el encabezado y el pie con logos los dibuja _dibujar_encabezado_pie_formulario
+COLOR_BORDE_PDF = colors.HexColor('#9CA3AF')
+COLOR_FONDO_TITULO_PDF = colors.HexColor('#E5E7EB')
+COLOR_ETIQUETA_PDF = colors.HexColor('#F3F4F6')
+ANCHO_CUERPO_PDF = 17 * cm  # A4 menos 2 cm de margen de cada lado
+MESES_PDF = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+]
+
+
+def _texto_pdf(valor, vacio='-'):
+    # escapa &, < y > para que reportlab no los tome como etiquetas, y respeta los saltos de linea
+    texto = str(valor or '').strip()
+    return escape(texto).replace('\n', '<br/>') if texto else vacio
+
+
+def _construir_pdf_formulario(formulario):
+    """Arma el PDF del informe socio-habitacional y devuelve sus bytes."""
+    expediente = formulario.expediente
+
+    # --- Datos del profesional asignado ---
+    profesional = ""
+    if expediente.usuario_asignado:
+        try:
+            perfil = expediente.usuario_asignado.usuario
+            profesional = f"{perfil.apellido}, {perfil.nombre} (Mat. {perfil.matricula})"
+        except (AttributeError, ObjectDoesNotExist) as e:
+            logger.warning(
+                f"No se pudo obtener perfil detallado para usuario_asignado "
+                f"id={expediente.usuario_asignado_id}: {e}"
+            )
+            profesional = (
+                f"{expediente.usuario_asignado.last_name}, "
+                f"{expediente.usuario_asignado.first_name}"
+            )
+
+    # --- Datos del titular ---
+    domicilio = apellido = nombre = dni = ""
+    if expediente.postulante_titular:
+        titular = expediente.postulante_titular
+        domicilio = getattr(titular, 'domicilio_actual', '') or ''
+        apellido = getattr(titular, 'apellido', '') or ''
+        nombre = getattr(titular, 'nombre', '') or ''
+        dni = getattr(titular, 'dni', '') or ''
+    titular_completo = ", ".join(parte for parte in (apellido, nombre) if parte)
+
+    # --- Fecha ---
+    fecha = formulario.fecha_modificacion or formulario.fecha_creacion
+    if fecha:
+        texto_fecha = f"Santiago del Estero, {fecha.day} de {MESES_PDF[fecha.month - 1]} de {fecha.year}"
+    else:
+        texto_fecha = "Santiago del Estero, ____ de ______________ de 20___"
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        topMargin=3.6 * cm,
+        bottomMargin=2.2 * cm,
+        leftMargin=2 * cm,
+        rightMargin=2 * cm,
+    )
+
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name='TituloFormulario', parent=styles['Heading1'],
+                              alignment=TA_CENTER, fontSize=13, spaceBefore=2, spaceAfter=10))
+    styles.add(ParagraphStyle(name='EtiquetaDato', parent=styles['Normal'],
+                              fontName='Helvetica-Bold', fontSize=9, leading=11))
+    styles.add(ParagraphStyle(name='ValorDato', parent=styles['Normal'], fontSize=9.5, leading=11.5))
+    styles.add(ParagraphStyle(name='SeccionTitulo', parent=styles['Normal'],
+                              fontName='Helvetica-Bold', fontSize=10, leading=12))
+    styles.add(ParagraphStyle(name='TextoCuerpo', parent=styles['Normal'], fontSize=10, leading=14))
+    styles.add(ParagraphStyle(name='FirmaEtiqueta', parent=styles['Normal'],
+                              alignment=TA_CENTER, fontSize=9, leading=11))
+
+    elementos = []
+
+    def bloque_identificacion():
+        def etiqueta(texto):
+            return Paragraph(texto, styles['EtiquetaDato'])
+
+        def valor(texto):
+            return Paragraph(_texto_pdf(texto), styles['ValorDato'])
+
+        tabla = Table(
+            [
+                [etiqueta("Profesional actuante"), valor(profesional), '', ''],
+                [etiqueta("Caso de referencia"), valor(f"Expediente N° {expediente.id}"),
+                 etiqueta("DJ N°"), valor(expediente.DDJJ)],
+                [etiqueta("Titular"), valor(titular_completo), etiqueta("DNI"), valor(dni)],
+                [etiqueta("Domicilio"), valor(domicilio), '', ''],
+            ],
+            colWidths=[3.8 * cm, 6.2 * cm, 1.6 * cm, 5.4 * cm],
+        )
+        tabla.setStyle(TableStyle([
+            ('SPAN', (1, 0), (3, 0)),
+            ('SPAN', (1, 3), (3, 3)),
+            ('BOX', (0, 0), (-1, -1), 0.75, COLOR_BORDE_PDF),
+            ('INNERGRID', (0, 0), (-1, -1), 0.5, COLOR_BORDE_PDF),
+            ('BACKGROUND', (0, 0), (0, -1), COLOR_ETIQUETA_PDF),
+            ('BACKGROUND', (2, 1), (2, 2), COLOR_ETIQUETA_PDF),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        elementos.append(tabla)
+        elementos.append(Spacer(1, 0.45 * cm))
+
+    def seccion(titulo, bajada, contenido, alto_minimo):
+        # recuadro con alto minimo: con poco texto la hoja queda pareja; con mucho, el recuadro crece
+        # y si no entra sigue en la pagina siguiente repitiendo el titulo
+        encabezado = f"{titulo}"
+        if bajada:
+            encabezado += f" &nbsp;<font name='Helvetica-Oblique' size='8' color='#6B7280'>{bajada}</font>"
+        tabla = Table(
+            [
+                [Paragraph(encabezado, styles['SeccionTitulo'])],
+                [Paragraph(_texto_pdf(contenido, vacio=''), styles['TextoCuerpo'])],
+            ],
+            colWidths=[ANCHO_CUERPO_PDF],
+            minRowHeights=[0, alto_minimo],
+            repeatRows=1,
+            splitInRow=1,
+        )
+        tabla.setStyle(TableStyle([
+            ('BOX', (0, 0), (-1, -1), 0.75, COLOR_BORDE_PDF),
+            ('LINEBELOW', (0, 0), (-1, 0), 0.75, COLOR_BORDE_PDF),
+            ('BACKGROUND', (0, 0), (-1, 0), COLOR_FONDO_TITULO_PDF),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ('LEFTPADDING', (0, 0), (-1, -1), 7),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 7),
+        ]))
+        # KeepTogether pasa la seccion entera a la hoja siguiente si no entra; solo la parte si ocupa mas de una hoja
+        elementos.append(KeepTogether([tabla]))
+        elementos.append(Spacer(1, 0.35 * cm))
+
+    def firma(etiqueta, espacio_arriba=1.3 * cm):
+        tabla = Table(
+            [[''], [Paragraph(etiqueta, styles['FirmaEtiqueta'])]],
+            colWidths=[7.5 * cm],
+            rowHeights=[espacio_arriba, None],
+            hAlign='CENTER',
+        )
+        tabla.setStyle(TableStyle([
+            ('LINEBELOW', (0, 0), (0, 0), 0.75, colors.black),
+            ('TOPPADDING', (0, 1), (0, 1), 3),
+        ]))
+        return tabla
+
+    # ============ PÁGINA 1 ============
+    elementos.append(Paragraph("INFORME SOCIO HABITACIONAL", styles['TituloFormulario']))
+    bloque_identificacion()
+    seccion("GRUPO FAMILIAR CONSTITUYENTE", "Tipo y dinámica familiar. Conflictos", formulario.grupo_familiar, 2.2 * cm)
+    seccion("SITUACIÓN HABITACIONAL", "Tipo de posesión y tiempo de habitabilidad", formulario.situacion_habitacional, 2.2 * cm)
+    seccion("ASPECTO ECONÓMICO", "Ingresos y calidad de vida", formulario.aspecto_economico, 2.2 * cm)
+    seccion("SITUACIÓN DE SALUD", "Discapacidad. Invalidez", formulario.situacion_salud, 2.2 * cm)
+    seccion("NIVEL DE ESTUDIOS", None, formulario.nivel_estudios, 1.1 * cm)
+    elementos.append(KeepTogether([firma("Firma y Aclaración del Entrevistado")]))
+
+    # ============ PÁGINA 2 ============
+    elementos.append(PageBreak())
+    seccion("RELEVAMIENTO VECINAL", None, formulario.relevamiento_vecinal, 5.5 * cm)
+    elementos.append(KeepTogether([firma("Firma y Aclaración del Entrevistado")]))
+    elementos.append(Spacer(1, 0.6 * cm))
+    seccion("OBSERVACIONES Y/O PARTICULARIDADES", None, formulario.observaciones, 5.5 * cm)
+
+    # --- Cierre: fecha, saludo y firma del profesional, siempre juntos en la misma hoja ---
+    elementos.append(KeepTogether([
+        Spacer(1, 0.4 * cm),
+        Paragraph(texto_fecha, styles['TextoCuerpo']),
+        Spacer(1, 0.2 * cm),
+        Paragraph("Atentamente", styles['TextoCuerpo']),
+        firma("Firma y Sello del Profesional Actuante", espacio_arriba=1.6 * cm),
+    ]))
+
+    doc.build(
+        elementos,
+        onFirstPage=_dibujar_encabezado_pie_formulario,
+        onLaterPages=_dibujar_encabezado_pie_formulario,
+    )
+    return buffer.getvalue()
     
 class MiLoginPersonalizadoView(TokenObtainPairView):
     serializer_class = MiLoginPersonalizadoSerializer
