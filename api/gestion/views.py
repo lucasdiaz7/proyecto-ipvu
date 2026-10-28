@@ -2,9 +2,11 @@ import csv
 import os
 import logging
 import io
+from datetime import timedelta
 
 from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import render
+from django.utils import timezone
 from rest_framework import viewsets, permissions
 from .models import *
 from .serializers import *
@@ -56,6 +58,27 @@ logger = logging.getLogger(__name__)
 MENSAJE_NUEVO_CASO = "Nuevo caso recibido"
 MENSAJE_CASO_RECIBIDO = "Caso recibido"
 ROLES_CON_NOTIFICACION_DE_CASO = ['TS', 'LG']
+
+# aviso a la data entry de a quien quedo asignado el expediente que cargo: es informativo y deja de mostrarse solo
+MENSAJE_EXPEDIENTE_CREADO = "Expediente creado"
+DIAS_VISIBLE_EXPEDIENTE_CREADO = 5
+
+
+def nombre_para_mostrar(user):
+    perfil = getattr(user, 'usuario', None)
+    if perfil:
+        return f"{perfil.nombre} {perfil.apellido}".strip()
+    return user.get_full_name() or user.username
+
+
+def crear_notificacion_expediente_creado(usuario_creador, expediente, nombre_asignado):
+    postulante = expediente.postulante_titular
+    mensaje = (
+        f"{MENSAJE_EXPEDIENTE_CREADO}: {postulante.nombre} {postulante.apellido} "
+        f"(DDJJ {expediente.DDJJ}), asignado a {nombre_asignado}"
+    )
+    # sin expediente_relacionado: el expediente ya esta en poder de la TS y la data entry no lo puede abrir
+    Notificacion.objects.create(mensaje=mensaje[:200], usuario_destino=usuario_creador)
 
 
 # verifica si el usuario destino pertenece a un rol que debe recibir notificaciones de expedientes, o sea, LG y TS
@@ -149,6 +172,11 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return filtrar_expedientes_en_poder(PostulanteTitular.objects.all(), self.request)
 
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        response.data['asignado_a'] = self.nombre_asignado
+        return response
+
     def perform_create(self, serializer):   
         ddjj = serializer.validated_data.pop('ddjj')
         postulante = serializer.save()
@@ -165,6 +193,10 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
         
         # notifica a la trabajadora social cuando recibe el expediente por primera vez
         crear_notificacion_recepcion_expediente(trabajadora_social, expediente)
+
+        # y a quien lo cargo, a quien le quedo asignado (el nombre tambien vuelve en la respuesta para el cartel)
+        self.nombre_asignado = nombre_para_mostrar(trabajadora_social)
+        crear_notificacion_expediente_creado(self.request.user, expediente, self.nombre_asignado)
 
         # NUEVO: Auditoría de creación
         registrar_auditoria(
@@ -662,9 +694,14 @@ class NotificacionViewSet(viewsets.ModelViewSet):
     serializer_class = NotificacionSerializer
 
     # Devuelve solo las notificaciones del usuario autenticado, ordenadas desde la mas reciente.
+    # Los avisos de "expediente creado" dejan de mostrarse a los DIAS_VISIBLE_EXPEDIENTE_CREADO dias (no se borran).
     def get_queryset(self):
+        limite = timezone.now() - timedelta(days=DIAS_VISIBLE_EXPEDIENTE_CREADO)
         return Notificacion.objects.filter(
             usuario_destino=self.request.user
+        ).exclude(
+            mensaje__startswith=MENSAJE_EXPEDIENTE_CREADO,
+            fecha_creacion__lt=limite,
         ).order_by('-fecha_creacion')
 
     def get_permissions(self):

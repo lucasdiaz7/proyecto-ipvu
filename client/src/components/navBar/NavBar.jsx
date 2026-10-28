@@ -2,6 +2,7 @@ import { useNavigate } from "react-router";
 import { SunIcon, MoonIcon, ArrowRightStartOnRectangleIcon } from "@heroicons/react/24/outline";
 import { authService } from "../../services/authService/authService";
 import useTheme from "../../hooks/useTheme";
+import NotificacionesDataEntry from "./NotificacionesDataEntry";
 
 const NavBar = () => {
     const navigate = useNavigate();
@@ -79,6 +80,9 @@ const NavBar = () => {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3">
+                {/* por ahora solo la data entry tiene campanita */}
+                {localStorage.getItem("rol_id") === "3" && <NotificacionesDataEntry />}
+
                 <button
                     onClick={toggleTheme}
                     title={theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}

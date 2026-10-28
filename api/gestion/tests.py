@@ -147,15 +147,17 @@ class ProcesarDocumentoViewTests(SimpleTestCase):
 
 import shutil
 import tempfile
+from datetime import timedelta
 
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.test import TestCase, override_settings
+from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import AccessToken
 
 from .models import (
-    DocumentoAdjunto, EstadoExpediente, Expediente, HistorialAccion, PostulanteTitular, Rol, Usuario,
+    DocumentoAdjunto, EstadoExpediente, Expediente, HistorialAccion, Notificacion, PostulanteTitular, Rol, Usuario,
 )
 
 MEDIA_TEMPORAL = tempfile.mkdtemp()
@@ -339,3 +341,49 @@ class TokensTests(SeguridadBaseTestCase):
     def test_password_incorrecta_responde_401(self):
         response = self.client.post('/api/login/', {'username': 'dataentry', 'password': 'mal'})
         self.assertEqual(response.status_code, 401)
+
+
+class NotificacionExpedienteCreadoTests(SeguridadBaseTestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.ts = self.crear_usuario('ts1', 'TS')
+        self.ts.usuario.nombre, self.ts.usuario.apellido = 'María', 'Pérez'
+        self.ts.usuario.save()
+
+    def crear_expediente(self):
+        self.client.force_authenticate(self.user_de)
+        return self.client.post('/api/postulantetitular/', {
+            'nombre': 'Juan', 'apellido': 'Gómez', 'telefono': '385', 'dni': '45000000',
+            'domicilio_actual': 'Calle 2', 'ddjj': 'DDJJ-123',
+        })
+
+    def notificaciones(self, user):
+        self.client.force_authenticate(user)
+        return [notif['mensaje'] for notif in self.client.get('/api/notificacion/').data]
+
+    def test_la_respuesta_dice_a_quien_quedo_asignado(self):
+        response = self.crear_expediente()
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data['asignado_a'], 'María Pérez')
+
+    def test_la_data_entry_recibe_la_notificacion(self):
+        self.crear_expediente()
+        self.assertEqual(self.notificaciones(self.user_de), [
+            'Expediente creado: Juan Gómez (DDJJ DDJJ-123), asignado a María Pérez',
+        ])
+
+    def test_la_trabajadora_social_sigue_recibiendo_la_suya(self):
+        self.crear_expediente()
+        self.assertEqual(self.notificaciones(self.ts), ['Nuevo caso recibido'])
+
+    def test_la_notificacion_deja_de_verse_a_los_5_dias(self):
+        self.crear_expediente()
+        Notificacion.objects.update(fecha_creacion=timezone.now() - timedelta(days=4))
+        self.assertEqual(len(self.notificaciones(self.user_de)), 1)
+
+        Notificacion.objects.update(fecha_creacion=timezone.now() - timedelta(days=6))
+        self.assertEqual(self.notificaciones(self.user_de), [])
+        # no se borra de la base, y las de la TS no vencen
+        self.assertEqual(Notificacion.objects.filter(usuario_destino=self.user_de).count(), 1)
+        self.assertEqual(self.notificaciones(self.ts), ['Nuevo caso recibido'])
