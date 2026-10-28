@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 from pathlib import Path
 from datetime import timedelta
 import os
+import sys
 import dj_database_url
 from dotenv import load_dotenv
 
@@ -118,6 +119,10 @@ DATABASES = {
     )
 }
 
+# los tests corren contra una base SQLite temporal, nunca contra la base real
+if sys.argv[1:2] == ['test']:
+    DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}}
+
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
@@ -174,8 +179,10 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    # cerrado por defecto: una vista nueva sin permission_classes pide login en vez de quedar publica.
+    # Las que deben ser publicas (login, reseteo de contrasena) ya declaran AllowAny.
     'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.AllowAny',
+        'rest_framework.permissions.IsAuthenticated',
     ),
     'DEFAULT_THROTTLE_CLASSES': ('rest_framework.throttling.ScopedRateThrottle', ),
     'DEFAULT_THROTTLE_RATES': {
@@ -184,17 +191,15 @@ REST_FRAMEWORK = {
         'token_refresh': '20/min',
 
     }
-
-    # Opcional pero recomendado: Obligar a que todos tengan token para entrar a cualquier ruta
-    # 'DEFAULT_PERMISSION_CLASSES': (
-    #     'rest_framework.permissions.IsAuthenticated',
-    # )
 }
 
 
-# para el timeout de sesiÃ³n al cabo de 5 min de inactividad  
+# el token de acceso dura 5 minutos y el frontend lo renueva solo con el refresh (ver client/src/api/axiosConfig.js).
+# Cada renovacion entrega un refresh nuevo, asi que la sesion se cierra tras 30 minutos sin usar el sistema.
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=300),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
+    'REFRESH_TOKEN_LIFETIME': timedelta(minutes=30),
+    'ROTATE_REFRESH_TOKENS': True,
 }
 
 

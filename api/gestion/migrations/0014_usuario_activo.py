@@ -9,10 +9,16 @@ class Migration(migrations.Migration):
         ('gestion', '0001_initial'),
     ]
 
+    # 0001_initial ya crea la columna "activo": si esta migracion la agregara de nuevo, un migrate sobre una
+    # base vacia falla con "column already exists". Solo actualiza el estado de Django, no toca la base.
     operations = [
-        migrations.AddField(
-            model_name='usuario',
-            name='activo',
-            field=models.BooleanField(default=True),
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.AddField(
+                    model_name='usuario',
+                    name='activo',
+                    field=models.BooleanField(default=True),
+                ),
+            ],
         ),
     ]

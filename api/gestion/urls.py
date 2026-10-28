@@ -4,8 +4,6 @@ from .views import MiLoginPersonalizadoView, UsuarioViewSet
 from rest_framework.routers import DefaultRouter
 from django.contrib import admin
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from django.conf import settings
-from django.conf.urls.static import static
 
 
 router = DefaultRouter()
@@ -43,4 +41,4 @@ urlpatterns = [
     path('api/procesar-documento/', ProcesarDocumentoView.as_view(), name='procesar_documento'),
 ]
 
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# /media/ no se sirve a proposito: los adjuntos se descargan por api/documentoadjunto/<id>/descargar/

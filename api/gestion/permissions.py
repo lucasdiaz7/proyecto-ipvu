@@ -4,10 +4,12 @@ from rest_framework.permissions import BasePermission
 def usuario_tiene_rol(request, roles):
     usuario = request.user
 
+    # la contrasena inicial es el DNI: hasta cambiarla, el usuario solo puede usar establecer-password-inicial
     return bool(
         usuario
         and usuario.is_authenticated
         and hasattr(usuario, 'usuario')
+        and not usuario.usuario.requiere_cambio_password
         and usuario.usuario.rol.nombre_rol in roles
     )
 

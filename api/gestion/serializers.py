@@ -9,6 +9,15 @@ from django.contrib.auth.tokens import default_token_generator
 from django.utils import timezone
 
 
+# los adjuntos se descargan por el endpoint protegido, nunca por /media/ (ver DocumentoAdjuntoViewSet.descargar)
+def url_descarga(documento):
+    return f'/api/documentoadjunto/{documento.id}/descargar/' if documento.archivo else None
+
+
+EXTENSIONES_ADJUNTO = ('.pdf', '.png', '.jpg', '.jpeg')
+TAMANIO_MAXIMO_ADJUNTO_MB = 10
+
+
 # textos que, cargados en el campo discapacidad, significan que el postulante no tiene discapacidad
 VALORES_SIN_DISCAPACIDAD = {'', 'ninguna', 'no', 'sin', 'sin discapacidad', '0', 'false'}
 
@@ -119,7 +128,7 @@ class ExpedienteSerializer(serializers.ModelSerializer):
                 "id": doc.id,
                 "tipo_documento": doc.tipo_documento,
                 "archivo": doc.archivo.name if doc.archivo else None,
-                "archivo_url": doc.archivo.url if doc.archivo else None,
+                "archivo_url": url_descarga(doc),
                 "historial_pases": pases_ids,
                 "pendiente_pase": not pases_ids,
             })
@@ -146,7 +155,9 @@ class UsuarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = Usuario
         fields = '__all__'
-        read_only_fields = ('usuario',)
+        # requiere_cambio_password solo lo apaga el propio usuario al elegir su password
+        # (la inicial es el DNI): si se pudiera mandar en False, la cuenta quedaria con el DNI de password
+        read_only_fields = ('usuario', 'requiere_cambio_password')
         
     def create(self, validated_data):
         dni_ingresado = validated_data.get('dni')
@@ -194,9 +205,24 @@ class DocumentoAdjuntoSerializer(serializers.ModelSerializer):
         read_only_fields = ['subido_por']
         
     def get_archivo_url(self, obj):
-        if obj.archivo:
-            return obj.archivo.url
-        return None
+        return url_descarga(obj)
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        # solo el nombre: la URL de /media/ no se expone
+        ret['archivo'] = instance.archivo.name if instance.archivo else None
+        return ret
+
+    def validate_archivo(self, archivo):
+        if archivo is None:
+            return archivo
+        if not archivo.name.lower().endswith(EXTENSIONES_ADJUNTO):
+            raise serializers.ValidationError(
+                f"Formato no soportado. Formatos válidos: {', '.join(EXTENSIONES_ADJUNTO)}"
+            )
+        if archivo.size > TAMANIO_MAXIMO_ADJUNTO_MB * 1024 * 1024:
+            raise serializers.ValidationError(f"El archivo supera los {TAMANIO_MAXIMO_ADJUNTO_MB} MB permitidos.")
+        return archivo
 
     def get_pendiente_pase(self, obj):
         return not obj.historial_pases.exists()
@@ -272,7 +298,7 @@ class HistorialPaseSerializer(serializers.ModelSerializer):
                     "id": doc.id,
                     "tipo_documento": doc.tipo_documento,
                     "archivo": doc.archivo.name if doc.archivo else None,
-                    "archivo_url": doc.archivo.url if doc.archivo else None
+                    "archivo_url": url_descarga(doc)
                 } for doc in documentos
             ]
         return []

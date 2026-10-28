@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { TrashIcon, DocumentTextIcon, PhotoIcon } from '@heroicons/react/24/outline';
-import { documentoAdjuntoService, resolverArchivoUrl } from '../../services/documentos/documentoAdjunto';
+import { documentoAdjuntoService } from '../../services/documentos/documentoAdjunto';
 
 export const AdjuntarArchivos = ({ expedienteId, adjuntosExcluidos = [], onArchivosChange }) => {
   const [archivos, setArchivos] = useState([]);
@@ -70,6 +70,16 @@ export const AdjuntarArchivos = ({ expedienteId, adjuntosExcluidos = [], onArchi
     }
   };
 
+  const abrirArchivo = async (documentoId) => {
+    try {
+      setError('');
+      await documentoAdjuntoService.abrirEnPestania(documentoId);
+    } catch (error) {
+      console.error('Error al abrir documento adjunto:', error);
+      setError('No se pudo abrir el archivo adjunto.');
+    }
+  };
+
   const removerArchivo = async (documentoId) => {
     if (!documentoId) return;
 
@@ -131,7 +141,6 @@ export const AdjuntarArchivos = ({ expedienteId, adjuntosExcluidos = [], onArchi
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3 bg-gray-50/60 p-2.5 rounded-xl border border-gray-100">
           {archivos.map((archivo) => {
             const nombreArchivo = obtenerNombreArchivo(archivo);
-            const archivoUrl = resolverArchivoUrl(archivo.archivo_url || archivo.archivo);
             const estaEliminando = eliminandoId === archivo.id;
 
             return (
@@ -145,15 +154,14 @@ export const AdjuntarArchivos = ({ expedienteId, adjuntosExcluidos = [], onArchi
                   ) : (
                     <PhotoIcon className="w-5 h-5 text-green-500 flex-shrink-0" />
                   )}
-                  <a
-                    href={archivoUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="truncate font-medium text-gray-700 hover:text-blue-600"
+                  <button
+                    type="button"
+                    onClick={() => abrirArchivo(archivo.id)}
+                    className="truncate font-medium text-gray-700 hover:text-blue-600 text-left"
                     title={nombreArchivo}
                   >
                     {nombreArchivo}
-                  </a>
+                  </button>
                 </div>
 
                 <button

@@ -8,7 +8,7 @@ import { historial } from '../../services/historial/historial';
 import { AdjuntarArchivos } from '../Archivos/AdjuntarArchivo';
 import { estadoExpediente } from '../../services/estadoEpediente/estadoExpediente';
 import { formularioPdfService } from '../../services/Formularios/formularioPdfService';
-import { resolverArchivoUrl } from '../../services/documentos/documentoAdjunto';
+import { documentoAdjuntoService, resolverArchivoUrl } from '../../services/documentos/documentoAdjunto';
 import { nombreUsuarioAsignado } from '../../utils/expedienteHelpers';
 import { useToast } from '../../context/ToastContext';
 
@@ -130,21 +130,11 @@ const DetailExpedientes = () => {
     }, [historialPases]);
 
     const descargarAdjunto = async (adjunto) => {
-        const url = obtenerUrlAdjunto(adjunto);
-        if (!url) return;
+        if (!adjunto?.id) return;
 
         try {
-            const response = await fetch(url);
-            const blob = await response.blob();
-            const urlBlob = window.URL.createObjectURL(blob);
-
-            const linkDescarga = document.createElement('a');
-            linkDescarga.href = urlBlob;
-            linkDescarga.download = obtenerNombreAdjunto(adjunto);
-            document.body.appendChild(linkDescarga);
-            linkDescarga.click();
-            linkDescarga.remove();
-            window.URL.revokeObjectURL(urlBlob);
+            // con axios viaja el token: el endpoint de descarga pide login
+            await documentoAdjuntoService.descargar(adjunto.id, obtenerNombreAdjunto(adjunto));
         } catch (error) {
             console.error('Error al descargar el adjunto:', error);
             toast.error('No se pudo descargar el archivo adjunto.');
