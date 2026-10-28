@@ -155,7 +155,9 @@ class UsuarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = Usuario
         fields = '__all__'
-        read_only_fields = ('usuario',)
+        # requiere_cambio_password solo lo apaga el propio usuario al elegir su password
+        # (la inicial es el DNI): si se pudiera mandar en False, la cuenta quedaria con el DNI de password
+        read_only_fields = ('usuario', 'requiere_cambio_password')
         
     def create(self, validated_data):
         dni_ingresado = validated_data.get('dni')

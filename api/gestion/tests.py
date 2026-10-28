@@ -31,7 +31,7 @@ def usuario_con_rol(nombre_rol):
     return SimpleNamespace(
         is_authenticated=True,
         is_active=True,
-        usuario=SimpleNamespace(rol=SimpleNamespace(nombre_rol=nombre_rol)),
+        usuario=SimpleNamespace(rol=SimpleNamespace(nombre_rol=nombre_rol), requiere_cambio_password=False),
     )
 
 
@@ -193,10 +193,13 @@ class SeguridadBaseTestCase(TestCase):
             expediente=self.expediente,
         )
 
-    def crear_usuario(self, username, nombre_rol):
-        user = User.objects.create_user(username, password='ClaveSegura123!')
-        rol = Rol.objects.create(nombre_rol=nombre_rol, descripcion=nombre_rol)
-        Usuario.objects.create(usuario=user, nombre='Test', apellido=username, dni='1', rol=rol)
+    def crear_usuario(self, username, nombre_rol, requiere_cambio_password=False):
+        user = User.objects.create_user(username, password='ClaveSegura123!', email=f'{username}@ipvu.test')
+        rol, _ = Rol.objects.get_or_create(nombre_rol=nombre_rol, defaults={'descripcion': nombre_rol})
+        Usuario.objects.create(
+            usuario=user, nombre='Test', apellido=username, dni='1', rol=rol,
+            requiere_cambio_password=requiere_cambio_password,
+        )
         return user
 
     def url_descarga(self, documento=None):

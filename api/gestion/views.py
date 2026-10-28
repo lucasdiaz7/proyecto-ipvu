@@ -165,8 +165,13 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
 
 class EstadoExpedienteViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet, UpdateModelMixin):
     queryset = EstadoExpediente.objects.all()
-    permission_classes = [IsAnyRole]
     serializer_class = EstadoExpedienteSerializer
+
+    # los estados son el catalogo del sistema: todos lo leen, solo el superadmin lo modifica
+    def get_permissions(self):
+        if self.action in ['update', 'partial_update']:
+            return [IsSuperAdmin()]
+        return [IsAnyRole()]
 
 
 #Algoritmo de asignacion de trabajadoras sociales para la creacion de expedientes
@@ -312,11 +317,12 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
         return queryset   
     
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update']:
+        # get_permissions pisa el permission_classes del @action: cada accion con permisos propios va aca
+        if self.action in ['create', 'update', 'partial_update', 'cambiar_estado']:
             return [IsDataEntry()]
         if self.action in ['destroy']:
             return [IsSuperAdmin()]
-        return [IsAnyRole()]    
+        return [IsAnyRole()]
 
     @action(detail=False, methods=['get'], url_path='reporte-estados')
     def reporte_estados(self, request):
@@ -346,36 +352,28 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
     
     @action(detail=True, methods=['patch'], permission_classes=[IsDataEntry])
     def cambiar_estado(self, request, pk=None):
-        print("\n--- 🟢 ENTRÓ A LA FUNCIÓN CAMBIAR ESTADO ---")
-        print(f"Data cruda recibida del Front: {request.data}")
-        
+        expediente = self.get_object()
+        nuevo_estado = request.data.get('estado')
+
+        if nuevo_estado not in ['AP', 'NOAP', 'NUEVAV']:
+            return Response({'error': 'Estado no válido'}, status=400)
+
         try:
-            expediente = self.get_object()
-            nuevo_estado = request.data.get('estado')
-            print(f"Estado extraído: {nuevo_estado}")
-            
-            if nuevo_estado in ['AP', 'NOAP', 'NUEVAV']:
-                # 2. Intentamos buscar el estado en la base de datos
-                estado_obj = EstadoExpediente.objects.get(nombre=nuevo_estado)
-                print(f"Objeto estado encontrado en DB: {estado_obj}")
-                
-                # 3. Asignamos y guardamos
-                expediente.estado_expediente = estado_obj
-                expediente.save()
-                print("--- ✅ ÉXITO: Expediente guardado en DB ---")
-                
-                return Response({'mensaje': 'Estado actualizado'}, status=200)
-            else:
-                print("--- 🟡 ADVERTENCIA: Cayó en el else (estado no válido) ---")
-                return Response({'error': 'Estado no válido'}, status=400)
-                
+            estado_obj = EstadoExpediente.objects.get(nombre=nuevo_estado)
         except EstadoExpediente.DoesNotExist:
-            print(f"--- 🔴 ERROR: El estado '{nuevo_estado}' NO EXISTE en tu tabla EstadoExpediente ---")
             return Response({'error': 'El estado no existe en la base de datos. Crealo primero.'}, status=404)
-            
-        except Exception as e:
-            print(f"--- 🔴 ERROR FATAL: {str(e)} ---")
-            return Response({'error': str(e)}, status=500)
+
+        estado_anterior = expediente.estado_expediente
+        expediente.estado_expediente = estado_obj
+        expediente.save()
+
+        registrar_auditoria(
+            request.user,
+            expediente,
+            f"Cambio de estado: de {estado_anterior} a {estado_obj}."
+        )
+
+        return Response({'mensaje': 'Estado actualizado'}, status=200)
         
         
         
@@ -389,7 +387,8 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     serializer_class = UsuarioSerializer
     
     def get_permissions(self):
-        if self.action in ['create', 'destroy', 'update', 'partial_update']:
+        # get_permissions pisa el permission_classes del @action: cada accion con permisos propios va aca
+        if self.action in ['create', 'destroy', 'update', 'partial_update', 'auditoria_usuarios']:
             return [IsSuperAdmin()]
         return [IsAnyRole()]
     
@@ -405,7 +404,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def auditoria_usuarios(self, request):
         try:
-            perfiles = self.get_queryset() 
+            perfiles = self.get_queryset()
             
             #filtro para mostrar solo trabajadoras sociales
             solo_ts = request.query_params.get('solo_ts')
@@ -439,11 +438,10 @@ class UsuarioViewSet(viewsets.ModelViewSet):
                 })
             return Response(resultado)
         
-        except Exception as e:
-            import traceback
-            return Response({"error_fatal": f"Error: {str(e)}",
-                "detalle": traceback.format_exc()
-            }, status=500)
+        except Exception:
+            # el detalle va al log del servidor, nunca en la respuesta (expondria codigo y rutas internas)
+            logger.exception("Error armando la auditoria de usuarios")
+            return Response({"error_fatal": "No se pudo generar la auditoría de usuarios."}, status=500)
     
     # auditoría creación de usuarios
     def perform_create(self, serializer):
@@ -660,7 +658,8 @@ class NotificacionViewSet(viewsets.ModelViewSet):
 
 class HistorialAccionViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
     queryset = HistorialAccion.objects.all()
-    permission_classes = [IsAnyRole]
+    # la auditoria muestra lo que hizo cada usuario: solo la ve el superadmin (pantalla DetalleUsuario)
+    permission_classes = [IsSuperAdmin]
     serializer_class = HistorialAccionSerializer
 
 
