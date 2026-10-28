@@ -88,6 +88,29 @@ En el servidor:
 - La carpeta `media/` no tiene que quedar dentro de una carpeta pública del servidor web.
 - Incluir `media/` en los backups junto con la base: si se pierde, se pierden los archivos de todos los expedientes.
 
+## El repositorio (`.git`) y el `.env` NO se publican
+
+Herramientas como `git-dumper` buscan `https://sitio/.git/` y, si responde, reconstruyen todo el código **con su historial** (que tiene claves viejas, como la contraseña de la base que estuvo en `api/.env`). Django no sirve esas rutas (hay un test que lo controla), así que el riesgo está en la configuración del servidor web:
+
+- El frontend se publica **solo** desde `client/build/` (lo que genera `npm run build`), nunca desde la carpeta del repositorio.
+- El backend corre con gunicorn detrás de nginx (proxy); nginx no sirve archivos de la carpeta del repo.
+- No hacer `git clone` dentro de la carpeta pública del servidor web (`/var/www/html` o similar).
+- Por las dudas, bloquear en nginx cualquier archivo o carpeta oculta:
+
+```nginx
+location ~ /\. {
+    deny all;
+    return 404;
+}
+```
+
+Para verificar después del deploy (las dos tienen que dar 404):
+
+```bash
+curl -I https://<dominio>/.git/HEAD
+curl -I https://<dominio>/.env
+```
+
 ## Permisos y sesión
 
 - `DEFAULT_PERMISSION_CLASSES` es `IsAuthenticated`: una vista nueva sin `permission_classes` pide login. Las públicas (login, reseteo de contraseña) declaran `AllowAny`.

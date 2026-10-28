@@ -362,6 +362,13 @@ class InformationDisclosureTests(StrideBaseTestCase):
         self.assertNotIn('Traceback', str(response.data))
         self.assertNotIn('detalle interno', str(response.data))
 
+    def test_el_backend_no_sirve_el_repositorio_ni_archivos_de_configuracion(self):
+        # git-dumper y similares prueban estas rutas para bajarse el codigo y el historial (con claves viejas)
+        for ruta in ['/.git/HEAD', '/.git/config', '/.env', '/api/.env', '/manage.py',
+                     '/ipvu_backend/settings.py', '/gestion/models.py', '/requirements.txt']:
+            with self.subTest(ruta=ruta):
+                self.assertEqual(self.client.get(ruta).status_code, 404)
+
     def test_la_clave_secreta_de_desarrollo_no_se_usa_en_produccion(self):
         # recordatorio para el deploy: con la SECRET_KEY por defecto cualquiera puede firmar tokens
         if not settings.DEBUG and settings.SECRET_KEY == 'your secret key':
