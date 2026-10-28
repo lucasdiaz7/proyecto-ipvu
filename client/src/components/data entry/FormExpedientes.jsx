@@ -30,7 +30,7 @@ const FormExpedientes = () => {
 
         try {
             const crearPostualnte = await postulanteTitular.crearPostulante(datos);
-            toast.success("¡Postulante Titular registrado con éxito en el IPVU!");
+            toast.success(`¡Expediente creado y asignado a ${crearPostualnte.asignado_a}!`);
             console.log("Respuesta de Django:", crearPostualnte);
             navigate("/expedientes");
         } catch (error) {
