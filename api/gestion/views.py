@@ -19,6 +19,7 @@ from django.contrib.auth.models import User
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser
 from rest_framework import status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.conf import settings
 from django.core.mail import send_mail
@@ -109,6 +110,21 @@ def crear_notificacion_recepcion_expediente(usuario_destino, expediente, pase_ac
         expediente_relacionado=expediente
     )
 
+# Regla de acceso: cada usuario (TS, LG, DE) solo ve y toca los expedientes que tiene en su poder
+# (usuario_asignado). Al hacer un pase, el expediente deja de ser suyo y deja de verlo. El superadmin ve todo.
+def filtrar_expedientes_en_poder(queryset, request, campo_expediente='expediente'):
+    if usuario_tiene_rol(request, ['SU']):
+        return queryset
+    return queryset.filter(**{f'{campo_expediente}__usuario_asignado': request.user}).distinct()
+
+
+def validar_expediente_en_poder(request, expediente):
+    if expediente is None or usuario_tiene_rol(request, ['SU']):
+        return
+    if expediente.usuario_asignado_id != request.user.id:
+        raise PermissionDenied('El expediente no está en tu poder: pedí que te lo pasen.')
+
+
 def registrar_auditoria(user_request, expediente, mensaje):
     """
     Guarda un registro en HistorialAccion.
@@ -129,6 +145,9 @@ def registrar_auditoria(user_request, expediente, mensaje):
 class PostulanteTitularViewSet(viewsets.ModelViewSet):
     queryset = PostulanteTitular.objects.all()
     serializer_class = PostulanteTitularSerializer
+
+    def get_queryset(self):
+        return filtrar_expedientes_en_poder(PostulanteTitular.objects.all(), self.request)
 
     def perform_create(self, serializer):   
         ddjj = serializer.validated_data.pop('ddjj')
@@ -317,8 +336,9 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
         return queryset   
     
     def get_permissions(self):
-        # get_permissions pisa el permission_classes del @action: cada accion con permisos propios va aca
-        if self.action in ['create', 'update', 'partial_update', 'cambiar_estado']:
+        # cambiar_estado (Apto / No apto / Nueva visita) lo usan todos los roles, siempre sobre
+        # expedientes en su poder: get_object() ya filtra por get_queryset
+        if self.action in ['create', 'update', 'partial_update']:
             return [IsDataEntry()]
         if self.action in ['destroy']:
             return [IsSuperAdmin()]
@@ -350,7 +370,7 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
         return response
     
     
-    @action(detail=True, methods=['patch'], permission_classes=[IsDataEntry])
+    @action(detail=True, methods=['patch'])
     def cambiar_estado(self, request, pk=None):
         expediente = self.get_object()
         nuevo_estado = request.data.get('estado')
@@ -502,6 +522,7 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
     
     #auditoría de subida
     def perform_create(self, serializer):
+        validar_expediente_en_poder(self.request, serializer.validated_data.get('expediente'))
         documento = serializer.save(subido_por = self.request.user)
 
         perfil_usuario = getattr(self.request.user, 'usuario', None)
@@ -513,7 +534,7 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
             )
     
     def get_queryset(self):
-        queryset = DocumentoAdjunto.objects.all()
+        queryset = filtrar_expedientes_en_poder(DocumentoAdjunto.objects.all(), self.request)
         expediente_id = self.request.query_params.get('expediente')
         
         if expediente_id:
@@ -582,6 +603,8 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
     serializer_class = HistorialPaseSerializer
     
     def perform_create(self, serializer):
+        # solo quien tiene el expediente en su poder lo puede pasar
+        validar_expediente_en_poder(self.request, serializer.validated_data.get('expediente'))
         pase = serializer.save(usuario_origen = self.request.user)
         expediente = pase.expediente
 
@@ -617,6 +640,7 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
             )
             .prefetch_related('documentos_adjuntos')
         )
+        queryset = filtrar_expedientes_en_poder(queryset, self.request)
         expediente_id = self.request.query_params.get('expediente')
         usuario_id = self.request.query_params.get('usuario')
         
@@ -735,8 +759,8 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
     serializer_class = FormularioSocioHabitacionalSerializer
     
     def get_queryset(self):
-        queryset = FormularioSocioHabitacional.objects.all()
-        expediente_id = self.request.query_params.get('expediente') 
+        queryset = filtrar_expedientes_en_poder(FormularioSocioHabitacional.objects.all(), self.request)
+        expediente_id = self.request.query_params.get('expediente')
         
         if expediente_id:
             queryset = queryset.filter(expediente_id = expediente_id)
@@ -745,6 +769,7 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
             
     
     def perform_create(self, serializer):
+        validar_expediente_en_poder(self.request, serializer.validated_data.get('expediente'))
         formulario = serializer.save()
         expediente = formulario.expediente
         estado_1v = EstadoExpediente.objects.get(nombre='1V')

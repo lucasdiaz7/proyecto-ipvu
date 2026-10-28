@@ -105,13 +105,12 @@ python manage.py test gestion
 
 `gestion/tests_stride.py` prueba el backend contra las 6 categorías de STRIDE (suplantación, alteración, repudio, filtración de datos, denegación de servicio y elevación de privilegios). Corren con `python manage.py test gestion`.
 
-Los tests con `@expectedFailure` son **vulnerabilidades abiertas**: todas son la misma falta de control por expediente. Cualquier usuario con rol puede, sobre expedientes que **no** tiene asignados:
+Regla de acceso que hace cumplir el backend (y prueban los tests):
 
-- ver y descargar sus documentos, ver sus postulantes, formularios y pases;
-- subir o borrar documentos, editar el informe socio-habitacional;
-- hacerle un pase (y con eso reasignárselo a sí mismo).
-
-Para cerrarlas hay que definir quién puede tocar qué expediente (por ejemplo: Data Entry sube documentos a expedientes que no tiene asignados, Legales y el superadmin ven todo). Cuando se arregle una, el test pasa a "unexpected success" y hay que borrarle el decorador.
+- Trabajadora social, Legales y Data Entry **solo ven y tocan los expedientes que tienen en su poder** (asignados): sus documentos, postulante, formulario y pases.
+- Para trabajar un expediente ajeno hay que pedir que te lo pasen. Al hacer un pase, quien lo envía deja de verlo.
+- Apto / No apto / Nueva visita lo puede poner cualquier rol, sobre sus expedientes.
+- El superadmin ve todo y es el único que ve la auditoría.
 
 ## Pendientes de seguridad que no son claves
 

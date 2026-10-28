@@ -8,12 +8,11 @@ Pruebas de seguridad organizadas segun STRIDE:
   D - Denial of service                    -> DenialOfServiceTests
   E - Elevation of privilege               -> ElevationOfPrivilegeTests
 
-Los tests marcados con @expectedFailure son VULNERABILIDADES ABIERTAS: describen el comportamiento seguro
-y hoy fallan. Cuando se arreglen, Django los va a marcar como "unexpected success": ahi se borra el decorador.
+Regla de acceso que prueban: cada usuario (TS, LG, DE) solo ve y toca los expedientes que tiene en su poder;
+al hacer un pase deja de verlo. Solo el superadmin ve todo y solo el ve la auditoria.
 """
 import re
 from datetime import timedelta
-from unittest import expectedFailure
 
 import jwt
 from django.conf import settings
@@ -219,9 +218,8 @@ class TamperingTests(StrideBaseTestCase):
         response = self.como(self.user_de).patch(f'/api/expediente/{exp_de.id}/cambiar_estado/', {'estado': 'SINI'})
         self.assertEqual(response.status_code, 400)
 
-    @expectedFailure
     def test_no_se_puede_hacer_un_pase_de_un_expediente_ajeno(self):
-        # VULNERABILIDAD ABIERTA: cualquier rol crea pases de cualquier expediente y se lo puede reasignar
+        # cualquier rol crea pases de cualquier expediente y se lo puede reasignar
         response = self.como(self.ts2).post('/api/historialpase/', {
             'expediente': self.exp_ts1.id, 'usuario_destino': self.ts2.id,
         })
@@ -229,22 +227,19 @@ class TamperingTests(StrideBaseTestCase):
         self.exp_ts1.refresh_from_db()
         self.assertEqual(self.exp_ts1.usuario_asignado, self.ts1)
 
-    @expectedFailure
     def test_no_se_puede_borrar_un_documento_de_un_expediente_ajeno(self):
-        # VULNERABILIDAD ABIERTA: cualquier rol borra adjuntos de cualquier expediente
+        # cualquier rol borra adjuntos de cualquier expediente
         response = self.como(self.ts2).delete(f'/api/documentoadjunto/{self.doc_ts1.id}/')
         self.assertIn(response.status_code, (403, 404))
         self.assertTrue(DocumentoAdjunto.objects.filter(id=self.doc_ts1.id).exists())
 
-    @expectedFailure
     def test_no_se_puede_editar_el_formulario_de_un_expediente_ajeno(self):
-        # VULNERABILIDAD ABIERTA: cualquier TS edita el informe socio-habitacional de cualquier expediente
+        # cualquier TS edita el informe socio-habitacional de cualquier expediente
         response = self.como(self.ts2).patch(f'/api/formulario/{self.form_ts1.id}/', {'grupo_familiar': 'alterado'})
         self.assertIn(response.status_code, (403, 404))
 
-    @expectedFailure
     def test_no_se_puede_subir_un_documento_a_un_expediente_ajeno(self):
-        # VULNERABILIDAD ABIERTA: cualquier rol adjunta archivos a cualquier expediente
+        # cualquier rol adjunta archivos a cualquier expediente
         response = self.como(self.ts2).post('/api/documentoadjunto/', {
             'expediente': self.exp_ts1.id, 'tipo_documento': 'x', 'archivo': SimpleUploadedFile('c.pdf', b'%PDF'),
         }, format='multipart')
@@ -372,32 +367,58 @@ class InformationDisclosureTests(StrideBaseTestCase):
         if not settings.DEBUG and settings.SECRET_KEY == 'your secret key':
             self.skipTest('SECRET_KEY de desarrollo: en el servidor definir SECRET_KEY (ver SEGURIDAD_DEPLOY.md)')
 
-    @expectedFailure
     def test_una_ts_no_descarga_documentos_de_expedientes_ajenos(self):
-        # VULNERABILIDAD ABIERTA: el endpoint de descarga pide login y rol, pero no que el expediente sea suyo
+        # el endpoint de descarga pide login y rol, pero no que el expediente sea suyo
         self.assertIn(self.como(self.ts2).get(f'/api/documentoadjunto/{self.doc_ts1.id}/descargar/').status_code, (403, 404))
 
-    @expectedFailure
     def test_una_ts_no_lista_documentos_de_expedientes_ajenos(self):
-        # VULNERABILIDAD ABIERTA
         data = self.como(self.ts2).get('/api/documentoadjunto/').data
         self.assertNotIn(self.doc_ts1.id, [doc['id'] for doc in data])
 
-    @expectedFailure
     def test_una_ts_no_ve_postulantes_ajenos(self):
-        # VULNERABILIDAD ABIERTA: /api/postulantetitular/ devuelve DNI, ingresos y domicilio de todos
+        # /api/postulantetitular/ devuelve DNI, ingresos y domicilio de todos
         response = self.como(self.ts2).get(f'/api/postulantetitular/{self.exp_ts1.postulante_titular.id}/')
         self.assertEqual(response.status_code, 404)
 
-    @expectedFailure
     def test_una_ts_no_ve_formularios_ajenos(self):
-        # VULNERABILIDAD ABIERTA: el informe socio-habitacional (salud, economia) de cualquier expediente
+        # el informe socio-habitacional (salud, economia) de cualquier expediente
         self.assertEqual(self.como(self.ts2).get(f'/api/formulario/{self.form_ts1.id}/').status_code, 404)
 
-    @expectedFailure
     def test_una_ts_no_ve_pases_de_expedientes_ajenos(self):
-        # VULNERABILIDAD ABIERTA
         self.assertEqual(self.como(self.ts2).get(f'/api/historialpase/{self.pase_ts1.id}/').status_code, 404)
+
+    def test_legales_solo_ve_lo_que_tiene_asignado(self):
+        exp_lg = self.crear_expediente('20888888', self.lg)
+        cliente = self.como(self.lg)
+        self.assertEqual([exp['id'] for exp in cliente.get('/api/expediente/').data], [exp_lg.id])
+        self.assertEqual(cliente.get(f'/api/expediente/{self.exp_ts1.id}/').status_code, 404)
+        self.assertEqual(cliente.get(f'/api/documentoadjunto/{self.doc_ts1.id}/descargar/').status_code, 404)
+
+    def test_el_superadmin_ve_todo(self):
+        cliente = self.como(self.su)
+        self.assertEqual(cliente.get(f'/api/expediente/{self.exp_ts1.id}/').status_code, 200)
+        self.assertEqual(cliente.get(f'/api/documentoadjunto/{self.doc_ts1.id}/descargar/').status_code, 200)
+        self.assertEqual(cliente.get(f'/api/formulario/{self.form_ts1.id}/').status_code, 200)
+        self.assertEqual(cliente.get(f'/api/historialpase/{self.pase_ts1.id}/').status_code, 200)
+
+    def test_al_pasar_un_expediente_la_ts_deja_de_verlo(self):
+        cliente = self.como(self.ts1)
+        response = cliente.post('/api/historialpase/', {'expediente': self.exp_ts1.id, 'usuario_destino': self.lg.id})
+        self.assertEqual(response.status_code, 201)
+
+        self.assertEqual(cliente.get(f'/api/expediente/{self.exp_ts1.id}/').status_code, 404)
+        self.assertEqual(cliente.get(f'/api/documentoadjunto/{self.doc_ts1.id}/descargar/').status_code, 404)
+        self.assertEqual(cliente.get(f'/api/formulario/{self.form_ts1.id}/').status_code, 404)
+        self.assertEqual(cliente.get(f'/api/historialpase/?expediente={self.exp_ts1.id}').data, [])
+        # y quien lo recibe ahora si lo ve
+        self.assertEqual(self.como(self.lg).get(f'/api/expediente/{self.exp_ts1.id}/').status_code, 200)
+
+    def test_data_entry_sigue_pudiendo_cargar_postulantes_nuevos(self):
+        response = self.como(self.user_de).post('/api/postulantetitular/', {
+            'nombre': 'Nuevo', 'apellido': 'Postulante', 'telefono': '385', 'dni': '45000000',
+            'domicilio_actual': 'Calle 2', 'ddjj': 'DDJJ-1',
+        })
+        self.assertEqual(response.status_code, 201)
 
 
 # ---------------------------------------------------------------------------
@@ -471,11 +492,20 @@ class ElevationOfPrivilegeTests(StrideBaseTestCase):
                 self.assertEqual(self.como(user).post('/api/postulantetitular/', {}).status_code, 403)
                 self.assertEqual(self.como(user).post('/api/expediente/', {}).status_code, 403)
 
-    def test_solo_data_entry_cambia_el_estado(self):
-        for user in [self.ts1, self.lg, self.su]:
+    def test_todos_los_roles_ponen_apto_no_apto_en_sus_expedientes(self):
+        for user in [self.ts1, self.lg, self.user_de]:
+            with self.subTest(user=user.username):
+                expediente = self.crear_expediente(f'3{user.id:07d}', user)
+                response = self.como(user).patch(f'/api/expediente/{expediente.id}/cambiar_estado/', {'estado': 'AP'})
+                self.assertEqual(response.status_code, 200)
+
+    def test_nadie_cambia_el_estado_de_un_expediente_ajeno(self):
+        for user in [self.ts2, self.lg, self.user_de]:
             with self.subTest(user=user.username):
                 response = self.como(user).patch(f'/api/expediente/{self.exp_ts1.id}/cambiar_estado/', {'estado': 'AP'})
-                self.assertEqual(response.status_code, 403)
+                self.assertEqual(response.status_code, 404)
+        self.exp_ts1.refresh_from_db()
+        self.assertEqual(self.exp_ts1.estado_expediente, self.estado_sini)
 
     def test_solo_la_trabajadora_social_carga_el_informe(self):
         for user in [self.user_de, self.lg]:
