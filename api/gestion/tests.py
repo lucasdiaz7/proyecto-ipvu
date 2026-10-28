@@ -138,3 +138,201 @@ class ProcesarDocumentoViewTests(SimpleTestCase):
     def test_error_interno_de_ia_responde_502(self, mock_post):
         mock_post.return_value = respuesta_http(500, {'detail': 'Fallo de OCR'})
         self.assertEqual(self.enviar(self.pdf()).status_code, 502)
+
+
+# ---------------------------------------------------------------------------
+# Seguridad: documentos adjuntos, permisos por defecto y tokens.
+# Corren contra una base SQLite temporal (ver settings.py) y una carpeta media temporal.
+# ---------------------------------------------------------------------------
+
+import shutil
+import tempfile
+
+from django.contrib.auth.models import User
+from django.core.cache import cache
+from django.test import TestCase, override_settings
+from rest_framework.test import APIClient
+from rest_framework_simplejwt.tokens import AccessToken
+
+from .models import (
+    DocumentoAdjunto, EstadoExpediente, Expediente, HistorialAccion, PostulanteTitular, Rol, Usuario,
+)
+
+MEDIA_TEMPORAL = tempfile.mkdtemp()
+
+
+@override_settings(MEDIA_ROOT=MEDIA_TEMPORAL)
+class SeguridadBaseTestCase(TestCase):
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(MEDIA_TEMPORAL, ignore_errors=True)
+
+    def setUp(self):
+        # los limites de intentos (5 logins por minuto) se guardan en cache: se limpian en cada test
+        cache.clear()
+        self.client = APIClient()
+
+        self.user_de = self.crear_usuario('dataentry', 'DE')
+        self.user_sin_perfil = User.objects.create_user('sinperfil', password='ClaveSegura123!')
+
+        postulante = PostulanteTitular.objects.create(
+            nombre='Ana', apellido='Gomez', telefono='3850000000', dni='30111222', domicilio_actual='Calle 1',
+        )
+        estado = EstadoExpediente.objects.create(nombre='SINI')
+        # DE/TS/LG solo ven los expedientes que tienen asignados
+        self.expediente = Expediente.objects.create(
+            postulante_titular=postulante, estado_expediente=estado, usuario_asignado=self.user_de,
+        )
+
+        self.documento = DocumentoAdjunto.objects.create(
+            tipo_documento='DNI',
+            archivo=SimpleUploadedFile('dni.pdf', b'%PDF-1.4 dni de prueba', content_type='application/pdf'),
+            subido_por=self.user_de,
+            expediente=self.expediente,
+        )
+
+    def crear_usuario(self, username, nombre_rol):
+        user = User.objects.create_user(username, password='ClaveSegura123!')
+        rol = Rol.objects.create(nombre_rol=nombre_rol, descripcion=nombre_rol)
+        Usuario.objects.create(usuario=user, nombre='Test', apellido=username, dni='1', rol=rol)
+        return user
+
+    def url_descarga(self, documento=None):
+        return f'/api/documentoadjunto/{(documento or self.documento).id}/descargar/'
+
+
+class DescargaDocumentosTests(SeguridadBaseTestCase):
+
+    def test_sin_login_no_se_puede_descargar(self):
+        response = self.client.get(self.url_descarga())
+        self.assertEqual(response.status_code, 401)
+
+    def test_usuario_sin_rol_no_puede_descargar(self):
+        self.client.force_authenticate(self.user_sin_perfil)
+        self.assertEqual(self.client.get(self.url_descarga()).status_code, 403)
+
+    def test_usuario_con_rol_descarga_el_archivo_y_queda_auditado(self):
+        self.client.force_authenticate(self.user_de)
+        response = self.client.get(self.url_descarga())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(b''.join(response.streaming_content), b'%PDF-1.4 dni de prueba')
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertTrue(HistorialAccion.objects.filter(
+            id_expediente=self.expediente, mensaje_accion__startswith='DOWNLOAD',
+        ).exists())
+
+    def test_archivo_borrado_del_disco_responde_404(self):
+        self.documento.archivo.storage.delete(self.documento.archivo.name)
+        self.client.force_authenticate(self.user_de)
+        self.assertEqual(self.client.get(self.url_descarga()).status_code, 404)
+
+    def test_la_carpeta_media_no_es_publica(self):
+        response = self.client.get(f'/media/{self.documento.archivo.name}')
+        self.assertEqual(response.status_code, 404)
+
+    def test_la_api_no_expone_la_url_de_media(self):
+        self.client.force_authenticate(self.user_de)
+        urls = [
+            self.client.get(f'/api/documentoadjunto/?expediente={self.expediente.id}').data[0]['archivo_url'],
+            self.client.get(f'/api/expediente/{self.expediente.id}/').data['documentos_adjuntos'][0]['archivo_url'],
+        ]
+        for url in urls:
+            with self.subTest(url=url):
+                self.assertEqual(url, self.url_descarga())
+
+        archivo = self.client.get(f'/api/documentoadjunto/{self.documento.id}/').data['archivo']
+        self.assertNotIn('/media/', archivo)
+
+
+class SubidaDocumentosTests(SeguridadBaseTestCase):
+
+    def subir(self, nombre, contenido=b'%PDF-1.4 contenido'):
+        self.client.force_authenticate(self.user_de)
+        return self.client.post('/api/documentoadjunto/', {
+            'expediente': self.expediente.id,
+            'tipo_documento': nombre,
+            'archivo': SimpleUploadedFile(nombre, contenido),
+        }, format='multipart')
+
+    def test_acepta_pdf_e_imagenes(self):
+        for nombre in ['ddjj.pdf', 'foto.JPG', 'foto.jpeg', 'scan.png']:
+            with self.subTest(nombre=nombre):
+                self.assertEqual(self.subir(nombre).status_code, 201)
+
+    def test_rechaza_otros_formatos(self):
+        for nombre in ['virus.exe', 'pagina.html', 'script.js', 'planilla.xlsx']:
+            with self.subTest(nombre=nombre):
+                self.assertEqual(self.subir(nombre).status_code, 400)
+
+    @patch('gestion.serializers.TAMANIO_MAXIMO_ADJUNTO_MB', 0)
+    def test_rechaza_archivos_demasiado_grandes(self):
+        self.assertEqual(self.subir('ddjj.pdf').status_code, 400)
+
+    def test_sin_login_no_se_puede_subir(self):
+        response = self.client.post('/api/documentoadjunto/', {'tipo_documento': 'x'}, format='multipart')
+        self.assertEqual(response.status_code, 401)
+
+
+class PermisosPorDefectoTests(SeguridadBaseTestCase):
+
+    def test_endpoints_privados_piden_login(self):
+        for url in ['/api/expediente/', '/api/postulantetitular/', '/api/usuario/', '/api/documentoadjunto/',
+                    '/api/historialaccion/', '/api/historialpase/', '/api/notificacion/', '/api/formulario/',
+                    '/api/rol/', '/api/estadoexpediente/']:
+            with self.subTest(url=url):
+                self.assertEqual(self.client.get(url).status_code, 401)
+
+    def test_endpoints_publicos_siguen_abiertos(self):
+        response = self.client.post('/api/password-reset/solicitar/', {'email': 'nadie@ejemplo.com'})
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.post('/api/login/', {'username': 'dataentry', 'password': 'ClaveSegura123!'})
+        self.assertEqual(response.status_code, 200)
+
+    def test_con_login_y_rol_se_accede(self):
+        self.client.force_authenticate(self.user_de)
+        self.assertEqual(self.client.get('/api/expediente/').status_code, 200)
+
+
+class TokensTests(SeguridadBaseTestCase):
+
+    def login(self):
+        response = self.client.post('/api/login/', {'username': 'dataentry', 'password': 'ClaveSegura123!'})
+        self.assertEqual(response.status_code, 200)
+        return response.data
+
+    def test_login_entrega_access_y_refresh(self):
+        data = self.login()
+        self.assertIn('access', data)
+        self.assertIn('refresh', data)
+        self.assertEqual(data['rol_id'], self.user_de.usuario.rol.id)
+
+    def test_el_access_dura_5_minutos(self):
+        token = AccessToken(self.login()['access'])
+        self.assertEqual(token['exp'] - token['iat'], 5 * 60)
+
+    def test_refresh_entrega_tokens_nuevos(self):
+        data = self.login()
+        response = self.client.post('/api/token/refresh/', {'refresh': data['refresh']})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('access', response.data)
+        # rotacion: cada renovacion devuelve un refresh nuevo, asi la sesion vence por inactividad
+        self.assertIn('refresh', response.data)
+        self.assertNotEqual(response.data['refresh'], data['refresh'])
+
+    def test_el_token_sirve_para_llamar_a_la_api(self):
+        access = self.login()['access']
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {access}')
+        self.assertEqual(self.client.get('/api/expediente/').status_code, 200)
+
+    def test_token_invalido_responde_401(self):
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer token-falso')
+        self.assertEqual(self.client.get('/api/expediente/').status_code, 401)
+
+    def test_password_incorrecta_responde_401(self):
+        response = self.client.post('/api/login/', {'username': 'dataentry', 'password': 'mal'})
+        self.assertEqual(response.status_code, 401)

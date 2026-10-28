@@ -9,10 +9,11 @@ export const authService = {
                 password: password
             });
 
-            console.log('response.data :>> ', response.data);
             if (response.data.access) {
                 // Guardamos el token JWT (usamos el .access que manda tu back)
                 localStorage.setItem("token", response.data.access);
+                // con el refresh se renueva el token cada 5 minutos sin volver a loguearse (ver axiosConfig.js)
+                localStorage.setItem("refresh", response.data.refresh);
                 localStorage.setItem("usuarioLogueado", String(response.data.username));
                 localStorage.setItem("nombre_completo", response.data.nombre_completo);
 

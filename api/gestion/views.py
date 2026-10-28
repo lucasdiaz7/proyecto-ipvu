@@ -3,7 +3,7 @@ import os
 import logging
 import io
 
-from django.http import HttpResponse
+from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import render
 from rest_framework import viewsets, permissions
 from .models import *
@@ -540,6 +540,29 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
                 mensaje_accion=f'Borrar documento: Eliminó el archivo "{nombre_archivo}".'
             )
     
+    # Los archivos NO se sirven por /media/ (quedarian publicos para cualquiera con la URL):
+    # se descargan solo por aca, con login y rol, y cada descarga queda en la auditoria.
+    @action(detail=True, methods=['get'], url_path='descargar')
+    def descargar(self, request, pk=None):
+        documento = self.get_object()
+
+        if not documento.archivo:
+            raise Http404('El documento no tiene archivo')
+        try:
+            archivo = documento.archivo.open('rb')
+        except FileNotFoundError:
+            raise Http404('No se encontro el archivo en el servidor')
+
+        perfil_usuario = getattr(request.user, 'usuario', None)
+        if perfil_usuario:
+            HistorialAccion.objects.create(
+                id_usuario_accion=perfil_usuario,
+                id_expediente=documento.expediente,
+                mensaje_accion=f'DOWNLOAD: Descargó el archivo "{documento.archivo.name}".'
+            )
+
+        return FileResponse(archivo, filename=os.path.basename(documento.archivo.name))
+
     #nueva ruta: auditoría de descarga
     @action(detail=True, methods=['get'], url_path='registrar-descarga')
     def registrar_descarga(self, request, pk=None):

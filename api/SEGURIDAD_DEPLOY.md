@@ -76,10 +76,34 @@ Activarlas obligaría a usar HTTPS en **todos** los subdominios del dominio. En 
 
 Si aparece cualquier otra advertencia (`SECRET_KEY`, `DEBUG`, cookies, HTTPS), revisar la variable correspondiente.
 
+## Documentos adjuntos: la carpeta `media/` NO se publica
+
+Los adjuntos (DNI, DDJJ, etc.) se guardan en `api/media/` y **solo** se descargan por
+`/api/documentoadjunto/<id>/descargar/`, que pide login y rol y deja la descarga en la auditoría.
+Django ya no sirve `/media/` (ni en desarrollo).
+
+En el servidor:
+
+- **No** configurar nginx/Apache para servir `/media/` (es lo que suelen indicar los tutoriales de Django: acá no va).
+- La carpeta `media/` no tiene que quedar dentro de una carpeta pública del servidor web.
+- Incluir `media/` en los backups junto con la base: si se pierde, se pierden los archivos de todos los expedientes.
+
+## Permisos y sesión
+
+- `DEFAULT_PERMISSION_CLASSES` es `IsAuthenticated`: una vista nueva sin `permission_classes` pide login. Las públicas (login, reseteo de contraseña) declaran `AllowAny`.
+- El token de acceso dura 5 minutos y el frontend lo renueva solo con el refresh (`client/src/api/axiosConfig.js`). Después de 30 minutos sin usar el sistema, la sesión se cierra.
+
+## Base nueva en el servidor
+
+`python manage.py migrate` funciona sobre una base vacía (las migraciones 0014 y 0015 que repetían cambios de `0001_initial` ya no tocan la base). Los tests crean la base desde cero (en SQLite) y sirven de primera comprobación; la definitiva es correr `migrate` contra el PostgreSQL vacío del servidor:
+
+```bash
+python manage.py test gestion
+```
+
 ## Pendientes de seguridad que no son claves
 
 Conviene resolverlos antes de producción. No se tocaron todavía porque cambian el comportamiento de la API:
 
-- `DEFAULT_PERMISSION_CLASSES` es `AllowAny` en `settings.py`: toda vista que no defina sus propios permisos queda abierta sin login.
-- Las tablas de la base no tienen RLS activado (Supabase lo marca como error en el Security Advisor).
+- Las tablas de la base no tienen RLS activado (Supabase lo marca como error en el Security Advisor). Deja de aplicar cuando la base se mude al servidor de la provincia.
 - `SECURE_HSTS_SECONDS` arranca en una hora; subirlo (por ejemplo, a un año) cuando se confirme que todo funciona por HTTPS.
