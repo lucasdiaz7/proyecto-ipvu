@@ -173,7 +173,10 @@ class FormularioSocioHabitacional(models.Model):
     nivel_estudios=models.CharField(max_length=100, blank=True)
     relevamiento_vecinal=models.TextField(blank=True)
     observaciones=models.TextField(blank=True)
-    
+    # domicilio donde la Trabajadora Social hizo la visita. El microservicio de IA lo compara con el que
+    # declaro el titular en la DDJJ. Es opcional y no cuenta para el estado del formulario.
+    domicilio_constatado=models.CharField(max_length=200, blank=True)
+
 
     #FK
     expediente = models.ForeignKey(Expediente, on_delete=models.CASCADE)

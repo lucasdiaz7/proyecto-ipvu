@@ -387,3 +387,126 @@ class NotificacionExpedienteCreadoTests(SeguridadBaseTestCase):
         # no se borra de la base, y las de la TS no vencen
         self.assertEqual(Notificacion.objects.filter(usuario_destino=self.user_de).count(), 1)
         self.assertEqual(self.notificaciones(self.ts), ['Nuevo caso recibido'])
+
+
+# ---------------------------------------------------------------------------
+# Semaforo de inconsistencias (fase 2 del microservicio de IA)
+# ---------------------------------------------------------------------------
+
+from .models import FormularioSocioHabitacional
+
+# respuesta real del microservicio de IA (v2.0.0) para un expediente con inconsistencias
+RESPUESTA_SEMAFORO = {
+    "id_tramite": "1",
+    "semaforo": "ROJO",
+    "total_inconsistencias": 2,
+    "detalles": [
+        {
+            "campo": "numero_ddjj / dj_n", "valor_ddjj": "123", "valor_informe": "124",
+            "descripcion": "El número de Declaración Jurada (DDJJ) no coincide.", "severidad": "ALTA",
+        },
+        {
+            "campo": "domicilio", "valor_ddjj": "Calle 1", "valor_informe": "Calle 2",
+            "descripcion": "El domicilio actual declarado difiere del constatado.", "severidad": "media",
+        },
+    ],
+    "datos_ddjj": {},
+    "datos_informe": {},
+}
+
+CAMPOS_FORMULARIO_COMPLETO = {campo: 'dato cargado' for campo in FormularioSocioHabitacional.CAMPOS_DE_ESTADO}
+
+
+class NormalizarSemaforoTests(SimpleTestCase):
+
+    def test_devuelve_semaforo_e_inconsistencias(self):
+        resultado = ia_client.normalizar_semaforo(RESPUESTA_SEMAFORO)
+        self.assertEqual(resultado['semaforo'], 'ROJO')
+        self.assertEqual(resultado['total_inconsistencias'], 2)
+        self.assertEqual(resultado['inconsistencias'][1], {
+            'campo': 'domicilio', 'valor_ddjj': 'Calle 1', 'valor_informe': 'Calle 2',
+            'descripcion': 'El domicilio actual declarado difiere del constatado.', 'severidad': 'MEDIA',
+        })
+
+    def test_sin_detalles_queda_lista_vacia(self):
+        resultado = ia_client.normalizar_semaforo({'semaforo': 'verde', 'detalles': None})
+        self.assertEqual(resultado, {'semaforo': 'VERDE', 'total_inconsistencias': 0, 'inconsistencias': []})
+
+    def test_semaforo_desconocido_es_error(self):
+        with self.assertRaises(ia_client.IAServiceError):
+            ia_client.normalizar_semaforo({'semaforo': 'AZUL'})
+
+
+@patch('gestion.ia_client.requests.post')
+class EvaluarSemaforoTests(SeguridadBaseTestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.expediente.DDJJ = '123'
+        self.expediente.save()
+        self.client.force_authenticate(self.user_de)
+
+    def url(self, expediente=None):
+        return f'/api/expediente/{(expediente or self.expediente).id}/evaluar-semaforo/'
+
+    def crear_formulario(self, **campos):
+        return FormularioSocioHabitacional.objects.create(
+            expediente=self.expediente, **{**CAMPOS_FORMULARIO_COMPLETO, **campos}
+        )
+
+    def test_sin_formulario_completo_no_llama_a_ia(self, mock_post):
+        self.assertEqual(self.client.post(self.url()).status_code, 400)
+        self.crear_formulario(observaciones='')
+        response = self.client.post(self.url())
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('formulario socio-habitacional', response.data['error'])
+        mock_post.assert_not_called()
+
+    def test_envia_ddjj_e_informe_y_devuelve_semaforo(self, mock_post):
+        mock_post.return_value = respuesta_http(200, RESPUESTA_SEMAFORO)
+        self.crear_formulario(domicilio_constatado='Calle 2', situacion_salud='Sin problemas')
+
+        response = self.client.post(self.url())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['semaforo'], 'ROJO')
+        self.assertEqual(len(response.data['inconsistencias']), 2)
+
+        self.assertTrue(mock_post.call_args.args[0].endswith('/evaluar-semaforo'))
+        payload = mock_post.call_args.kwargs['json']
+        self.assertEqual(payload['id_tramite'], str(self.expediente.id))
+        self.assertEqual(payload['datos_ddjj']['numero_ddjj'], '123')
+        self.assertEqual(payload['datos_ddjj']['dni_titular'], '30111222')
+        self.assertEqual(payload['datos_ddjj']['domicilio_actual'], 'Calle 1')
+        self.assertEqual(payload['datos_ddjj']['discapacidad'], 'No')
+        self.assertEqual(payload['datos_informe']['dj_n'], '123')
+        self.assertEqual(payload['datos_informe']['domicilio'], 'Calle 2')
+        self.assertEqual(payload['datos_informe']['situacion_de_salud'], 'Sin problemas')
+        self.assertEqual(payload['datos_informe']['profesional_actuante'], 'dataentry, Test')
+
+        self.assertTrue(HistorialAccion.objects.filter(
+            id_expediente=self.expediente, mensaje_accion__contains='semáforo ROJO'
+        ).exists())
+
+    def test_domicilio_constatado_vacio_viaja_como_none(self, mock_post):
+        # el microservicio solo compara domicilios cuando los dos vienen cargados
+        mock_post.return_value = respuesta_http(200, {'semaforo': 'VERDE', 'detalles': []})
+        self.crear_formulario()
+        self.client.post(self.url())
+        self.assertIsNone(mock_post.call_args.kwargs['json']['datos_informe']['domicilio'])
+
+    def test_expediente_que_no_esta_en_poder_responde_404(self, mock_post):
+        self.crear_formulario()
+        self.client.force_authenticate(self.crear_usuario('otrade', 'DE'))
+        self.assertEqual(self.client.post(self.url()).status_code, 404)
+        mock_post.assert_not_called()
+
+    def test_ia_caida_responde_503(self, mock_post):
+        mock_post.side_effect = requests.ConnectionError()
+        self.crear_formulario()
+        self.assertEqual(self.client.post(self.url()).status_code, 503)
+
+    def test_error_interno_de_ia_responde_502(self, mock_post):
+        mock_post.return_value = respuesta_http(500, {'detail': 'Fallo del motor de reglas'})
+        self.crear_formulario()
+        self.assertEqual(self.client.post(self.url()).status_code, 502)

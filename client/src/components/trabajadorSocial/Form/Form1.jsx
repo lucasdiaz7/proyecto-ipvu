@@ -32,6 +32,7 @@ const Form1 = () => {
         if (isEditMode && datosPrevios) {
             reset({
                 casoDeReferencia: datosPrevios.caso_referencia || "",
+                domicilioConstatado: datosPrevios.domicilio_constatado || "",
                 grupoFamiliarConstituyente: datosPrevios.grupo_familiar || "",
                 situacionHabitacional: datosPrevios.situacion_habitacional || "",
                 aspectoEconomico: datosPrevios.aspecto_economico || "",
@@ -54,6 +55,7 @@ const Form1 = () => {
             const payload = {
                 expediente: idExpediente,
                 caso_referencia: data.casoDeReferencia,
+                domicilio_constatado: data.domicilioConstatado,
                 grupo_familiar: data.grupoFamiliarConstituyente,
                 situacion_habitacional: data.situacionHabitacional,
                 aspecto_economico: data.aspectoEconomico,
@@ -137,6 +139,18 @@ const Form1 = () => {
                         <div>
                             <label className="text-gray-800 dark:text-slate-200 font-semibold text-base">Domicilio</label>
                             <p className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-gray-700 dark:text-slate-300 transition-all duration-200">{domicilio}</p>
+                        </div>
+
+                        <div className="md:col-span-2">
+                            <label className="text-gray-800 dark:text-slate-200 font-semibold text-base">Domicilio constatado</label>
+                            <p className="text-gray-600 dark:text-slate-400 text-sm">Dónde se realizó la visita, si es distinto al declarado</p>
+                            <input
+                                type="text"
+                                maxLength={200}
+                                readOnly={soloLectura}
+                                className="w-full mt-2 px-3 py-2 text-sm border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 text-gray-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-500/40 focus:border-blue-400 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-all duration-200"
+                                {...register("domicilioConstatado")}
+                            />
                         </div>
                     </div>
 

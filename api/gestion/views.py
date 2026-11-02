@@ -426,9 +426,52 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
         )
 
         return Response({'mensaje': 'Estado actualizado'}, status=200)
-        
-        
-        
+
+    @action(detail=True, methods=['post'], url_path='evaluar-semaforo')
+    def evaluar_semaforo(self, request, pk=None):
+        """
+        Coteja la DDJJ con el informe socio-habitacional usando el microservicio de IA y devuelve el
+        semaforo con las inconsistencias. No guarda el resultado: se calcula cada vez que se pide.
+        Lo usan todos los roles, sobre expedientes en su poder (get_object filtra por get_queryset).
+        """
+        expediente = self.get_object()
+        formulario = (
+            FormularioSocioHabitacional.objects.filter(expediente=expediente).order_by('-id').first()
+        )
+        if formulario is None or formulario.estado != 'completado':
+            return Response(
+                {"error": "Primero hay que completar el formulario socio-habitacional."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            resultado = ia_client.evaluar_semaforo(expediente, formulario)
+        except ia_client.IAServiceRejected as e:
+            logger.error(f"El servicio de IA rechazo el expediente {expediente.id}: {e}")
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except ia_client.IAServiceUnavailable as e:
+            logger.warning(f"Servicio de IA no disponible evaluando el expediente {expediente.id}: {e}")
+            return Response(
+                {"error": f"{e} Intentá de nuevo en unos segundos."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        except ia_client.IAServiceError as e:
+            logger.error(f"Error del servicio de IA evaluando el expediente {expediente.id}: {e}")
+            return Response(
+                {"error": "El servicio de IA no pudo evaluar el expediente."},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+        registrar_auditoria(
+            request.user,
+            expediente,
+            f"Se evaluaron inconsistencias con IA: semáforo {resultado['semaforo']} "
+            f"({resultado['total_inconsistencias']} inconsistencias)."
+        )
+        return Response(resultado)
+
+
+
 class RolViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
     queryset = Rol.objects.all()
     permission_classes = [IsAnyRole]
@@ -959,12 +1002,14 @@ def _construir_pdf_formulario(formulario):
                  etiqueta("DJ N°"), valor(expediente.DDJJ)],
                 [etiqueta("Titular"), valor(titular_completo), etiqueta("DNI"), valor(dni)],
                 [etiqueta("Domicilio"), valor(domicilio), '', ''],
+                [etiqueta("Domicilio constatado"), valor(formulario.domicilio_constatado), '', ''],
             ],
             colWidths=[3.8 * cm, 6.2 * cm, 1.6 * cm, 5.4 * cm],
         )
         tabla.setStyle(TableStyle([
             ('SPAN', (1, 0), (3, 0)),
             ('SPAN', (1, 3), (3, 3)),
+            ('SPAN', (1, 4), (3, 4)),
             ('BOX', (0, 0), (-1, -1), 0.75, COLOR_BORDE_PDF),
             ('INNERGRID', (0, 0), (-1, -1), 0.5, COLOR_BORDE_PDF),
             ('BACKGROUND', (0, 0), (0, -1), COLOR_ETIQUETA_PDF),

@@ -6,6 +6,7 @@ import { form1Service } from '../../services/Formularios/form1Service';
 import { usuarioService } from '../../services/usuarios/usuarios';
 import { historial } from '../../services/historial/historial';
 import { AdjuntarArchivos } from '../Archivos/AdjuntarArchivo';
+import { SemaforoInconsistencias } from './SemaforoInconsistencias';
 import { estadoExpediente } from '../../services/estadoEpediente/estadoExpediente';
 import { formularioPdfService } from '../../services/Formularios/formularioPdfService';
 import { documentoAdjuntoService, resolverArchivoUrl } from '../../services/documentos/documentoAdjunto';
@@ -319,6 +320,9 @@ const DetailExpedientes = () => {
                         </>
                     )}
                 </div>
+
+                {/* SEMÁFORO DE INCONSISTENCIAS: recién con el formulario socio-habitacional terminado */}
+                {formularioCompletado && <SemaforoInconsistencias expedienteId={id} />}
 
                 {/* ─── SECCIÓN DE ACCIONES ─── */}
                 <div className="mt-5 bg-gray-50 dark:bg-slate-800/60 border border-gray-100 dark:border-slate-700 rounded-xl p-5 shadow-sm">

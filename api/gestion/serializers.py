@@ -379,6 +379,7 @@ class FormularioSocioHabitacionalSerializer(serializers.ModelSerializer):
     nivel_estudios = serializers.CharField(allow_blank=True, required=False)
     relevamiento_vecinal = serializers.CharField(allow_blank=True, required=False)
     observaciones = serializers.CharField(allow_blank=True, required=False)
+    domicilio_constatado = serializers.CharField(allow_blank=True, required=False, max_length=200)
 
     # Estado calculado automaticamente segun la cantidad de campos completados del formulario.
     estado = serializers.ReadOnlyField()
@@ -394,6 +395,7 @@ class FormularioSocioHabitacionalSerializer(serializers.ModelSerializer):
             'nivel_estudios',
             'relevamiento_vecinal',
             'observaciones',
+            'domicilio_constatado',
             'expediente',
             'fecha_creacion',
             'fecha_modificacion',

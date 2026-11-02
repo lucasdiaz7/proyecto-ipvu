@@ -40,6 +40,12 @@ export const expedienteService = {
     estadoExpediente: async (id, datos) => {
         const response = await api.patch(`/expediente/${id}/`, datos);
         return response.data;
+    },
+
+    // el back le pide al microservicio de IA que compare la DDJJ con el formulario socio-habitacional
+    evaluarSemaforo: async (id) => {
+        const response = await api.post(`/expediente/${id}/evaluar-semaforo/`);
+        return response.data;
     }
 }
 
