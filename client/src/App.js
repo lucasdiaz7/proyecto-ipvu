@@ -1,3 +1,4 @@
+import Auditoria from "./components/admin/Auditoria/Auditoria.jsx";
 import TrabajadorSocial from "./components/admin/Trabajador Social/TrabajadorSocial.jsx";
 import DetalleUsuario from "./components/admin/Usuarios/DetalleUsuario.jsx";
 import FormUsuario from "./components/admin/Usuarios/FormUsuario.jsx";
@@ -51,6 +52,7 @@ function App() {
                 <Route path="/crearUsuario" element={<FormUsuario />} />
                 <Route path="/trabajadoraSocial" element={<TrabajadorSocial />} />
                 <Route path="/DetalleUsuario/:id" element={<DetalleUsuario />} />
+                <Route path="/auditoria" element={<Auditoria />} />
               </Route>
             </Route>
           </Route>

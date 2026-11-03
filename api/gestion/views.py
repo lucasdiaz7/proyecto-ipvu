@@ -802,9 +802,46 @@ class NotificacionViewSet(viewsets.ModelViewSet):
 
 class HistorialAccionViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
     queryset = HistorialAccion.objects.all()
-    # la auditoria muestra lo que hizo cada usuario: solo la ve el superadmin (pantalla DetalleUsuario)
+    # la auditoria muestra lo que hizo cada usuario: solo la ve el superadmin (panel de Auditoria y
+    # pantalla DetalleUsuario)
     permission_classes = [IsSuperAdmin]
     serializer_class = HistorialAccionSerializer
+
+    def get_queryset(self):
+        # trae la auditoria de la mas reciente a la mas vieja, con filtros opcionales por query params.
+        # select_related evita una consulta por fila al armar usuario_display y el link al expediente.
+        queryset = HistorialAccion.objects.select_related(
+            'id_usuario_accion__rol', 'id_expediente'
+        ).order_by('-fecha_accion')
+
+        params = self.request.query_params
+
+        usuario = params.get('usuario')
+        if usuario:
+            queryset = queryset.filter(id_usuario_accion=usuario)
+
+        rol = params.get('rol')
+        if rol:
+            queryset = queryset.filter(id_usuario_accion__rol__nombre_rol=rol)
+
+        expediente = params.get('expediente')
+        if expediente:
+            queryset = queryset.filter(id_expediente=expediente)
+
+        texto = params.get('q')
+        if texto:
+            queryset = queryset.filter(mensaje_accion__icontains=texto)
+
+        # fechas en formato AAAA-MM-DD; se comparan por dia, inclusive en ambos extremos
+        desde = params.get('desde')
+        if desde:
+            queryset = queryset.filter(fecha_accion__date__gte=desde)
+
+        hasta = params.get('hasta')
+        if hasta:
+            queryset = queryset.filter(fecha_accion__date__lte=hasta)
+
+        return queryset
 
 
 

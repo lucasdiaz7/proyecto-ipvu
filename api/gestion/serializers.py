@@ -380,13 +380,7 @@ class NotificacionSerializer(serializers.ModelSerializer):
                 'dni': postulante.dni,
             }
         }
-        
-class HistorialAccionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = HistorialAccion
-        fields = '__all__'
-        read_only_fields = ('fecha_accion',)
-        
+
 class FormularioSocioHabitacionalSerializer(serializers.ModelSerializer):
     grupo_familiar = serializers.CharField(allow_blank=True, required=False)
     situacion_habitacional = serializers.CharField(allow_blank=True, required=False)
@@ -429,13 +423,15 @@ class HistorialAccionSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         response = super().to_representation(instance)
         
-        # Agregamos el nombre completo del usuario para que el Front no reniegue
+        # Agregamos el nombre y el rol del usuario para que el Front no reniegue ni haga consultas extra
         if instance.id_usuario_accion:
             perfil = instance.id_usuario_accion
             response['usuario_display'] = f"{perfil.nombre} {perfil.apellido}"
+            response['rol_display'] = perfil.rol.nombre_rol if perfil.rol else None
         else:
             response['usuario_display'] = "Sistema"
-            
+            response['rol_display'] = None
+
         return response
       
 class MiLoginPersonalizadoSerializer(TokenObtainPairSerializer):

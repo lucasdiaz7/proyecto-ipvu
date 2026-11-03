@@ -699,3 +699,71 @@ class ExposicionDeUsuariosTests(SeguridadBaseTestCase):
         alguno = next(u for u in usuarios if u['id'] != self.superadmin.usuario.id)
         self.assertIn('dni', alguno)
         self.assertIn('email', alguno)
+
+
+# ---------------------------------------------------------------------------
+# Panel de auditoria: filtros del endpoint /historialaccion/ (solo superadmin)
+# ---------------------------------------------------------------------------
+
+class PanelAuditoriaTests(SeguridadBaseTestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.superadmin = self.crear_usuario('audit_su', 'SU')
+        self.ts = self.crear_usuario('audit_ts', 'TS')
+        # acciones de distinto usuario, expediente y mensaje
+        HistorialAccion.objects.create(id_usuario_accion=self.superadmin.usuario,
+                                       mensaje_accion='Login: El usuario inició sesión en el sistema.')
+        HistorialAccion.objects.create(id_usuario_accion=self.ts.usuario, id_expediente=self.expediente,
+                                       mensaje_accion='Cambio de estado: de SINI a AP.')
+        HistorialAccion.objects.create(id_usuario_accion=self.ts.usuario,
+                                       mensaje_accion='DOWNLOAD: Descargó el archivo "dni.pdf".')
+        self.client.force_authenticate(self.superadmin)
+
+    def listar(self, **params):
+        return self.client.get('/api/historialaccion/', params)
+
+    def test_solo_el_superadmin_ve_la_auditoria(self):
+        self.client.force_authenticate(self.user_de)
+        self.assertIn(self.listar().status_code, (403, 404))
+
+    def test_sin_filtros_trae_todo_ordenado_del_mas_reciente_al_mas_viejo(self):
+        data = self.listar().data
+        self.assertEqual(len(data), HistorialAccion.objects.count())
+        fechas = [a['fecha_accion'] for a in data]
+        self.assertEqual(fechas, sorted(fechas, reverse=True))
+
+    def test_incluye_usuario_y_rol_de_quien_hizo_la_accion(self):
+        fila = self.listar(usuario=self.superadmin.usuario.id).data[0]
+        self.assertEqual(fila['usuario_display'], 'Test audit_su')
+        self.assertEqual(fila['rol_display'], 'SU')
+
+    def test_filtra_por_usuario(self):
+        data = self.listar(usuario=self.ts.usuario.id).data
+        self.assertEqual(len(data), 2)
+        self.assertTrue(all(a['id_usuario_accion'] == self.ts.usuario.id for a in data))
+
+    def test_filtra_por_rol(self):
+        data = self.listar(rol='SU').data
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]['rol_display'], 'SU')
+
+    def test_filtra_por_expediente(self):
+        data = self.listar(expediente=self.expediente.id).data
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]['id_expediente'], self.expediente.id)
+
+    def test_filtra_por_texto_en_el_mensaje(self):
+        data = self.listar(q='download').data  # el filtro es case-insensitive
+        self.assertEqual(len(data), 1)
+        self.assertIn('DOWNLOAD', data[0]['mensaje_accion'])
+
+    def test_filtra_por_rango_de_fechas(self):
+        from datetime import timedelta
+        HistorialAccion.objects.all().update(fecha_accion=timezone.now() - timedelta(days=10))
+        reciente = HistorialAccion.objects.create(
+            id_usuario_accion=self.ts.usuario, mensaje_accion='Acción de hoy.'
+        )
+        hoy = timezone.now().date().isoformat()
+        data = self.listar(desde=hoy).data
+        self.assertEqual([a['id'] for a in data], [reciente.id])

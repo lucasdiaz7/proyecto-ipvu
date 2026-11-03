@@ -35,11 +35,17 @@ export const auditoriaService = {
         }
     },
 
-    // El endpoint no soporta filtros por query params (devuelve TODO el
-    // historial), por eso se trae completo y se filtra por usuario en el front.
-    getHistorialAcciones: async () => {
+    // Trae la auditoria (ordenada de la mas reciente a la mas vieja). Acepta filtros opcionales:
+    // { usuario, rol, expediente, q, desde, hasta }. Los vacios no se mandan.
+    getHistorialAcciones: async (filtros = {}) => {
         try {
-            const response = await api.get("/historialaccion/");
+            const params = {};
+            Object.entries(filtros).forEach(([clave, valor]) => {
+                if (valor !== undefined && valor !== null && String(valor).trim() !== "") {
+                    params[clave] = valor;
+                }
+            });
+            const response = await api.get("/historialaccion/", { params });
             return Array.isArray(response.data) ? response.data : [];
         } catch (error) {
             console.error("Error en getHistorialAcciones:", error);
