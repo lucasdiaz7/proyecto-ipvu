@@ -177,6 +177,11 @@ class FormularioSocioHabitacional(models.Model):
     # declaro el titular en la DDJJ. Es opcional y no cuenta para el estado del formulario.
     domicilio_constatado=models.CharField(max_length=200, blank=True)
 
+    # ultimo semaforo de inconsistencias que devolvio la IA, para no volver a calcularlo cada vez que se
+    # abre el expediente. Queda viejo si despues se edita el formulario o los datos del titular.
+    semaforo_resultado=models.JSONField(null=True, blank=True)
+    semaforo_fecha=models.DateTimeField(null=True, blank=True)
+
 
     #FK
     expediente = models.ForeignKey(Expediente, on_delete=models.CASCADE)

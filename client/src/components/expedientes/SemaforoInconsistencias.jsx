@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { SparklesIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import { expedienteService } from '../../services/expedientes/expediente';
 
@@ -32,10 +32,13 @@ const SEVERIDADES = {
 
 export const SemaforoInconsistencias = ({ expedienteId }) => {
     const [resultado, setResultado] = useState(null);
-    const [evaluando, setEvaluando] = useState(false);
+    const [evaluando, setEvaluando] = useState(true);
     const [error, setError] = useState(null);
+    // expediente que ya se cargo al abrirlo: en desarrollo StrictMode corre los efectos dos veces y
+    // sin esto se le podria pedir el semaforo dos veces a la IA (y quedarian dos registros en la auditoria)
+    const evaluadoAlAbrir = useRef(null);
 
-    const handleEvaluar = async () => {
+    const handleEvaluar = useCallback(async () => {
         setEvaluando(true);
         setError(null);
         try {
@@ -47,7 +50,29 @@ export const SemaforoInconsistencias = ({ expedienteId }) => {
         } finally {
             setEvaluando(false);
         }
-    };
+    }, [expedienteId]);
+
+    // al abrir el detalle se muestra el ultimo semaforo guardado; si no hay (nunca se evaluo, o se edito
+    // el formulario o el titular despues) se evalua solo. El boton queda para volver a evaluar.
+    useEffect(() => {
+        if (evaluadoAlAbrir.current === expedienteId) return;
+        evaluadoAlAbrir.current = expedienteId;
+
+        const cargarGuardado = async () => {
+            try {
+                const guardado = await expedienteService.obtenerSemaforo(expedienteId);
+                if (guardado) {
+                    setResultado(guardado);
+                    setEvaluando(false);
+                    return;
+                }
+            } catch (err) {
+                console.error('Error al obtener el semáforo guardado:', err);
+            }
+            handleEvaluar();
+        };
+        cargarGuardado();
+    }, [expedienteId, handleEvaluar]);
 
     const semaforo = resultado ? SEMAFOROS[resultado.semaforo] : null;
 
@@ -70,7 +95,7 @@ export const SemaforoInconsistencias = ({ expedienteId }) => {
                     className="inline-flex items-center justify-center gap-1.5 bg-white dark:bg-slate-800 border border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 disabled:opacity-60 disabled:cursor-wait font-semibold text-sm px-4 py-1.5 h-9 rounded-lg transition w-full sm:w-auto whitespace-nowrap"
                 >
                     {evaluando && <ArrowPathIcon className="w-4 h-4 animate-spin" />}
-                    {evaluando ? 'Evaluando...' : resultado ? 'Volver a evaluar' : 'Evaluar inconsistencias'}
+                    {evaluando ? 'Evaluando...' : 'Volver a evaluar'}
                 </button>
             </div>
 
@@ -96,6 +121,11 @@ export const SemaforoInconsistencias = ({ expedienteId }) => {
                                 {resultado.total_inconsistencias > 0 && ` · ${resultado.total_inconsistencias} ${resultado.total_inconsistencias === 1 ? 'inconsistencia' : 'inconsistencias'}`}
                             </p>
                             <p className="text-sm">{semaforo.texto}</p>
+                            {resultado.fecha_evaluacion && (
+                                <p className="text-xs opacity-75 mt-1">
+                                    Evaluado el {new Date(resultado.fecha_evaluacion).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}
+                                </p>
+                            )}
                         </div>
                     </div>
 

@@ -427,18 +427,38 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
 
         return Response({'mensaje': 'Estado actualizado'}, status=200)
 
+    @action(detail=True, methods=['get'], url_path='semaforo')
+    def semaforo(self, request, pk=None):
+        """
+        Devuelve el ultimo semaforo guardado, sin llamar a la IA. Si nunca se evaluo, o si despues se
+        edito el formulario o los datos del titular, 'resultado' viene en null y el frontend lo pide de nuevo.
+        """
+        expediente = self.get_object()
+        formulario = self._formulario_completo(expediente)
+        if formulario is None:
+            return Response(
+                {"error": "Primero hay que completar el formulario socio-habitacional."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        fecha = formulario.semaforo_fecha
+        vigente = (
+            fecha is not None
+            and fecha >= formulario.fecha_modificacion
+            and fecha >= expediente.postulante_titular.fecha_modificacion
+        )
+        return Response({'resultado': formulario.semaforo_resultado if vigente else None})
+
     @action(detail=True, methods=['post'], url_path='evaluar-semaforo')
     def evaluar_semaforo(self, request, pk=None):
         """
-        Coteja la DDJJ con el informe socio-habitacional usando el microservicio de IA y devuelve el
-        semaforo con las inconsistencias. No guarda el resultado: se calcula cada vez que se pide.
+        Coteja la DDJJ con el informe socio-habitacional usando el microservicio de IA, guarda el
+        semaforo con las inconsistencias en el formulario y lo devuelve.
         Lo usan todos los roles, sobre expedientes en su poder (get_object filtra por get_queryset).
         """
         expediente = self.get_object()
-        formulario = (
-            FormularioSocioHabitacional.objects.filter(expediente=expediente).order_by('-id').first()
-        )
-        if formulario is None or formulario.estado != 'completado':
+        formulario = self._formulario_completo(expediente)
+        if formulario is None:
             return Response(
                 {"error": "Primero hay que completar el formulario socio-habitacional."},
                 status=status.HTTP_400_BAD_REQUEST
@@ -462,6 +482,13 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
                 status=status.HTTP_502_BAD_GATEWAY
             )
 
+        ahora = timezone.now()
+        resultado['fecha_evaluacion'] = ahora.isoformat()
+        # update en lugar de save: asi no se toca fecha_modificacion y el resultado queda vigente
+        FormularioSocioHabitacional.objects.filter(id=formulario.id).update(
+            semaforo_resultado=resultado, semaforo_fecha=ahora
+        )
+
         registrar_auditoria(
             request.user,
             expediente,
@@ -469,6 +496,14 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
             f"({resultado['total_inconsistencias']} inconsistencias)."
         )
         return Response(resultado)
+
+    def _formulario_completo(self, expediente):
+        formulario = (
+            FormularioSocioHabitacional.objects.filter(expediente=expediente).order_by('-id').first()
+        )
+        if formulario is None or formulario.estado != 'completado':
+            return None
+        return formulario
 
 
 

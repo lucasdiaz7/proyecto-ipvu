@@ -510,3 +510,59 @@ class EvaluarSemaforoTests(SeguridadBaseTestCase):
         mock_post.return_value = respuesta_http(500, {'detail': 'Fallo del motor de reglas'})
         self.crear_formulario()
         self.assertEqual(self.client.post(self.url()).status_code, 502)
+
+    # --- resultado guardado ---
+
+    def url_guardado(self):
+        return f'/api/expediente/{self.expediente.id}/semaforo/'
+
+    def test_sin_evaluar_no_hay_resultado_guardado(self, mock_post):
+        self.crear_formulario()
+        response = self.client.get(self.url_guardado())
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data['resultado'])
+        mock_post.assert_not_called()
+
+    def test_sin_formulario_completo_no_hay_semaforo_guardado(self, mock_post):
+        self.crear_formulario(observaciones='')
+        self.assertEqual(self.client.get(self.url_guardado()).status_code, 400)
+
+    def test_evaluar_guarda_el_resultado_y_despues_se_lee_sin_llamar_a_ia(self, mock_post):
+        mock_post.return_value = respuesta_http(200, RESPUESTA_SEMAFORO)
+        self.crear_formulario()
+        evaluado = self.client.post(self.url()).data
+        self.assertIn('fecha_evaluacion', evaluado)
+
+        response = self.client.get(self.url_guardado())
+        self.assertEqual(response.data['resultado'], evaluado)
+        self.assertEqual(response.data['resultado']['semaforo'], 'ROJO')
+        mock_post.assert_called_once()
+
+    def test_editar_el_formulario_deja_viejo_el_resultado(self, mock_post):
+        mock_post.return_value = respuesta_http(200, RESPUESTA_SEMAFORO)
+        formulario = self.crear_formulario()
+        self.client.post(self.url())
+
+        formulario.refresh_from_db()
+        formulario.observaciones = 'otra observacion'
+        formulario.save()
+        self.assertIsNone(self.client.get(self.url_guardado()).data['resultado'])
+
+    def test_editar_el_titular_deja_viejo_el_resultado(self, mock_post):
+        mock_post.return_value = respuesta_http(200, RESPUESTA_SEMAFORO)
+        self.crear_formulario()
+        self.client.post(self.url())
+
+        titular = self.expediente.postulante_titular
+        titular.domicilio_actual = 'Calle 3'
+        titular.save()
+        self.assertIsNone(self.client.get(self.url_guardado()).data['resultado'])
+
+    def test_si_la_ia_falla_queda_el_ultimo_resultado(self, mock_post):
+        mock_post.return_value = respuesta_http(200, RESPUESTA_SEMAFORO)
+        self.crear_formulario()
+        self.client.post(self.url())
+
+        mock_post.side_effect = requests.ConnectionError()
+        self.assertEqual(self.client.post(self.url()).status_code, 503)
+        self.assertEqual(self.client.get(self.url_guardado()).data['resultado']['semaforo'], 'ROJO')

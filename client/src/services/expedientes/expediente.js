@@ -42,6 +42,12 @@ export const expedienteService = {
         return response.data;
     },
 
+    // ultimo semaforo guardado (no llama a la IA); viene en null si nunca se evaluo o quedo viejo
+    obtenerSemaforo: async (id) => {
+        const response = await api.get(`/expediente/${id}/semaforo/`);
+        return response.data.resultado;
+    },
+
     // el back le pide al microservicio de IA que compare la DDJJ con el formulario socio-habitacional
     evaluarSemaforo: async (id) => {
         const response = await api.post(`/expediente/${id}/evaluar-semaforo/`);
