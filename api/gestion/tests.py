@@ -566,3 +566,136 @@ class EvaluarSemaforoTests(SeguridadBaseTestCase):
         mock_post.side_effect = requests.ConnectionError()
         self.assertEqual(self.client.post(self.url()).status_code, 503)
         self.assertEqual(self.client.get(self.url_guardado()).data['resultado']['semaforo'], 'ROJO')
+
+
+# ---------------------------------------------------------------------------
+# Auditoria de seguridad: cada test afirma una defensa que DEBERIA cumplirse.
+# Los que fallan marcan un agujero real.
+# ---------------------------------------------------------------------------
+
+class AislamientoEntreUsuariosTests(SeguridadBaseTestCase):
+    """IDOR: un rol operativo no debe tocar expedientes que no tiene asignados."""
+
+    def setUp(self):
+        super().setUp()
+        # otra trabajadora social con SU propio expediente, ajeno al atacante
+        self.otra_ts = self.crear_usuario('otra_ts', 'TS')
+        otro_postulante = PostulanteTitular.objects.create(
+            nombre='Beatriz', apellido='Vera', telefono='3851111111', dni='29000111',
+            domicilio_actual='Otra calle 50',
+        )
+        self.expediente_ajeno = Expediente.objects.create(
+            postulante_titular=otro_postulante,
+            estado_expediente=self.expediente.estado_expediente,
+            usuario_asignado=self.otra_ts,
+        )
+        self.doc_ajeno = DocumentoAdjunto.objects.create(
+            tipo_documento='DNI',
+            archivo=SimpleUploadedFile('ajeno.pdf', b'%PDF ajeno', content_type='application/pdf'),
+            subido_por=self.otra_ts, expediente=self.expediente_ajeno,
+        )
+        # el atacante es otra DE, autenticada, con su propia carga
+        self.atacante = self.user_de
+        self.client.force_authenticate(self.atacante)
+
+    def test_no_puede_ver_el_expediente_ajeno(self):
+        self.assertIn(self.client.get(f'/api/expediente/{self.expediente_ajeno.id}/').status_code, (403, 404))
+
+    def test_no_puede_cambiar_el_estado_del_expediente_ajeno(self):
+        r = self.client.patch(f'/api/expediente/{self.expediente_ajeno.id}/cambiar_estado/', {'estado': 'AP'})
+        self.assertIn(r.status_code, (403, 404))
+        self.expediente_ajeno.refresh_from_db()
+        self.assertNotEqual(self.expediente_ajeno.estado_expediente.nombre, 'AP')
+
+    def test_no_puede_pedir_el_semaforo_del_expediente_ajeno(self):
+        self.assertIn(self.client.get(f'/api/expediente/{self.expediente_ajeno.id}/semaforo/').status_code, (403, 404))
+
+    def test_no_puede_descargar_documentos_del_expediente_ajeno(self):
+        r = self.client.get(f'/api/documentoadjunto/{self.doc_ajeno.id}/descargar/')
+        self.assertIn(r.status_code, (403, 404))
+
+    def test_el_listado_no_filtra_expedientes_ajenos(self):
+        ids = [e['id'] for e in self.client.get('/api/expediente/').data]
+        self.assertNotIn(self.expediente_ajeno.id, ids)
+
+
+class EscaladoDeRolTests(SeguridadBaseTestCase):
+    """Escalado vertical: un rol operativo no debe ejecutar acciones de superadmin."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(self.user_de)  # DE comun, sin privilegios de SU
+
+    def test_no_puede_crear_usuarios(self):
+        r = self.client.post('/api/usuario/', {
+            'nombre': 'Intruso', 'apellido': 'X', 'dni': '55667788', 'email': 'x@x.com',
+            'rol': self.user_de.usuario.rol.id,
+        })
+        self.assertIn(r.status_code, (403, 404))
+
+    def test_no_puede_dar_de_baja_usuarios(self):
+        objetivo = self.crear_usuario('victima', 'TS')
+        r = self.client.delete(f'/api/usuario/{objetivo.usuario.usuario.id}/')
+        self.assertIn(r.status_code, (403, 404))
+
+    def test_no_puede_ver_la_auditoria_global(self):
+        self.assertIn(self.client.get('/api/historialaccion/').status_code, (403, 404))
+
+    def test_no_puede_ver_la_auditoria_de_usuarios(self):
+        self.assertIn(self.client.get('/api/usuario/auditoria_usuarios/').status_code, (403, 404))
+
+
+class ContrasenaInicialGateTests(SeguridadBaseTestCase):
+    """Hasta cambiar la contrasena inicial (= DNI), el usuario no debe operar la API."""
+
+    def setUp(self):
+        super().setUp()
+        self.pendiente = self.crear_usuario('pendiente', 'DE', requiere_cambio_password=True)
+        self.client.force_authenticate(self.pendiente)
+
+    def test_no_puede_listar_expedientes_con_password_inicial(self):
+        self.assertEqual(self.client.get('/api/expediente/').status_code, 403)
+
+
+class ExposicionDeUsuariosTests(SeguridadBaseTestCase):
+    """
+    El listado de usuarios lo necesita el desplegable de pases (cualquier rol), pero un rol operativo
+    no debe ver datos sensibles: el DNI es el usuario y la contrasena inicial, y requiere_cambio_password
+    delata que cuentas siguen con esa contrasena. Esos campos son solo para el superadmin.
+    """
+
+    CAMPOS_SENSIBLES = ('dni', 'email', 'matricula', 'requiere_cambio_password', 'username_display')
+
+    def setUp(self):
+        super().setUp()
+        self.superadmin = self.crear_usuario('admin1', 'SU')
+
+    def test_un_data_entry_no_ve_datos_sensibles_de_otros_usuarios(self):
+        self.client.force_authenticate(self.user_de)
+        usuarios = self.client.get('/api/usuario/').data
+        self.assertTrue(usuarios, 'El listado deberia estar disponible para armar pases')
+        for u in usuarios:
+            for campo in self.CAMPOS_SENSIBLES:
+                self.assertNotIn(campo, u, msg=f'El campo sensible {campo!r} se expuso a un data entry')
+        # pero sigue sirviendo para el pase: trae nombre y rol
+        self.assertIn('nombre_completo', usuarios[0])
+        self.assertIn('rol', usuarios[0])
+
+    def test_un_data_entry_no_puede_leer_el_dni_de_un_superadmin(self):
+        self.client.force_authenticate(self.user_de)
+        r = self.client.get(f'/api/usuario/{self.superadmin.usuario.id}/')
+        if r.status_code == 200:
+            self.assertNotIn('dni', r.data)
+            self.assertNotIn('requiere_cambio_password', r.data)
+
+    def test_un_data_entry_no_se_ve_a_si_mismo_en_el_listado(self):
+        self.client.force_authenticate(self.user_de)
+        ids = [u['id'] for u in self.client.get('/api/usuario/').data]
+        self.assertNotIn(self.user_de.usuario.id, ids)
+
+    def test_el_superadmin_si_ve_los_datos_completos(self):
+        self.client.force_authenticate(self.superadmin)
+        usuarios = self.client.get('/api/usuario/').data
+        alguno = next(u for u in usuarios if u['id'] != self.superadmin.usuario.id)
+        self.assertIn('dni', alguno)
+        self.assertIn('email', alguno)

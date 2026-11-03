@@ -172,17 +172,33 @@ class UsuarioSerializer(serializers.ModelSerializer):
         
         return perfil_usuario
         
+    # datos que solo el superadmin puede ver de otros usuarios. El resto de los roles usa este
+    # serializer solo para el desplegable de pases (id, nombre y rol): el DNI es ademas el usuario y
+    # la contrasena inicial, y requiere_cambio_password delata que cuentas siguen con esa contrasena,
+    # asi que exponerlos deja enumerar y tomar cuentas ajenas, incluidas las de superadmin.
+    CAMPOS_SOLO_SUPERADMIN = ('dni', 'email', 'matricula', 'requiere_cambio_password', 'username_display')
+
     def to_representation(self, instance):
         ret = super().to_representation(instance)
-    
+
         if instance.usuario:
             ret['username_display'] = instance.usuario.username
-        
+
         if instance.rol:
             ret['rol_display'] = instance.rol.nombre_rol
-        
+
         ret['nombre_completo'] = f"{instance.nombre} {instance.apellido}"
-    
+
+        request = self.context.get('request')
+        actor = getattr(request, 'user', None) if request else None
+        es_superadmin = bool(
+            actor and actor.is_authenticated and hasattr(actor, 'usuario')
+            and actor.usuario.rol and actor.usuario.rol.nombre_rol == 'SU'
+        )
+        if not es_superadmin:
+            for campo in self.CAMPOS_SOLO_SUPERADMIN:
+                ret.pop(campo, None)
+
         return ret
     
 class DocumentoAdjuntoSerializer(serializers.ModelSerializer):

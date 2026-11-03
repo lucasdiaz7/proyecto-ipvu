@@ -528,7 +528,12 @@ class UsuarioViewSet(viewsets.ModelViewSet):
 
         if rol:
             queryset = queryset.filter(rol__nombre_rol=rol)
-            
+
+        # un rol operativo solo usa este listado para el desplegable de pases: no se incluye a si mismo.
+        # El superadmin (pantalla de administracion de usuarios) sigue viendo a todos.
+        if not usuario_tiene_rol(self.request, ['SU']):
+            queryset = queryset.exclude(usuario=self.request.user)
+
         return queryset
     
     @action(detail=False, methods=['get'])
