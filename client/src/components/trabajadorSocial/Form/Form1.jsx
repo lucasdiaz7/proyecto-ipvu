@@ -22,20 +22,24 @@ const Form1 = () => {
 
     console.log('idFormulario :>> ', idFormulario);
 
-    // Traemos 'reset' para cargar los datos dinámicamente cuando el componente monte
-    const { register, handleSubmit, reset, formState: { errors } } = useForm();
+    // Traemos 'reset' y 'watch' para cargar los datos dinámicamente y escuchar los botones
+    const { register, handleSubmit, reset, watch, formState: { errors } } = useForm();
+    const radioSalud = watch("radioSalud");
 
     const isEditMode = Boolean(idFormulario);
 
     // Cargar los campos guardados si estamos en modo edición
     useEffect(() => {
         if (isEditMode && datosPrevios) {
+            const saludGuardada = datosPrevios.situacion_salud || "";
+            const esSiPresenta = saludGuardada.includes("Sí presenta");
+
             reset({
                 casoDeReferencia: datosPrevios.caso_referencia || "",
                 grupoFamiliarConstituyente: datosPrevios.grupo_familiar || "",
                 situacionHabitacional: datosPrevios.situacion_habitacional || "",
                 aspectoEconomico: datosPrevios.aspecto_economico || "",
-                situacionDeSalud: datosPrevios.situacion_salud || "",
+                radioSalud: esSiPresenta ? "Sí presenta" : "No presenta",
                 nivelDeEstudios: datosPrevios.nivel_estudios || "",
                 relevamientoVecinal: datosPrevios.relevamiento_vecinal || "",
                 observacionesParticularidades: datosPrevios.observaciones || ""
@@ -50,6 +54,19 @@ const Form1 = () => {
         }
 
         try {
+            // Armamos el texto de salud basado en la selección
+            let situacionSaludFinal = "No presenta";
+
+            if (data.radioSalud === "Sí presenta") {
+                const tipos = [];
+                if (data.tipoMotriz) tipos.push("Motriz");
+                if (data.tipoVisual) tipos.push("Visual");
+                if (data.tipoAuditiva) tipos.push("Auditiva");
+                if (data.tipoOtras) tipos.push("Otras");
+
+                situacionSaludFinal = `Sí presenta | Familiar: ${data.nombreFamiliarSalud || 'No especificado'} | Tipos: ${tipos.join(", ") || 'No especificado'} | Obs: ${data.observacionesSalud || 'Ninguna'}`;
+            }
+
             // Mapeamos los nombres de React Hook Form a lo que espera tu Backend
             const payload = {
                 expediente: idExpediente,
@@ -57,7 +74,7 @@ const Form1 = () => {
                 grupo_familiar: data.grupoFamiliarConstituyente,
                 situacion_habitacional: data.situacionHabitacional,
                 aspecto_economico: data.aspectoEconomico,
-                situacion_salud: data.situacionDeSalud,
+                situacion_salud: situacionSaludFinal,
                 nivel_estudios: data.nivelDeEstudios,
                 relevamiento_vecinal: data.relevamientoVecinal,
                 observaciones: data.observacionesParticularidades
@@ -172,13 +189,46 @@ const Form1 = () => {
                         </div>
 
                         <div className="mt-5">
-                            <h2 className="text-gray-800 dark:text-slate-200 font-semibold text-base">SITUACION DE SALUD</h2>
-                            <p className="text-gray-600 dark:text-slate-400 text-sm">Discapacidad. Invalidez</p>
-                            <textarea
-                                readOnly={soloLectura}
-                                className="w-full mt-2 px-3 py-3 text-sm border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 text-gray-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-500/40 focus:border-blue-400 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-all duration-200 resize-none"
-                                {...register("situacionDeSalud")}
-                            />
+                            <h2 className="text-gray-800 dark:text-slate-200 font-semibold text-base">SITUACIÓN DE SALUD</h2>
+                            <p className="text-gray-600 dark:text-slate-400 text-sm mb-3">Discapacidad. Invalidez</p>
+
+                            <div className="flex gap-6 mb-4">
+                                <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-slate-300 text-sm">
+                                    <input type="radio" value="No presenta" disabled={soloLectura} className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" {...register("radioSalud")} />
+                                    No presenta
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-slate-300 text-sm">
+                                    <input type="radio" value="Sí presenta" disabled={soloLectura} className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" {...register("radioSalud")} />
+                                    Sí presenta
+                                </label>
+                            </div>
+
+                            {radioSalud === "Sí presenta" && (
+                                <div className="p-4 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg space-y-4">
+                                    <div>
+                                        <label className="text-gray-700 dark:text-slate-300 text-sm font-medium">Nombre del integrante:</label>
+                                        <input type="text" placeholder="Escriba manualmente quién presenta discapacidad..." disabled={soloLectura} className="w-full mt-1 px-3 py-2 text-sm border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-500/40 focus:border-blue-400 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-all" {...register("nombreFamiliarSalud")} />
+                                    </div>
+                                    <div>
+                                        <label className="text-gray-700 dark:text-slate-300 text-sm font-medium block mb-2">Seleccione tipo de discapacidad(es):</label>
+                                        <div className="flex flex-wrap gap-4">
+                                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-slate-300 text-sm"><input type="checkbox" disabled={soloLectura} className="rounded border-gray-300" {...register("tipoMotriz")} /> Motriz</label>
+                                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-slate-300 text-sm"><input type="checkbox" disabled={soloLectura} className="rounded border-gray-300" {...register("tipoVisual")} /> Visual</label>
+                                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-slate-300 text-sm"><input type="checkbox" disabled={soloLectura} className="rounded border-gray-300" {...register("tipoAuditiva")} /> Auditiva</label>
+                                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-slate-300 text-sm"><input type="checkbox" disabled={soloLectura} className="rounded border-gray-300" {...register("tipoOtras")} /> Otras</label>
+                                        </div>
+                                    </div>
+                                    <div className="pt-2 border-t border-gray-200 dark:border-slate-700">
+                                        <label className="text-gray-700 dark:text-slate-300 text-sm font-medium block mb-2">Observaciones:</label>
+                                        <textarea
+                                            placeholder="Escriba aquí cualquier observación adicional..."
+                                            disabled={soloLectura}
+                                            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-500/40 focus:border-blue-400 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-all resize-none h-20"
+                                            {...register("observacionesSalud")}
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="mt-5">
