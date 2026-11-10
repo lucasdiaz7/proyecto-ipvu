@@ -10,6 +10,9 @@ test_output.pdf
 *.pdf
 node_modules/
 
+# archivos subidos por usuarios: datos personales (DNI, recibos). Nunca al repo.
+media/
+
 # variables de entorno con claves: nunca al repositorio (la plantilla .env.example si)
 # OJO: el .env todavia esta trackeado; esto recien aplica despues de "git rm --cached .env" (ver SEGURIDAD_DEPLOY.md)
 .env

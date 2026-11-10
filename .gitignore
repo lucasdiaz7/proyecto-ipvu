@@ -1,0 +1,23 @@
+# Dependencias (nunca al repo)
+node_modules/
+
+# Entornos virtuales de Python
+venv/
+.venv/
+env/
+
+# Archivos subidos por usuarios: contienen datos personales (DNI, recibos). Nunca al repo.
+api/media/
+
+# Variables de entorno con claves
+.env
+.env.*
+!.env.example
+
+# Caches / compilados
+__pycache__/
+*.py[cod]
+
+# Sistema
+.DS_Store
+Thumbs.db
