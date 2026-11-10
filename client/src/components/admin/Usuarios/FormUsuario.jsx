@@ -177,7 +177,7 @@ const FormUsuario = () => {
                                 onClick={() => handleSelect("Mesa de Entrada", 3)}
                                 className="px-3 py-2 text-sm font-normal text-gray-800 dark:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer"
                             >
-                                Data Entry
+                                Mesa de Entrada
                             </div>
 
                             <div

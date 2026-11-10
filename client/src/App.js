@@ -1,4 +1,5 @@
 import Auditoria from "./components/admin/Auditoria/Auditoria.jsx";
+import ExportarExpedientes from "./components/admin/Exportar/ExportarExpedientes.jsx";
 import TrabajadorSocial from "./components/admin/Trabajador Social/TrabajadorSocial.jsx";
 import DetalleUsuario from "./components/admin/Usuarios/DetalleUsuario.jsx";
 import FormUsuario from "./components/admin/Usuarios/FormUsuario.jsx";
@@ -53,6 +54,7 @@ function App() {
                 <Route path="/trabajadoraSocial" element={<TrabajadorSocial />} />
                 <Route path="/DetalleUsuario/:id" element={<DetalleUsuario />} />
                 <Route path="/auditoria" element={<Auditoria />} />
+                <Route path="/exportar" element={<ExportarExpedientes />} />
               </Route>
             </Route>
           </Route>

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router';
-import { ArrowLeftIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, ArrowDownTrayIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import { expedienteService } from '../../services/expedientes/expediente';
 import { form1Service } from '../../services/Formularios/form1Service';
 import { usuarioService } from '../../services/usuarios/usuarios';
@@ -27,6 +27,8 @@ const DetailExpedientes = () => {
     const [rolSeleccionado, setRolSeleccionado] = useState('');
     const [usuarioDestino, setUsuarioDestino] = useState('');
     const [historialPases, setHistorialPases] = useState([]);
+    const [documentosExpediente, setDocumentosExpediente] = useState([]);
+    const [documentosAbiertos, setDocumentosAbiertos] = useState(false);
 
 
     const [estadoSeleccionado, setEstadoSeleccionado] = useState('NUEVAV');
@@ -55,11 +57,12 @@ const DetailExpedientes = () => {
                 setError(null);
 
                 // 🚀 Disparamos las 4 peticiones en paralelo (al mismo tiempo)
-                const [dataExpediente, formularioPorExp, usuarios, pasesFiltrados] = await Promise.all([
+                const [dataExpediente, formularioPorExp, usuarios, pasesFiltrados, documentos] = await Promise.all([
                     expedienteService.getExpedienteId(id),
                     form1Service.getFormularioPorExpediente(id),
                     usuarioService.getUsuarios(),
-                    historial.obtenerPasesPorExpediente(id)
+                    historial.obtenerPasesPorExpediente(id),
+                    documentoAdjuntoService.obtenerPorExpediente(id)
                 ]);
 
                 // 1. Guardamos los datos del expediente
@@ -87,6 +90,9 @@ const DetailExpedientes = () => {
                 } else {
                     setHistorialPases([]);
                 }
+
+                // 5. Guardamos todos los documentos adjuntos del expediente (vista consolidada)
+                setDocumentosExpediente(Array.isArray(documentos) ? documentos : []);
 
             } catch (error) {
                 console.error("Error al procesar la información:", error);
@@ -140,6 +146,26 @@ const DetailExpedientes = () => {
             console.error('Error al descargar el adjunto:', error);
             toast.error('No se pudo descargar el archivo adjunto.');
         }
+    };
+
+    const verAdjunto = async (adjunto) => {
+        if (!adjunto?.id) return;
+        try {
+            await documentoAdjuntoService.abrirEnPestania(adjunto.id);
+        } catch (error) {
+            console.error('Error al abrir el adjunto:', error);
+            toast.error('No se pudo abrir el archivo adjunto.');
+        }
+    };
+
+    // ícono simple según la extensión del archivo, para distinguir de un vistazo
+    const iconoAdjunto = (adjunto) => {
+        const nombre = (adjunto?.archivo || adjunto?.tipo_documento || '').toLowerCase();
+        if (nombre.endsWith('.pdf')) return '📄';
+        if (/\.(png|jpe?g|gif|webp|bmp)$/.test(nombre)) return '🖼️';
+        if (/\.(docx?|odt)$/.test(nombre)) return '📝';
+        if (/\.(xlsx?|csv|ods)$/.test(nombre)) return '📊';
+        return '📎';
     };
 
     const handleGenerarPdf = async () => {
@@ -253,7 +279,8 @@ const DetailExpedientes = () => {
         : formularioActual?.estado || 'sin iniciar';
 
     const mostrarFormularioTrabajadoraSocial = rolId === 1 && ['SINI', '1V', 'NUEVAV'].includes(estadoGlobal);
-    const mostrarAdjuntarArchivos = rolId === 2 || rolId === 3 || (rolId === 1 && estadoGlobal === 'AP');
+    // el superadmin (rol 4) puede adjuntar en cualquier expediente, sin importar el estado
+    const mostrarAdjuntarArchivos = rolId === 2 || rolId === 3 || rolId === 4 || (rolId === 1 && estadoGlobal === 'AP');
     const formularioCompletado = estadoInternoForm === 'completado';
     const formularioSoloLectura = false;
     const mostrarBotonPdf = mostrarFormularioTrabajadoraSocial && formularioCompletado && Boolean(formularioActual?.id);
@@ -321,6 +348,68 @@ const DetailExpedientes = () => {
                     )}
                 </div>
 
+                {/* DOCUMENTOS DEL EXPEDIENTE: sección plegable y discreta, por encima del semáforo */}
+                <div className="mt-5 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden">
+                    <button
+                        type="button"
+                        onClick={() => setDocumentosAbiertos((v) => !v)}
+                        aria-expanded={documentosAbiertos}
+                        className="w-full flex items-center justify-between gap-2 px-4 py-3 bg-gray-50 dark:bg-slate-800/60 hover:bg-gray-100 dark:hover:bg-slate-800 transition"
+                    >
+                        <span className="flex items-center gap-2 text-base font-semibold text-gray-800 dark:text-slate-100">
+                            <span aria-hidden="true">📎</span>
+                            Documentos del expediente
+                            <span className="text-xs font-semibold bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">
+                                {documentosExpediente.length}
+                            </span>
+                        </span>
+                        <ChevronDownIcon className={`w-5 h-5 text-gray-500 dark:text-slate-400 shrink-0 transition-transform ${documentosAbiertos ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {documentosAbiertos && (
+                        documentosExpediente.length === 0 ? (
+                            <p className="px-4 py-4 text-gray-500 dark:text-slate-400 text-sm italic border-t border-gray-100 dark:border-slate-800">
+                                Este expediente todavía no tiene documentos adjuntos.
+                            </p>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 border-t border-gray-100 dark:border-slate-800">
+                                {documentosExpediente.map((doc) => (
+                                    <div
+                                        key={doc.id}
+                                        className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl"
+                                    >
+                                        <span className="text-2xl shrink-0" aria-hidden="true">{iconoAdjunto(doc)}</span>
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-sm font-medium text-gray-800 dark:text-slate-100 truncate" title={obtenerNombreAdjunto(doc)}>
+                                                {obtenerNombreAdjunto(doc)}
+                                            </p>
+                                            <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
+                                                Subido por {doc.subido_por_display || '---'}
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => verAdjunto(doc)}
+                                            className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-slate-600 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition shrink-0"
+                                        >
+                                            Ver
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => descargarAdjunto(doc)}
+                                            title="Descargar"
+                                            className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition shrink-0"
+                                        >
+                                            <ArrowDownTrayIcon className="w-4 h-4" />
+                                            <span className="hidden lg:inline">Descargar</span>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )
+                    )}
+                </div>
+
                 {/* SEMÁFORO DE INCONSISTENCIAS: recién con el formulario socio-habitacional terminado */}
                 {formularioCompletado && <SemaforoInconsistencias expedienteId={id} />}
 
@@ -361,7 +450,7 @@ const DetailExpedientes = () => {
                         </div>
                     )}
 
-                    {/* Adjuntos para Legales, Administrativa o Trabajadora Social con expediente Apto */}
+                    {/* Adjuntos para Legales, Mesa de Entrada o Trabajadora Social con expediente Apto */}
                     {mostrarAdjuntarArchivos && (
                         <div className="mb-4 p-2 bg-white dark:bg-slate-900 rounded-xl border border-gray-200/60 dark:border-slate-700">
                             <AdjuntarArchivos expedienteId={id} adjuntosExcluidos={adjuntosHistorial} />
@@ -436,7 +525,7 @@ const DetailExpedientes = () => {
                                         <option value="">Seleccionar perfil...</option>
                                         <option value="1">Trabajadora Social</option>
                                         <option value="2">Legales</option>
-                                        <option value="3">Administrativa</option>
+                                        <option value="3">Mesa de Entrada</option>
                                         <option value="4">Administrador</option>
                                     </select>
                                 </div>

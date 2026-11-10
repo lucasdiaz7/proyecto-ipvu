@@ -9,13 +9,28 @@ import { usuarioService } from '../../../services/usuarios/usuarios';
 
 // etiquetas legibles de cada rol y color del badge
 const ROLES = {
-    SU: { label: 'Superadmin', badge: 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' },
-    DE: { label: 'Data Entry', badge: 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' },
-    TS: { label: 'Trabajador Social', badge: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' },
+    SU: { label: 'Administrador', badge: 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' },
+    DE: { label: 'Mesa de Entrada', badge: 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' },
+    TS: { label: 'Trabajadora Social', badge: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' },
     LG: { label: 'Legales', badge: 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300' },
 };
 
-const FILTROS_VACIOS = { q: '', usuario: '', rol: '', desde: '', hasta: '' };
+// tipos de accion para el desplegable. La clave viaja al backend (debe coincidir con CATEGORIAS_AUDITORIA
+// en views.py); la etiqueta es lo que ve el superadmin.
+const TIPOS_ACCION = [
+    { valor: 'login', etiqueta: 'Inicios de sesión' },
+    { valor: 'expediente', etiqueta: 'Creación de expedientes' },
+    { valor: 'visualizacion', etiqueta: 'Visualización de legajos' },
+    { valor: 'estado', etiqueta: 'Cambios de estado' },
+    { valor: 'ia', etiqueta: 'Evaluación con IA (semáforo)' },
+    { valor: 'informe', etiqueta: 'Informe socio-habitacional' },
+    { valor: 'subida', etiqueta: 'Subida de archivos' },
+    { valor: 'descarga', etiqueta: 'Descarga de archivos' },
+    { valor: 'borrar_doc', etiqueta: 'Eliminación de archivos' },
+    { valor: 'usuarios', etiqueta: 'Gestión de usuarios' },
+];
+
+const FILTROS_VACIOS = { q: '', usuario: '', rol: '', tipo: '', desde: '', hasta: '' };
 
 const formatearFechaHora = (fecha) => {
     if (!fecha) return '---';
@@ -93,16 +108,28 @@ const Auditoria = () => {
             {/* FILTROS */}
             <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl p-4 shadow-sm">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    <div className="lg:col-span-3 relative">
-                        <MagnifyingGlassIcon className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                            type="text"
-                            placeholder="Buscar en la descripción (ej: Login, Cambio de estado, DOWNLOAD...)"
-                            value={filtros.q}
-                            onChange={cambiar('q')}
-                            className={claseInput + ' pl-9'}
-                        />
+                    <div className="lg:col-span-3">
+                        <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
+                            Buscar por texto (nombre de archivo, postulante, etc.)
+                        </label>
+                        <div className="relative">
+                            <MagnifyingGlassIcon className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <input
+                                type="text"
+                                placeholder="Ej: dni.pdf, Gómez, semáforo..."
+                                value={filtros.q}
+                                onChange={cambiar('q')}
+                                className={claseInput + ' pl-9'}
+                            />
+                        </div>
                     </div>
+
+                    <select value={filtros.tipo} onChange={cambiar('tipo')} className={claseInput}>
+                        <option value="">Todos los tipos de acción</option>
+                        {TIPOS_ACCION.map(({ valor, etiqueta }) => (
+                            <option key={valor} value={valor}>{etiqueta}</option>
+                        ))}
+                    </select>
 
                     <select value={filtros.usuario} onChange={cambiar('usuario')} className={claseInput}>
                         <option value="">Todos los usuarios</option>

@@ -139,7 +139,7 @@ const Usuarios = () => {
                                 <option className="text-gray-800" value="Todos">Todos los perfiles</option>
                                 <option className="text-gray-800" value="SU">Administrador</option>
                                 <option className="text-gray-800" value="TS">Trabajadora Social</option>
-                                <option className="text-gray-800" value="DE">Administrativa</option>
+                                <option className="text-gray-800" value="DE">Mesa de Entrada</option>
                                 <option className="text-gray-800" value="LG">Legales</option>
                             </select>
                         </div>
@@ -207,7 +207,7 @@ const Usuarios = () => {
                                             {e.rol_display === 'TS' && 'Trabajadora Social'}
                                             {e.rol_display === 'SU' && 'Administrador'}
                                             {e.rol_display === 'LG' && 'Legales'}
-                                            {e.rol_display === 'DE' && 'Data Entry'}
+                                            {e.rol_display === 'DE' && 'Mesa de Entrada'}
                                         </span>
                                     </span>
 

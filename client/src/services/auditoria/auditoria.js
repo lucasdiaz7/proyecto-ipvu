@@ -36,7 +36,7 @@ export const auditoriaService = {
     },
 
     // Trae la auditoria (ordenada de la mas reciente a la mas vieja). Acepta filtros opcionales:
-    // { usuario, rol, expediente, q, desde, hasta }. Los vacios no se mandan.
+    // { usuario, rol, tipo, expediente, q, desde, hasta }. Los vacios no se mandan.
     getHistorialAcciones: async (filtros = {}) => {
         try {
             const params = {};

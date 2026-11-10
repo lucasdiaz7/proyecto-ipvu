@@ -34,7 +34,7 @@ const Expedientes = () => {
     const [verSoloNuevos, setVerSoloNuevos] = useState(false);
 
     const rolId = Number(localStorage.getItem('rol_id'));
-    // Data Entry y Administrador ven además quién tiene el expediente y hace cuántos días
+    // Mesa de Entrada y Administrador ven además quién tiene el expediente y hace cuántos días
     const mostrarAsignacion = rolId === 3 || rolId === 4;
 
     console.log('expedientes :>> ', expedientes);

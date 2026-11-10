@@ -1,10 +1,11 @@
-import { UserPlusIcon, UsersIcon, DocumentTextIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline';
+import { UserPlusIcon, UsersIcon, DocumentTextIcon, ClipboardDocumentListIcon, TableCellsIcon } from '@heroicons/react/24/outline';
 import { Link } from 'react-router';
 
 export const ADMIN_LINKS = [
     { title: "Usuarios", Icon: UserPlusIcon, to: "/usuarios" },
     { title: "Trabajador Social", Icon: UsersIcon, to: "/trabajadoraSocial" },
     { title: "Auditoría", Icon: ClipboardDocumentListIcon, to: "/auditoria" },
+    { title: "Exportar", Icon: TableCellsIcon, to: "/exportar" },
     { title: "Expedientes", Icon: DocumentTextIcon, to: "/expedientes" },
 ];
 

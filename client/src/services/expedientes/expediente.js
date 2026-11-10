@@ -52,6 +52,32 @@ export const expedienteService = {
     evaluarSemaforo: async (id) => {
         const response = await api.post(`/expediente/${id}/evaluar-semaforo/`);
         return response.data;
+    },
+
+    // descarga el .xlsx de expedientes (solo superadmin). Acepta filtros { estado, usuario_asignado,
+    // discapacidad, desde, hasta }; los vacios no se mandan. Devuelve el blob ya disparando la descarga.
+    exportarExcel: async (filtros = {}) => {
+        const params = {};
+        Object.entries(filtros).forEach(([clave, valor]) => {
+            if (valor !== undefined && valor !== null && String(valor).trim() !== "") {
+                params[clave] = valor;
+            }
+        });
+        const response = await api.get("/expediente/exportar-excel/", { params, responseType: "blob" });
+
+        // el nombre de archivo viene en el header Content-Disposition del backend
+        const dispo = response.headers["content-disposition"] || "";
+        const match = dispo.match(/filename="?([^"]+)"?/);
+        const nombre = match ? match[1] : "expedientes.xlsx";
+
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const enlace = document.createElement("a");
+        enlace.href = url;
+        enlace.setAttribute("download", nombre);
+        document.body.appendChild(enlace);
+        enlace.click();
+        enlace.remove();
+        window.URL.revokeObjectURL(url);
     }
 }
 
