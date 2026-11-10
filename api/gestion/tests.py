@@ -758,6 +758,20 @@ class PanelAuditoriaTests(SeguridadBaseTestCase):
         self.assertEqual(len(data), 1)
         self.assertIn('DOWNLOAD', data[0]['mensaje_accion'])
 
+    def test_filtra_por_tipo_de_accion(self):
+        # la categoria se deduce del prefijo del mensaje (CATEGORIAS_AUDITORIA en views.py)
+        descargas = self.listar(tipo='descarga').data
+        self.assertEqual(len(descargas), 1)
+        self.assertTrue(descargas[0]['mensaje_accion'].startswith('DOWNLOAD:'))
+
+        logins = self.listar(tipo='login').data
+        self.assertEqual(len(logins), 1)
+        self.assertTrue(logins[0]['mensaje_accion'].startswith('Login:'))
+
+        # un tipo sin coincidencias no devuelve nada; uno inexistente se ignora (trae todo)
+        self.assertEqual(len(self.listar(tipo='usuarios').data), 0)
+        self.assertEqual(len(self.listar(tipo='inexistente').data), HistorialAccion.objects.count())
+
     def test_filtra_por_rango_de_fechas(self):
         from datetime import timedelta
         HistorialAccion.objects.all().update(fecha_accion=timezone.now() - timedelta(days=10))
@@ -767,3 +781,61 @@ class PanelAuditoriaTests(SeguridadBaseTestCase):
         hoy = timezone.now().date().isoformat()
         data = self.listar(desde=hoy).data
         self.assertEqual([a['id'] for a in data], [reciente.id])
+
+
+class ExportarExpedientesExcelTests(SeguridadBaseTestCase):
+    """El superadmin exporta los expedientes a Excel; los roles operativos no pueden."""
+
+    def setUp(self):
+        super().setUp()
+        self.superadmin = self.crear_usuario('export_su', 'SU')
+        # un segundo expediente en estado AP para probar el filtro por estado
+        postulante_ap = PostulanteTitular.objects.create(
+            nombre='Beto', apellido='Diaz', telefono='3851111111', dni='31222333',
+            domicilio_actual='Calle 2', tiene_discapacidad=True,
+        )
+        estado_ap = EstadoExpediente.objects.create(nombre='AP')
+        self.expediente_ap = Expediente.objects.create(
+            postulante_titular=postulante_ap, estado_expediente=estado_ap, usuario_asignado=self.user_de,
+        )
+
+    def exportar(self, **params):
+        return self.client.get('/api/expediente/exportar-excel/', params)
+
+    def _abrir(self, response):
+        import io, openpyxl
+        return openpyxl.load_workbook(io.BytesIO(response.content))
+
+    def test_un_rol_operativo_no_puede_exportar(self):
+        self.client.force_authenticate(self.user_de)
+        self.assertIn(self.exportar().status_code, (403, 404))
+
+    def test_el_superadmin_descarga_un_xlsx(self):
+        self.client.force_authenticate(self.superadmin)
+        response = self.exportar()
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('spreadsheetml', response['Content-Type'])
+        self.assertIn('.xlsx', response['Content-Disposition'])
+
+    def test_trae_una_fila_por_expediente_mas_encabezado_y_hoja_resumen(self):
+        self.client.force_authenticate(self.superadmin)
+        libro = self._abrir(self.exportar())
+        self.assertEqual(libro.sheetnames, ['Expedientes', 'Resumen'])
+        hoja = libro['Expedientes']
+        # encabezado + 2 expedientes creados
+        self.assertEqual(hoja.max_row, 1 + Expediente.objects.count())
+        self.assertEqual(hoja['A1'].value, 'Nº')
+
+    def test_filtra_por_estado(self):
+        self.client.force_authenticate(self.superadmin)
+        libro = self._abrir(self.exportar(estado='AP'))
+        hoja = libro['Expedientes']
+        self.assertEqual(hoja.max_row, 2)  # encabezado + solo el AP
+        self.assertEqual(hoja['C2'].value, 'Apto')
+
+    def test_exportar_queda_registrado_en_la_auditoria(self):
+        self.client.force_authenticate(self.superadmin)
+        self.exportar()
+        self.assertTrue(
+            HistorialAccion.objects.filter(mensaje_accion__startswith='Exportó un Excel').exists()
+        )

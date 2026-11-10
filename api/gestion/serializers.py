@@ -227,6 +227,16 @@ class DocumentoAdjuntoSerializer(serializers.ModelSerializer):
         ret = super().to_representation(instance)
         # solo el nombre: la URL de /media/ no se expone
         ret['archivo'] = instance.archivo.name if instance.archivo else None
+
+        # nombre legible de quien subio el archivo (mismo patron que usuario_origen_display)
+        subido_por = instance.subido_por
+        if subido_por:
+            perfil = getattr(subido_por, 'usuario', None)
+            nombre = getattr(perfil, 'nombre', subido_por.first_name) if perfil else subido_por.first_name
+            apellido = getattr(perfil, 'apellido', subido_por.last_name) if perfil else subido_por.last_name
+            ret['subido_por_display'] = f"{nombre} {apellido}".strip() or subido_por.username
+        else:
+            ret['subido_por_display'] = "Sistema"
         return ret
 
     def validate_archivo(self, archivo):
@@ -241,7 +251,8 @@ class DocumentoAdjuntoSerializer(serializers.ModelSerializer):
         return archivo
 
     def get_pendiente_pase(self, obj):
-        return not obj.historial_pases.exists()
+        # usa los pases ya precargados por la vista (prefetch_related): .exists() volveria a consultar la base
+        return len(obj.historial_pases.all()) == 0
 
 class HistorialPaseSerializer(serializers.ModelSerializer):
     expediente_info = serializers.SerializerMethodField()
@@ -306,18 +317,18 @@ class HistorialPaseSerializer(serializers.ModelSerializer):
         }
         
     def get_documentos_adjuntos_detalle(self, obj):
-        documentos = obj.documentos_adjuntos.all()
+        # obj.documentos_adjuntos viene con prefetch_related desde la vista: materializar la lista
+        # reutiliza esa cache en lugar de que .exists() dispare otra consulta por cada pase.
+        documentos = list(obj.documentos_adjuntos.all())
 
-        if documentos.exists():
-            return [
-                {
-                    "id": doc.id,
-                    "tipo_documento": doc.tipo_documento,
-                    "archivo": doc.archivo.name if doc.archivo else None,
-                    "archivo_url": url_descarga(doc)
-                } for doc in documentos
-            ]
-        return []
+        return [
+            {
+                "id": doc.id,
+                "tipo_documento": doc.tipo_documento,
+                "archivo": doc.archivo.name if doc.archivo else None,
+                "archivo_url": url_descarga(doc)
+            } for doc in documentos
+        ]
     
     
     def to_representation(self, instance):

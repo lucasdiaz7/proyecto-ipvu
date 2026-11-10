@@ -323,7 +323,9 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
 
         
         if not usuario.is_authenticated:
-            queryset = Expediente.objects.all()
+            # defensa en profundidad: sin login no se ve nada. Hoy este viewset exige IsAnyRole (login),
+            # pero si alguien afloja los permisos, este none() evita que se filtren todos los expedientes.
+            queryset = Expediente.objects.none()
         elif hasattr(usuario, 'usuario') and usuario.usuario.rol.nombre_rol in ['TS', 'LG', 'DE']:
             queryset = Expediente.objects.filter(usuario_asignado= usuario)
         else:
@@ -372,7 +374,9 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
         # expedientes en su poder: get_object() ya filtra por get_queryset
         if self.action in ['create', 'update', 'partial_update']:
             return [IsDataEntry()]
-        if self.action in ['destroy']:
+        # destroy, el Excel y el CSV de conteos globales son reportes/acciones de todo el padron:
+        # solo el Administrador. Un rol operativo solo ve lo que tiene en su poder.
+        if self.action in ['destroy', 'exportar_excel', 'reporte_estados']:
             return [IsSuperAdmin()]
         return [IsAnyRole()]
 
@@ -400,8 +404,105 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
             writer.writerow([nombre_estado, conteos_por_estado.get(codigo_estado, 0)])
 
         return response
-    
-    
+
+
+    @action(detail=False, methods=['get'], url_path='exportar-excel')
+    def exportar_excel(self, request):
+        # Exporta los expedientes a un .xlsx con dos hojas: "Expedientes" (un renglon por expediente) y
+        # "Resumen" (conteo por estado). Solo el superadmin (ver get_permissions). Acepta los mismos
+        # filtros que la lista: estado, usuario_asignado, discapacidad y rango de fechas de creacion.
+        import openpyxl
+        from openpyxl.styles import Font
+        from openpyxl.utils import get_column_letter
+
+        queryset = Expediente.objects.select_related(
+            'estado_expediente', 'postulante_titular', 'usuario_asignado'
+        ).order_by('id')
+
+        estado = request.query_params.get('estado')
+        if estado:
+            queryset = queryset.filter(estado_expediente__nombre=estado)
+
+        usuario_asignado = request.query_params.get('usuario_asignado')
+        if usuario_asignado:
+            queryset = queryset.filter(usuario_asignado=usuario_asignado)
+
+        desde = request.query_params.get('desde')
+        if desde:
+            queryset = queryset.filter(fecha_creacion__date__gte=desde)
+
+        hasta = request.query_params.get('hasta')
+        if hasta:
+            queryset = queryset.filter(fecha_creacion__date__lte=hasta)
+
+        discapacidad = request.query_params.get('discapacidad')
+        if discapacidad in ('true', 'false'):
+            queryset = queryset.filter(postulante_titular__tiene_discapacidad=(discapacidad == 'true'))
+
+        libro = openpyxl.Workbook()
+
+        # --- Hoja 1: detalle ---
+        hoja = libro.active
+        hoja.title = 'Expedientes'
+        encabezados = [
+            'Nº', 'DDJJ', 'Estado', 'Apellido', 'Nombre', 'DNI', 'Teléfono', 'Email',
+            'Domicilio', 'Ingresos', 'Discapacidad', 'TS asignada', 'Fecha de creación',
+        ]
+        hoja.append(encabezados)
+
+        for exp in queryset:
+            titular = exp.postulante_titular
+            ts = exp.usuario_asignado
+            ts_nombre = f"{ts.first_name} {ts.last_name}".strip() if ts else 'Sin asignar'
+            hoja.append([
+                exp.id,
+                exp.DDJJ or '',
+                exp.estado_expediente.get_nombre_display() if exp.estado_expediente else '',
+                titular.apellido,
+                titular.nombre,
+                titular.dni,
+                titular.telefono,
+                titular.email or '',
+                titular.domicilio_actual,
+                float(titular.ingresos),
+                'Sí' if titular.tiene_discapacidad else 'No',
+                ts_nombre,
+                timezone.localtime(exp.fecha_creacion).strftime('%d/%m/%Y %H:%M'),
+            ])
+
+        # --- Hoja 2: resumen por estado ---
+        resumen = libro.create_sheet('Resumen')
+        resumen.append(['Estado', 'Cantidad'])
+        conteos = {
+            item['estado_expediente__nombre']: item['cantidad']
+            for item in queryset.values('estado_expediente__nombre').annotate(cantidad=Count('id'))
+        }
+        for codigo, nombre in dict(EstadoExpediente.tipo_estado).items():
+            resumen.append([nombre, conteos.get(codigo, 0)])
+        resumen.append(['Total', queryset.count()])
+
+        # negrita en los encabezados y ancho de columna segun el contenido mas largo
+        for ws in (hoja, resumen):
+            for celda in ws[1]:
+                celda.font = Font(bold=True)
+            for columna in ws.columns:
+                ancho = max((len(str(c.value)) for c in columna if c.value is not None), default=10)
+                ws.column_dimensions[get_column_letter(columna[0].column)].width = min(ancho + 2, 45)
+
+        registrar_auditoria(
+            request.user, None,
+            f"Exportó un Excel con {queryset.count()} expediente(s)."
+        )
+
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        nombre_archivo = f"expedientes_{timezone.localtime(timezone.now()).strftime('%Y%m%d_%H%M')}.xlsx"
+        response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
+        libro.save(response)
+        return response
+
+
     @action(detail=True, methods=['patch'])
     def cambiar_estado(self, request, pk=None):
         expediente = self.get_object()
@@ -523,7 +624,8 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         return [IsAnyRole()]
     
     def get_queryset(self):
-        queryset = Usuario.objects.all()
+        # select_related evita una consulta por usuario al leer su User (username) y su rol en el serializer
+        queryset = Usuario.objects.select_related('usuario', 'rol')
         rol= self.request.query_params.get('rol')
 
         if rol:
@@ -649,7 +751,12 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
             )
     
     def get_queryset(self):
-        queryset = filtrar_expedientes_en_poder(DocumentoAdjunto.objects.all(), self.request)
+        # select_related/prefetch evitan una consulta por documento al armar subido_por_display
+        # (subido_por -> usuario) y las listas de pases de cada documento.
+        base = DocumentoAdjunto.objects.select_related(
+            'subido_por__usuario'
+        ).prefetch_related('historial_pases')
+        queryset = filtrar_expedientes_en_poder(base, self.request)
         expediente_id = self.request.query_params.get('expediente')
         
         if expediente_id:
@@ -696,20 +803,6 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
             )
 
         return FileResponse(archivo, filename=os.path.basename(documento.archivo.name))
-
-    #nueva ruta: auditoría de descarga
-    @action(detail=True, methods=['get'], url_path='registrar-descarga')
-    def registrar_descarga(self, request, pk=None):
-        documento = self.get_object()
-
-        perfil_usuario = getattr(request.user, 'usuario', None)
-        if perfil_usuario:
-            HistorialAccion.objects.create(
-                id_usuario_accion=perfil_usuario,
-                id_expediente=documento.expediente,
-                mensaje_accion=f'DOWNLOAD: Descargó el archivo "{documento.archivo.name}".'
-            )
-        return Response({'mensaje': 'Descarga registrada exitosamente'})
 
 
 class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, GenericViewSet):
@@ -780,7 +873,12 @@ class NotificacionViewSet(viewsets.ModelViewSet):
     # Los avisos de "expediente creado" dejan de mostrarse a los DIAS_VISIBLE_EXPEDIENTE_CREADO dias (no se borran).
     def get_queryset(self):
         limite = timezone.now() - timedelta(days=DIAS_VISIBLE_EXPEDIENTE_CREADO)
-        return Notificacion.objects.filter(
+        # select_related trae el expediente, su postulante y su estado de una sola vez: sin esto cada
+        # notificacion disparaba 3 consultas extra al armar el resumen del expediente.
+        return Notificacion.objects.select_related(
+            'expediente_relacionado__postulante_titular',
+            'expediente_relacionado__estado_expediente',
+        ).filter(
             usuario_destino=self.request.user
         ).exclude(
             mensaje__startswith=MENSAJE_EXPEDIENTE_CREADO,
@@ -799,6 +897,24 @@ class NotificacionViewSet(viewsets.ModelViewSet):
         notificacion.leida = True
         notificacion.save(update_fields=['leida'])
         return Response({'mensaje': 'Notificacion marcada como leida'})
+
+# El modelo HistorialAccion no guarda un "tipo" de accion: solo el texto de mensaje_accion. Pero en la
+# practica cada mensaje arranca con una frase fija segun la accion, asi que el tipo se deduce del prefijo.
+# Este mapa centraliza esa relacion (clave que viaja por la URL -> prefijos que empiezan el mensaje). Si
+# algun dia se cambia la redaccion de un mensaje en las vistas, hay que actualizar el prefijo aca.
+CATEGORIAS_AUDITORIA = {
+    'login': ['Login:'],
+    'expediente': ['Expediente inicial creado', 'Expediente manual creado'],
+    'visualizacion': ['El usuario visualizó'],
+    'estado': ['Cambio de estado:'],
+    'ia': ['Se evaluaron inconsistencias'],
+    'informe': ['Se guardó el Informe'],
+    'subida': ['UPLOAD:'],
+    'descarga': ['DOWNLOAD:'],
+    'borrar_doc': ['Borrar documento:'],
+    'usuarios': ['Crear usuario:', 'Actualizar usuario:', 'Borrar usuario:'],
+}
+
 
 class HistorialAccionViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
     queryset = HistorialAccion.objects.all()
@@ -827,6 +943,15 @@ class HistorialAccionViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet)
         expediente = params.get('expediente')
         if expediente:
             queryset = queryset.filter(id_expediente=expediente)
+
+        # tipo de accion: se traduce la categoria a los prefijos con que empieza el mensaje
+        tipo = params.get('tipo')
+        prefijos = CATEGORIAS_AUDITORIA.get(tipo) if tipo else None
+        if prefijos:
+            condicion = Q()
+            for prefijo in prefijos:
+                condicion |= Q(mensaje_accion__istartswith=prefijo)
+            queryset = queryset.filter(condicion)
 
         texto = params.get('q')
         if texto:
