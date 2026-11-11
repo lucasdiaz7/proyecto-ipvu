@@ -2,13 +2,17 @@ import React, { useEffect, useRef, useState } from 'react';
 import { TrashIcon, DocumentTextIcon, PhotoIcon } from '@heroicons/react/24/outline';
 import { documentoAdjuntoService } from '../../services/documentos/documentoAdjunto';
 
+const EXTENSIONES_PERMITIDAS = ['.pdf', '.png', '.jpg', '.jpeg'];
+
 export const AdjuntarArchivos = ({ expedienteId, adjuntosExcluidos = [], onArchivosChange }) => {
   const [archivos, setArchivos] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [subiendo, setSubiendo] = useState(false);
   const [eliminandoId, setEliminandoId] = useState(null);
   const [error, setError] = useState('');
+  const [arrastrando, setArrastrando] = useState(false);
   const fileInputRef = useRef(null);
+  const contadorArrastre = useRef(0);
 
   const obtenerClaveAdjunto = (archivo) => {
     return String(
@@ -46,15 +50,23 @@ export const AdjuntarArchivos = ({ expedienteId, adjuntosExcluidos = [], onArchi
     obtenerAdjuntosPendientes();
   }, [expedienteId, adjuntosExcluidos, onArchivosChange]);
 
-  const handleFileChange = async (e) => {
-    const seleccionados = Array.from(e.target.files);
-    if (seleccionados.length === 0 || !expedienteId) return;
+  const subirArchivos = async (seleccionados) => {
+    if (seleccionados.length === 0 || !expedienteId || subiendo) return;
+
+    // al arrastrar no aplica el "accept" del input: se filtra aca con los mismos formatos
+    const validos = seleccionados.filter((archivo) =>
+      EXTENSIONES_PERMITIDAS.some((extension) => archivo.name.toLowerCase().endsWith(extension))
+    );
+    if (validos.length === 0) {
+      setError('Formato no permitido. Solo se aceptan PDF, PNG o JPG.');
+      return;
+    }
 
     try {
       setSubiendo(true);
-      setError('');
+      setError(validos.length < seleccionados.length ? 'Se omitieron archivos con formato no permitido.' : '');
       const documentosSubidos = await Promise.all(
-        seleccionados.map((archivo) =>
+        validos.map((archivo) =>
           documentoAdjuntoService.crear({ expedienteId, archivo })
         )
       );
@@ -66,8 +78,43 @@ export const AdjuntarArchivos = ({ expedienteId, adjuntosExcluidos = [], onArchi
       setError('No se pudo subir uno de los archivos. Intenta nuevamente.');
     } finally {
       setSubiendo(false);
-      e.target.value = '';
     }
+  };
+
+  const handleFileChange = async (e) => {
+    const seleccionados = Array.from(e.target.files);
+    e.target.value = '';
+    await subirArchivos(seleccionados);
+  };
+
+  // dragenter/dragleave tambien se disparan al pasar por los elementos de adentro: se cuentan para
+  // no apagar el resaltado mientras el archivo sigue sobre el recuadro
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    contadorArrastre.current += 1;
+    setArrastrando(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    contadorArrastre.current -= 1;
+    if (contadorArrastre.current <= 0) {
+      contadorArrastre.current = 0;
+      setArrastrando(false);
+    }
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    contadorArrastre.current = 0;
+    setArrastrando(false);
+    const soltados = Array.from(e.dataTransfer.files);
+    // una imagen arrastrada desde una pagina web o una app no llega como archivo: hay que guardarla antes
+    if (soltados.length === 0) {
+      setError('No se pudo leer lo que arrastraste. Guardá el archivo en la compu y arrastralo desde la carpeta.');
+      return;
+    }
+    await subirArchivos(soltados);
   };
 
   const abrirArchivo = async (documentoId) => {
@@ -106,7 +153,13 @@ export const AdjuntarArchivos = ({ expedienteId, adjuntosExcluidos = [], onArchi
   const archivoEsPdf = (archivo) => obtenerNombreArchivo(archivo).toLowerCase().endsWith('.pdf');
 
   return (
-    <div className="w-full pt-1">
+    <div
+      className={`w-full pt-1 rounded-lg transition-colors ${arrastrando ? 'bg-blue-50 outline-dashed outline-2 outline-blue-400 outline-offset-4' : ''}`}
+      onDragEnter={handleDragEnter}
+      onDragOver={(e) => e.preventDefault()}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
         <input
           type="file"
@@ -125,11 +178,13 @@ export const AdjuntarArchivos = ({ expedienteId, adjuntosExcluidos = [], onArchi
           {subiendo ? 'Subiendo...' : 'Adjuntar archivo'}
         </button>
         <span className="text-xs font-medium text-gray-500 pl-1 sm:pl-0">
-          {cargando
-            ? 'Cargando archivos...'
-            : archivos.length === 0
-              ? 'Ningun archivo adjunto'
-              : `${archivos.length} archivo(s) adjunto(s)`}
+          {arrastrando
+            ? 'Soltá el archivo para adjuntarlo'
+            : cargando
+              ? 'Cargando archivos...'
+              : archivos.length === 0
+                ? 'Ningun archivo adjunto · o arrastralo acá'
+                : `${archivos.length} archivo(s) adjunto(s) · podés arrastrar más acá`}
         </span>
       </div>
 
