@@ -62,7 +62,6 @@ logger = logging.getLogger(__name__)
 # Notificaciones automaticas. meensajes posibles al recibir un expediente
 MENSAJE_NUEVO_CASO = "Nuevo caso recibido"
 MENSAJE_CASO_RECIBIDO = "Caso recibido"
-ROLES_CON_NOTIFICACION_DE_CASO = ['TS', 'LG']
 
 # aviso a la data entry de a quien quedo asignado el expediente que cargo: es informativo y deja de mostrarse solo
 MENSAJE_EXPEDIENTE_CREADO = "Expediente creado"
@@ -236,17 +235,12 @@ def crear_notificacion_expediente_creado(usuario_creador, expediente, nombre_asi
     Notificacion.objects.create(mensaje=mensaje[:200], usuario_destino=usuario_creador)
 
 
-# verifica si el usuario destino pertenece a un rol que debe recibir notificaciones de expedientes, o sea, LG y TS
+# todos los roles manejan expedientes: cualquier usuario con perfil recibe el aviso cuando le llega uno
 def usuario_puede_recibir_notificacion_caso(usuario_destino):
     if not usuario_destino:
         return False
 
-    perfil_destino = getattr(usuario_destino, 'usuario', None)
-
-    if not perfil_destino:
-        return False
-
-    return perfil_destino.rol.nombre_rol in ROLES_CON_NOTIFICACION_DE_CASO
+    return getattr(usuario_destino, 'usuario', None) is not None
 
 
 # determina si el usuario ya habia recibido antes el mismo expediente para que el la notificacion no diga NUEVO
@@ -268,8 +262,9 @@ def usuario_recibio_expediente_antes(usuario_destino, expediente, pase_actual=No
     return notificacion_previa or pases_previos.exists()
 
 
-# crea la notificacion cuando un usuario de TS o Legales recibe un expediente
+# crea la notificacion cuando un usuario recibe un expediente (por la carga, por un pase o por una baja)
 # si es la primera vez q recibe muestra Nuevo caso recibido. si ya lo recibio antes muestra Caso recibido
+# el pase queda guardado para mostrar quien lo envio
 def crear_notificacion_recepcion_expediente(usuario_destino, expediente, pase_actual=None):
     if not usuario_puede_recibir_notificacion_caso(usuario_destino):
         return
@@ -285,7 +280,8 @@ def crear_notificacion_recepcion_expediente(usuario_destino, expediente, pase_ac
     Notificacion.objects.create(
         mensaje=mensaje,
         usuario_destino=usuario_destino,
-        expediente_relacionado=expediente
+        expediente_relacionado=expediente,
+        pase=pase_actual,
     )
 
 # Regla de acceso: cada usuario (TS, LG, DE) solo ve y toca los expedientes que tiene en su poder
@@ -1209,6 +1205,7 @@ class NotificacionViewSet(viewsets.ModelViewSet):
         return Notificacion.objects.select_related(
             'expediente_relacionado__postulante_titular',
             'expediente_relacionado__estado_expediente',
+            'pase__usuario_origen__usuario',
         ).filter(
             usuario_destino=self.request.user
         ).exclude(

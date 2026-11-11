@@ -152,7 +152,10 @@ class Notificacion(models.Model):
 
     # expediente que origina la notificacion para poder abrir el caso desde la interfa
     expediente_relacionado = models.ForeignKey(Expediente, on_delete=models.SET_NULL, null=True, blank=True)
-    
+
+    # pase que genero el aviso: de ahi sale quien lo envio y si fue la asignacion automatica de la carga
+    pase = models.ForeignKey('HistorialPase', on_delete=models.SET_NULL, null=True, blank=True, related_name='notificaciones')
+
     def __str__(self):
         return f"Notificación para {self.usuario_destino.username}"
 

@@ -387,8 +387,27 @@ class NotificacionSerializer(serializers.ModelSerializer):
             'usuario_destino',
             'expediente_relacionado',
             'expediente',
+            'enviado_por',
+            'es_asignacion_inicial',
         ]
-        read_only_fields = ('fecha_creacion', 'leida', 'expediente')
+        read_only_fields = ('fecha_creacion', 'leida', 'expediente', 'enviado_por', 'es_asignacion_inicial')
+
+    enviado_por = serializers.SerializerMethodField()
+    es_asignacion_inicial = serializers.SerializerMethodField()
+
+    # nombre de quien hizo el pase ("Carlos Perez te envio..."); None en los avisos que no vienen de un pase
+    def get_enviado_por(self, obj):
+        if not obj.pase or not obj.pase.usuario_origen:
+            return None
+        origen = obj.pase.usuario_origen
+        perfil = getattr(origen, 'usuario', None)
+        if perfil:
+            return f"{perfil.nombre} {perfil.apellido}".strip()
+        return origen.get_full_name() or origen.username
+
+    # True cuando el expediente le llego por la asignacion automatica de la carga y no por un pase manual
+    def get_es_asignacion_inicial(self, obj):
+        return bool(obj.pase and obj.pase.observacion == OBSERVACION_ASIGNACION_INICIAL)
 
     # version compacta del expediente relacionado para que el frontend pueda listar el caso recibido
     def get_expediente(self, obj):

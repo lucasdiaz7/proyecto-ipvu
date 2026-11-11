@@ -405,6 +405,32 @@ class NotificacionExpedienteCreadoTests(SeguridadBaseTestCase):
         self.assertEqual(Notificacion.objects.filter(usuario_destino=self.user_de).count(), 1)
         self.assertEqual(self.notificaciones(self.ts), ['Nuevo caso recibido'])
 
+    def test_la_ts_ve_quien_cargo_el_caso_que_le_asignaron(self):
+        self.crear_expediente()
+        self.client.force_authenticate(self.ts)
+        notif = self.client.get('/api/notificacion/').data[0]
+        self.assertTrue(notif['es_asignacion_inicial'])
+        self.assertEqual(notif['enviado_por'], 'Test dataentry')
+        self.assertEqual(notif['expediente']['postulante']['apellido'], 'Gómez')
+
+    def test_todos_los_roles_reciben_aviso_de_pase_con_quien_lo_envio(self):
+        # Legales le devuelve un expediente a la data entry: antes la data entry no recibia aviso
+        legales = self.crear_usuario('legales1', 'LG')
+        self.expediente.usuario_asignado = legales
+        self.expediente.save()
+        self.client.force_authenticate(legales)
+        response = self.client.post('/api/historialpase/', {
+            'expediente': self.expediente.id, 'usuario_destino': self.user_de.id, 'observacion': 'Dictamen listo',
+        })
+        self.assertEqual(response.status_code, 201)
+
+        self.client.force_authenticate(self.user_de)
+        notif = self.client.get('/api/notificacion/').data[0]
+        self.assertEqual(notif['mensaje'], 'Nuevo caso recibido')
+        self.assertEqual(notif['enviado_por'], 'Test legales1')
+        self.assertFalse(notif['es_asignacion_inicial'])
+        self.assertEqual(notif['expediente']['id'], self.expediente.id)
+
 
 # ---------------------------------------------------------------------------
 # Semaforo de inconsistencias (fase 2 del microservicio de IA)
