@@ -58,6 +58,10 @@ class Expediente(models.Model):
     fecha_limite_ts = models.DateTimeField(null=True, blank=True)
     DDJJ = models.CharField(max_length=50, null=True, blank=True, unique=True) 
     visto = models.BooleanField(default=False)
+    # ultimo paso del circuito: con la documentacion presentada y el expediente impreso, Mesa de Entrada
+    # lo archiva. Se puede desarchivar. Archivado no se puede pasar ni modificar.
+    archivado = models.BooleanField(default=False)
+    fecha_archivado = models.DateTimeField(null=True, blank=True)
     #FK
     postulante_titular = models.ForeignKey(PostulanteTitular, on_delete=models.CASCADE)
     usuario_asignado = models.ForeignKey(User, on_delete= models.SET_NULL, null=True)
@@ -113,6 +117,10 @@ class DocumentoAdjunto(models.Model):
 
 
     
+# observacion del pase que se crea solo al cargar el expediente (asignacion automatica a una TS)
+OBSERVACION_ASIGNACION_INICIAL = "Asignación automática al cargar el expediente"
+
+
 class HistorialPase(models.Model):
     #FK
     expediente = models.ForeignKey(Expediente, on_delete=models.CASCADE, related_name='historial_pases')

@@ -19,6 +19,7 @@ const Usuarios = () => {
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState(null);
     const [perfilSeleccionado, setPerfilSeleccionado] = useState('Todos');
+    const [estadoSeleccionado, setEstadoSeleccionado] = useState('Todos');
     const [busqueda, setBusqueda] = useState('');
 
     console.log('listaUsuarios :>> ', listaUsuarios);
@@ -82,15 +83,46 @@ const Usuarios = () => {
         fetchUsuariosYCasos();
     }, []);
 
+    // antes de cambiar el estado se pregunta que hacer con sus casos (si tiene):
+    // al darlo de baja, si es una ausencia temporal o definitiva; al reactivarlo, si se le devuelven
+    const [confirmacion, setConfirmacion] = useState(null);
+
     const handleToggleActivo = async (usuario) => {
         const nuevoEstado = !usuario.activo;
+        let casos = { en_poder: 0, devolvibles: 0 };
+        try {
+            casos = await usuarioService.casosBaja(usuario.id);
+        } catch (err) {
+            console.error("No se pudieron contar los casos del usuario", err);
+        }
 
+        if (!nuevoEstado && casos.en_poder > 0) {
+            setConfirmacion({ usuario, tipo: 'baja', cantidad: casos.en_poder });
+            return;
+        }
+        if (nuevoEstado && casos.devolvibles > 0) {
+            setConfirmacion({ usuario, tipo: 'alta', cantidad: casos.devolvibles });
+            return;
+        }
+        await aplicarCambioActivo(usuario, nuevoEstado);
+    };
+
+    const aplicarCambioActivo = async (usuario, nuevoEstado, opciones = {}) => {
+        setConfirmacion(null);
         setListaUsuarios((prev) =>
             prev.map((u) => (u.id === usuario.id ? { ...u, activo: nuevoEstado } : u))
         );
 
         try {
-            await usuarioService.cambiarEstadoActivo(usuario.id, nuevoEstado);
+            await usuarioService.cambiarEstadoActivo(usuario.id, nuevoEstado, opciones);
+            if (opciones.reasignar_casos) {
+                toast.success("Usuario dado de baja. Sus casos se repartieron entre los activos de su rol.");
+                // los contadores de casos cambiaron: se recarga la lista
+                setTimeout(() => window.location.reload(), 1200);
+            } else if (opciones.devolver_casos) {
+                toast.success("Usuario reactivado. Se le devolvieron sus casos.");
+                setTimeout(() => window.location.reload(), 1200);
+            }
         } catch (err) {
             console.error("No se pudo actualizar el estado del usuario", err);
             setListaUsuarios((prev) =>
@@ -110,7 +142,12 @@ const Usuarios = () => {
             u.apellido?.toLowerCase().includes(textoBusqueda) ||
             u.dni?.includes(textoBusqueda);
 
-        return pasaPerfil && pasaBusqueda;
+        // los dados de baja no se borran nunca: se encuentran con el filtro "Inactivos" y se reactivan
+        const pasaEstado = estadoSeleccionado === 'Todos'
+            || (estadoSeleccionado === 'Activos' && u.activo !== false)
+            || (estadoSeleccionado === 'Inactivos' && u.activo === false);
+
+        return pasaPerfil && pasaBusqueda && pasaEstado;
     });
 
     const { paginaActual, setPaginaActual, totalPaginas, itemsPaginados, totalItems } = usePaginacion(usuariosFiltrados);
@@ -129,7 +166,18 @@ const Usuarios = () => {
                         </h3>
                     </div>
 
-                    <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="bg-gray-100 dark:bg-slate-800 p-3 rounded-xl shadow-sm hover:bg-gray-200 dark:hover:bg-slate-700 transition">
+                            <select
+                                value={estadoSeleccionado}
+                                onChange={(e) => setEstadoSeleccionado(e.target.value)}
+                                className="w-full bg-transparent outline-none text-gray-700 dark:text-slate-200 font-medium cursor-pointer pr-2"
+                            >
+                                <option className="text-gray-800" value="Todos">Activos e inactivos</option>
+                                <option className="text-gray-800" value="Activos">Solo activos</option>
+                                <option className="text-gray-800" value="Inactivos">Solo inactivos (dados de baja)</option>
+                            </select>
+                        </div>
                         <div className="bg-gray-100 dark:bg-slate-800 p-3 rounded-xl shadow-sm hover:bg-gray-200 dark:hover:bg-slate-700 transition">
                             <select
                                 value={perfilSeleccionado}
@@ -265,6 +313,106 @@ const Usuarios = () => {
                     )}
                 </div>
             </div>
+
+            {confirmacion && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+                    onClick={() => setConfirmacion(null)}
+                    role="dialog"
+                    aria-modal="true"
+                >
+                    <div
+                        className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-6 flex flex-col gap-4"
+                        onClick={(ev) => ev.stopPropagation()}
+                    >
+                        {confirmacion.tipo === 'baja' ? (
+                            <>
+                                <div>
+                                    <h4 className="text-lg font-bold text-gray-800 dark:text-slate-100">
+                                        Desactivar a {confirmacion.usuario.nombre} {confirmacion.usuario.apellido}
+                                    </h4>
+                                    <p className="text-sm text-gray-600 dark:text-slate-300 mt-1">
+                                        Tiene <span className="font-semibold">{confirmacion.cantidad}</span> expediente(s) en su poder. ¿Qué hacemos con ellos?
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => aplicarCambioActivo(confirmacion.usuario, false)}
+                                    className="text-left border border-gray-200 dark:border-slate-700 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-xl p-3 transition"
+                                >
+                                    <p className="font-semibold text-sm text-gray-800 dark:text-slate-100">Ausencia temporal (vacaciones, licencia)</p>
+                                    <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Sus casos quedan a su nombre, esperándolo para cuando vuelva.</p>
+                                </button>
+                                {!confirmacion.pasoDefinitiva ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => setConfirmacion({ ...confirmacion, pasoDefinitiva: true, dni: '' })}
+                                        className="text-left border border-gray-200 dark:border-slate-700 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl p-3 transition"
+                                    >
+                                        <p className="font-semibold text-sm text-gray-800 dark:text-slate-100">Baja definitiva (renuncia)</p>
+                                        <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Sus casos se reparten por turno entre los usuarios activos de su rol. Si vuelve, al reactivarlo se le pueden devolver.</p>
+                                    </button>
+                                ) : (
+                                    <div className="border border-red-300 dark:border-red-500/40 bg-red-50 dark:bg-red-500/10 rounded-xl p-3 flex flex-col gap-2">
+                                        <p className="text-sm text-gray-800 dark:text-slate-100">
+                                            Para confirmar la <span className="font-semibold">baja definitiva</span>, escribí el DNI de {confirmacion.usuario.nombre} {confirmacion.usuario.apellido}:
+                                        </p>
+                                        <input
+                                            type="text"
+                                            inputMode="numeric"
+                                            autoFocus
+                                            value={confirmacion.dni}
+                                            onChange={(ev) => setConfirmacion({ ...confirmacion, dni: ev.target.value })}
+                                            placeholder="DNI del usuario"
+                                            className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-red-400"
+                                        />
+                                        <button
+                                            type="button"
+                                            disabled={confirmacion.dni.replace(/\./g, '').trim() !== String(confirmacion.usuario.dni ?? '').replace(/\./g, '').trim()}
+                                            onClick={() => aplicarCambioActivo(confirmacion.usuario, false, { reasignar_casos: true, confirmar_dni: confirmacion.dni })}
+                                            className="bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+                                        >
+                                            Dar de baja y repartir sus casos
+                                        </button>
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <div>
+                                    <h4 className="text-lg font-bold text-gray-800 dark:text-slate-100">
+                                        Reactivar a {confirmacion.usuario.nombre} {confirmacion.usuario.apellido}
+                                    </h4>
+                                    <p className="text-sm text-gray-600 dark:text-slate-300 mt-1">
+                                        Al darlo de baja se repartieron <span className="font-semibold">{confirmacion.cantidad}</span> expediente(s) suyos que siguen sin moverse. ¿Se los devolvemos?
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => aplicarCambioActivo(confirmacion.usuario, true, { devolver_casos: true })}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+                                >
+                                    Reactivar y devolverle sus casos
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => aplicarCambioActivo(confirmacion.usuario, true)}
+                                    className="border border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-800 text-sm font-medium px-4 py-2 rounded-lg transition"
+                                >
+                                    Solo reactivar
+                                </button>
+                            </>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => setConfirmacion(null)}
+                            className="text-sm text-gray-500 dark:text-slate-400 hover:underline self-center"
+                        >
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

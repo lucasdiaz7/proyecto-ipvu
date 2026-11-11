@@ -30,7 +30,8 @@ class PostulanteTitularSerializer(serializers.ModelSerializer):
     class Meta:
         model = PostulanteTitular
         fields = '__all__'
-        read_only_fields = ('fecha_creacion', 'fecha_modificacion')
+        # archivar/desarchivar tiene su propio endpoint con sus controles
+        read_only_fields = ('fecha_creacion', 'fecha_modificacion', 'archivado', 'fecha_archivado')
 
     def validate(self, attrs):
         # traduce el texto libre de discapacidad al booleano del modelo, tanto al crear como al editar
@@ -116,6 +117,14 @@ class ExpedienteSerializer(serializers.ModelSerializer):
             }
         else:
             response['usuario_asignado'] = None
+
+        # el frontend lo usa para mostrar u ocultar las acciones (pase, adjuntar, cambiar estado):
+        # solo se actua sobre lo que se tiene en poder, tambien el superadmin (el resto lo ve en lectura)
+        request = self.context.get('request')
+        response['en_mi_poder'] = bool(
+            request and request.user.is_authenticated
+            and instance.usuario_asignado_id == request.user.id
+        )
 
         return response
 
@@ -351,7 +360,16 @@ class HistorialPaseSerializer(serializers.ModelSerializer):
             response['usuario_destino_display'] = f"{nombre_destino} {apellido_destino}".strip()
         else:
             response['usuario_destino_display'] = "Sin asignar"
-            
+
+        # rol de cada punta del pase, para que el historial muestre "De (rol) -> Para (rol)"
+        def rol_de(user):
+            perfil = getattr(user, 'usuario', None) if user else None
+            return perfil.rol.nombre_rol if perfil and perfil.rol else None
+        response['usuario_origen_rol'] = rol_de(usuario_origen)
+        response['usuario_destino_rol'] = rol_de(usuario_destino)
+        # el pase que se crea solo al cargar el expediente: el historial lo muestra como asignacion
+        response['es_asignacion_inicial'] = instance.observacion == OBSERVACION_ASIGNACION_INICIAL
+
         return response
     
         

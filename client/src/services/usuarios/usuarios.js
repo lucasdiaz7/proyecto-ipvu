@@ -43,9 +43,16 @@ export const usuarioService = {
         }
     },
 
-    cambiarEstadoActivo: async (id, activo) => {
+    // cuantos casos tiene en poder y cuantos se le pueden devolver (para preguntar antes de la baja/alta)
+    casosBaja: async (id) => {
+        const response = await api.get(`/usuario/${id}/casos-baja/`)
+        return response.data
+    },
+
+    // opciones: { reasignar_casos: true } al dar de baja definitiva, { devolver_casos: true } al reactivar
+    cambiarEstadoActivo: async (id, activo, opciones = {}) => {
         try {
-            const response = await api.patch(`/usuario/${id}/`, { activo })
+            const response = await api.patch(`/usuario/${id}/`, { activo, ...opciones })
             return response.data
         } catch (error) {
             console.log(`Error al cambiar el estado del usuario con id:${id}`, error)

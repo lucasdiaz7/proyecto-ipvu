@@ -8,6 +8,18 @@ const normalizarLista = (data) => {
 
 export const expedienteService = {
 
+    // accion: 'archivar' | 'desarchivar'
+    archivo: async (id, accion) => {
+        const response = await api.post(`/expediente/${id}/${accion}/`);
+        return response.data;
+    },
+
+    // expediente completo en un PDF (caratula + informe + adjuntos); solo con estado Doc Presentada
+    imprimirExpediente: async (id) => {
+        const response = await api.get(`/expediente/${id}/imprimir/`, { responseType: 'blob' });
+        return response.data;
+    },
+
     getExpediente: async () => {
         try {
             const response = await api.get("/expediente/")
@@ -65,12 +77,17 @@ export const expedienteService = {
         });
         const response = await api.get("/expediente/exportar-excel/", { params, responseType: "blob" });
 
+        // 204: ningun expediente coincide con los filtros, no hay archivo para bajar
+        if (response.status === 204) return { cantidad: 0 };
+
         // el nombre de archivo viene en el header Content-Disposition del backend
         const dispo = response.headers["content-disposition"] || "";
         const match = dispo.match(/filename="?([^"]+)"?/);
         const nombre = match ? match[1] : "expedientes.xlsx";
 
-        const url = window.URL.createObjectURL(new Blob([response.data]));
+        // con el tipo de archivo correcto el navegador lo reconoce como Excel y no como un binario desconocido
+        const tipoExcel = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        const url = window.URL.createObjectURL(new Blob([response.data], { type: tipoExcel }));
         const enlace = document.createElement("a");
         enlace.href = url;
         enlace.setAttribute("download", nombre);
@@ -78,6 +95,7 @@ export const expedienteService = {
         enlace.click();
         enlace.remove();
         window.URL.revokeObjectURL(url);
+        return { cantidad: null };
     }
 }
 

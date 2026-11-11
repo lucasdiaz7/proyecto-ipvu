@@ -2,7 +2,6 @@ import React, { useEffect, useState, useMemo } from 'react'; // 1. Importamos us
 import {
     ChevronDownIcon,
     BellIcon,
-    EyeIcon,
     ChevronDoubleUpIcon,
     ChevronDoubleDownIcon,
     CheckIcon,
@@ -31,7 +30,13 @@ const Expedientes = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedEstado, setSelectedEstado] = useState("TODOS");
     const [menuAbierto, setMenuAbierto] = useState(false);
-    const [verSoloNuevos, setVerSoloNuevos] = useState(false);
+    const [verSoloNuevos] = useState(false);
+    // los expedientes archivados (ultimo paso, despues de imprimir) salen del listado normal: boton "Archivados"
+    const [verArchivados, setVerArchivados] = useState(false);
+    const [diasMinimos, setDiasMinimos] = useState('');
+    const [creadoDesde, setCreadoDesde] = useState('');
+    const [creadoHasta, setCreadoHasta] = useState('');
+    const [panelNuevosAbierto, setPanelNuevosAbierto] = useState(false);
 
     const rolId = Number(localStorage.getItem('rol_id'));
     // Mesa de Entrada y Administrador ven además quién tiene el expediente y hace cuántos días
@@ -40,9 +45,13 @@ const Expedientes = () => {
     console.log('expedientes :>> ', expedientes);
 
 
-    const nuevosCount = useMemo(() => {
-        return expedientes.filter(e => e.visto === false).length;
-    }, [expedientes]);
+    const expedientesNuevos = useMemo(() => expedientes.filter(e => e.visto === false), [expedientes]);
+    const nuevosCount = expedientesNuevos.length;
+    const archivadosCount = useMemo(
+        () => expedientes.filter(e => e.archivado).length,
+        [expedientes]
+    );
+    const hayFiltrosExtra = diasMinimos !== '' || creadoDesde !== '' || creadoHasta !== '';
 
     useEffect(() => {
         const cargarExpedientes = async () => {
@@ -133,8 +142,27 @@ const Expedientes = () => {
         });
 
         // Filtrar por estado de lectura "visto"
-        const porVisto = porTermino.filter((e) => {
+        const porVistoBase = porTermino.filter((e) => {
             if (verSoloNuevos) return e.visto === false;
+            return true;
+        });
+
+        // archivados: solo se ven con el boton "Archivados"
+        const porArchivo = porVistoBase.filter((e) => {
+            const archivado = Boolean(e.archivado);
+            if (verArchivados) return archivado;
+            return !archivado;
+        });
+
+        // dias en poder (minimo) y rango de fecha de creacion (fecha local, AAAA-MM-DD)
+        const porVisto = porArchivo.filter((e) => {
+            if (diasMinimos !== '' && (e.dias_en_poder ?? 0) < Number(diasMinimos)) return false;
+            if (creadoDesde || creadoHasta) {
+                if (!e.fecha_creacion) return false;
+                const fecha = new Date(e.fecha_creacion).toLocaleDateString('en-CA');
+                if (creadoDesde && fecha < creadoDesde) return false;
+                if (creadoHasta && fecha > creadoHasta) return false;
+            }
             return true;
         });
 
@@ -159,7 +187,7 @@ const Expedientes = () => {
             if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
             return 0;
         });
-    }, [expedientes, selectedEstado, searchTerm, verSoloNuevos, sortConfig]);
+    }, [expedientes, selectedEstado, searchTerm, verSoloNuevos, verArchivados, diasMinimos, creadoDesde, creadoHasta, sortConfig]);
 
     const { paginaActual, setPaginaActual, totalPaginas, itemsPaginados, totalItems } = usePaginacion(expedientesFinales);
 
@@ -267,32 +295,109 @@ const Expedientes = () => {
                         )}
 
                         {rolId === 1 && (
+                            <div className="relative">
                             <button
-                                onClick={() => setVerSoloNuevos(!verSoloNuevos)}
-                                className={`flex items-center justify-between p-3 rounded-xl shadow-sm transition focus:outline-none w-full ${verSoloNuevos
-                                    ? "bg-slate-800 text-white hover:bg-slate-900"
-                                    : "bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
-                                    }`}
+                                onClick={() => setPanelNuevosAbierto(!panelNuevosAbierto)}
+                                className="flex items-center justify-between p-3 rounded-xl shadow-sm transition focus:outline-none w-full bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
                             >
                                 <span className="font-semibold">
-                                    {verSoloNuevos ? "Ver Todos" : "Nuevo Expediente"}
+                                    {nuevosCount === 1 ? "1 expediente nuevo" : `${nuevosCount} expedientes nuevos`}
                                 </span>
 
                                 <div className="relative inline-block">
-                                    {verSoloNuevos ? (
-                                        <EyeIcon className="w-6 h-6 text-slate-300" />
-                                    ) : (
-                                        <>
-                                            <BellIcon className="w-6 h-6 text-yellow-600" />
-                                            <span className={`absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-bold text-white rounded-full ${nuevosCount === 0 ? "bg-black" : "bg-red-500"}`}>
-                                                {nuevosCount}
-                                            </span>
-                                        </>
-                                    )}
+                                    <BellIcon className="w-6 h-6 text-yellow-600" />
+                                    <span className={`absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-bold text-white rounded-full ${nuevosCount === 0 ? "bg-black" : "bg-red-500"}`}>
+                                        {nuevosCount}
+                                    </span>
                                 </div>
                             </button>
+
+                            {/* resumen de cada expediente nuevo; al hacer clic se abre */}
+                            {panelNuevosAbierto && (
+                                <div className="absolute z-30 mt-2 w-full min-w-[280px] right-0 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-gray-100 dark:border-slate-700 max-h-80 overflow-y-auto">
+                                    {expedientesNuevos.length === 0 ? (
+                                        <p className="px-4 py-6 text-sm text-center text-gray-500 dark:text-slate-400">
+                                            No tenés expedientes nuevos sin ver.
+                                        </p>
+                                    ) : (
+                                        expedientesNuevos.map((e) => {
+                                            const titular = e.postulante_titular && typeof e.postulante_titular === 'object' ? e.postulante_titular : null;
+                                            return (
+                                                <Link
+                                                    key={e.id}
+                                                    to={`/Expediente/${e.id}`}
+                                                    onClick={() => handleManejarVisto(e.id, e.visto)}
+                                                    className="block px-4 py-3 border-b border-gray-100 dark:border-slate-800 last:border-b-0 hover:bg-gray-50 dark:hover:bg-slate-800 transition"
+                                                >
+                                                    <p className="text-sm font-semibold text-gray-800 dark:text-slate-100 capitalize">
+                                                        {titular ? `${titular.apellido} ${titular.nombre}` : 'Sin titular'}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                                                        DNI {titular?.dni || '---'} · DDJJ {e.DDJJ || '---'}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 dark:text-slate-400">
+                                                        {titular?.domicilio ? `${titular.domicilio} · ` : ''}
+                                                        Recibido hace {e.dias_en_poder ?? 0} día(s)
+                                                    </p>
+                                                </Link>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            )}
+                            </div>
                         )}
 
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-end gap-3">
+                        <label className="flex flex-col gap-1 text-xs text-gray-500 dark:text-slate-400">
+                            Días en poder (mínimo)
+                            <input
+                                type="number"
+                                min="0"
+                                value={diasMinimos}
+                                onChange={(ev) => setDiasMinimos(ev.target.value)}
+                                placeholder="Ej: 10"
+                                className="w-36 px-3 py-2 text-sm rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-blue-400"
+                            />
+                        </label>
+                        <label className="flex flex-col gap-1 text-xs text-gray-500 dark:text-slate-400">
+                            Creados desde
+                            <input
+                                type="date"
+                                value={creadoDesde}
+                                onChange={(ev) => setCreadoDesde(ev.target.value)}
+                                className="px-3 py-2 text-sm rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-blue-400"
+                            />
+                        </label>
+                        <label className="flex flex-col gap-1 text-xs text-gray-500 dark:text-slate-400">
+                            Creados hasta
+                            <input
+                                type="date"
+                                value={creadoHasta}
+                                onChange={(ev) => setCreadoHasta(ev.target.value)}
+                                className="px-3 py-2 text-sm rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-blue-400"
+                            />
+                        </label>
+                        {hayFiltrosExtra && (
+                            <button
+                                type="button"
+                                onClick={() => { setDiasMinimos(''); setCreadoDesde(''); setCreadoHasta(''); }}
+                                className="px-3 py-2 text-sm rounded-lg text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 transition"
+                            >
+                                Limpiar
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => setVerArchivados(!verArchivados)}
+                            className={`ml-auto px-3 py-2 text-sm font-medium rounded-lg border transition ${verArchivados
+                                ? 'bg-teal-600 text-white border-teal-600 hover:bg-teal-700'
+                                : 'border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-800'}`}
+                        >
+                            {verArchivados ? 'Volver a los activos' : `Archivados (${archivadosCount})`}
+                        </button>
                     </div>
 
                     <div className="mt-6 overflow-x-auto">
@@ -318,8 +423,8 @@ const Expedientes = () => {
 
                         {itemsPaginados.length === 0 ? (
                             <div className="text-center py-10 text-gray-500 dark:text-slate-400 font-medium border-b dark:border-slate-800">
-                                {verSoloNuevos
-                                    ? "No tenés nuevos expedientes asignados sin ver."
+                                {verArchivados
+                                    ? "No hay expedientes archivados."
                                     : "No se encontraron expedientes que coincidan con los filtros aplicados."}
                             </div>
                         ) : (

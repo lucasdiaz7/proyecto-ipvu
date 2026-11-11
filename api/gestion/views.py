@@ -1,4 +1,5 @@
 import csv
+import re
 import os
 import logging
 import io
@@ -21,11 +22,12 @@ from django.contrib.auth.models import User
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser
 from rest_framework import status
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.conf import settings
 from django.core.mail import send_mail
 from django.contrib.auth.tokens import default_token_generator
+from django.db import transaction
 from django.db.models import Count
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
@@ -35,6 +37,9 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.views import TokenRefreshView
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
+from reportlab.pdfgen import canvas as pdf_canvas
+from reportlab.lib.utils import ImageReader
+from pypdf import PdfReader, PdfWriter
 from reportlab.lib.units import cm
 from django.core.exceptions import ObjectDoesNotExist
 from django.http import HttpResponse
@@ -69,6 +74,156 @@ def nombre_para_mostrar(user):
     if perfil:
         return f"{perfil.nombre} {perfil.apellido}".strip()
     return user.get_full_name() or user.username
+
+
+def registrar_asignacion_inicial(usuario_creador, expediente, trabajadora_social):
+    """
+    Deja la carga del expediente como primer movimiento del historial: quien lo cargo -> la TS que el
+    sistema asigno por turno. Asi el historial muestra desde el principio a quien le toco el caso.
+    """
+    if trabajadora_social is None:
+        return None
+    return HistorialPase.objects.create(
+        expediente=expediente,
+        usuario_origen=usuario_creador,
+        usuario_destino=trabajadora_social,
+        observacion=OBSERVACION_ASIGNACION_INICIAL,
+    )
+
+
+def reasignar_casos_por_baja(perfil_baja, usuario_que_da_la_baja=None):
+    """
+    Cuando se da de baja a un usuario (TS, Legales o Mesa de Entrada), los expedientes que tenia en su
+    poder se reparten por turno entre los usuarios ACTIVOS de su mismo rol, para que no queden trabados.
+    Cada reparto queda como un pase "de quien se fue -> a quien le toco", con la observacion que explica
+    el motivo, y la persona nueva recibe la notificacion como en cualquier pase.
+    Devuelve la cantidad de expedientes reasignados.
+    """
+    user_baja = perfil_baja.usuario
+    expedientes = list(Expediente.objects.filter(usuario_asignado=user_baja).order_by('id'))
+    if not expedientes:
+        return 0
+
+    rol = perfil_baja.rol.nombre_rol
+    destinos = list(
+        User.objects
+        .filter(usuario__rol__nombre_rol=rol, usuario__activo=True, is_active=True)
+        .exclude(id=user_baja.id)
+        .order_by('id')
+    )
+    nombre_baja = nombre_para_mostrar(user_baja)
+    if not destinos:
+        logger.warning(f"Baja de {nombre_baja}: no hay usuarios activos con rol {rol} para recibir sus casos")
+        if usuario_que_da_la_baja is not None:
+            registrar_auditoria(
+                usuario_que_da_la_baja, None,
+                f"Baja de {nombre_baja}: no hay otros usuarios activos de su rol; sus "
+                f"{len(expedientes)} expediente(s) siguen a su nombre."
+            )
+        return 0
+
+    # el turno arranca en el primer usuario despues de quien se va (por id) y da la vuelta
+    inicio = next((i for i, u in enumerate(destinos) if u.id > user_baja.id), 0)
+    observacion = f"{PREFIJO_REASIGNACION_POR_BAJA} {nombre_baja}"
+
+    with transaction.atomic():
+        for i, expediente in enumerate(expedientes):
+            destino = destinos[(inicio + i) % len(destinos)]
+            pase = HistorialPase.objects.create(
+                expediente=expediente, usuario_origen=user_baja, usuario_destino=destino, observacion=observacion,
+            )
+            # los documentos que habia subido y todavia no habia enviado viajan con este pase
+            pendientes = DocumentoAdjunto.objects.filter(expediente=expediente, historial_pases__isnull=True)
+            if pendientes.exists():
+                pase.documentos_adjuntos.add(*pendientes)
+            expediente.usuario_asignado = destino
+            expediente.save()
+            crear_notificacion_recepcion_expediente(destino, expediente, pase_actual=pase)
+            if usuario_que_da_la_baja is not None:
+                registrar_auditoria(
+                    usuario_que_da_la_baja, expediente,
+                    f"{observacion}: el expediente pasó a {nombre_para_mostrar(destino)}."
+                )
+    return len(expedientes)
+
+
+MENSAJE_IMPRESION = "Imprimió el expediente completo."
+
+
+def _expediente_impreso(expediente):
+    return HistorialAccion.objects.filter(id_expediente=expediente, mensaje_accion=MENSAJE_IMPRESION).exists()
+
+
+PREFIJO_REASIGNACION_POR_BAJA = "Reasignación automática por baja de"
+
+
+def _estado_antes_de_legales(expediente):
+    """
+    Estado que tenia el expediente al entrar a Legales, leido del ultimo registro de auditoria
+    "Cambio de estado: de <Estado> a Legales (pase a Legales)". None si no se encuentra.
+    """
+    registro = (
+        HistorialAccion.objects
+        .filter(id_expediente=expediente, mensaje_accion__endswith='(pase a Legales).')
+        .order_by('-fecha_accion', '-id')
+        .first()
+    )
+    if registro is None:
+        return None
+    coincidencia = re.search(r'Cambio de estado: de (.+?) a Legales \(pase a Legales\)', registro.mensaje_accion)
+    if not coincidencia:
+        return None
+    nombre_visible = coincidencia.group(1)
+    codigo = next((c for c, texto in EstadoExpediente.tipo_estado if texto == nombre_visible), None)
+    if codigo is None or codigo == 'LEG':
+        return None
+    return EstadoExpediente.objects.filter(nombre=codigo).first()
+
+
+def _flag(valor):
+    return str(valor).lower() in ('true', '1', 'si', 'sí')
+
+
+def _expedientes_devolvibles(user):
+    """
+    Expedientes que se le repartieron a otros por la baja de este usuario y que desde entonces nadie
+    movio: su ultimo pase sigue siendo la reasignacion por baja. Los que ya avanzaron no se tocan.
+    """
+    pases = (
+        HistorialPase.objects
+        .filter(usuario_origen=user, observacion__startswith=PREFIJO_REASIGNACION_POR_BAJA)
+        .select_related('expediente')
+    )
+    devolvibles = []
+    for pase in pases:
+        ultimo = (
+            HistorialPase.objects.filter(expediente_id=pase.expediente_id)
+            .order_by('-fecha_envio', '-id').first()
+        )
+        if ultimo.id == pase.id and pase.expediente.usuario_asignado_id == pase.usuario_destino_id:
+            devolvibles.append(pase)
+    return devolvibles
+
+
+def devolver_casos_por_reactivacion(perfil, usuario_que_reactiva=None):
+    """Al reactivar a alguien (ej. se lo dio de baja por error), le vuelven los casos que se le repartieron."""
+    user = perfil.usuario
+    nombre = nombre_para_mostrar(user)
+    devueltos = 0
+    with transaction.atomic():
+        for pase_baja in _expedientes_devolvibles(user):
+            expediente = pase_baja.expediente
+            pase = HistorialPase.objects.create(
+                expediente=expediente, usuario_origen=pase_baja.usuario_destino, usuario_destino=user,
+                observacion=f"Devuelto por reactivación de {nombre}",
+            )
+            expediente.usuario_asignado = user
+            expediente.save()
+            crear_notificacion_recepcion_expediente(user, expediente, pase_actual=pase)
+            if usuario_que_reactiva is not None:
+                registrar_auditoria(usuario_que_reactiva, expediente, f"Devuelto a {nombre} al reactivarlo.")
+            devueltos += 1
+    return devueltos
 
 
 def crear_notificacion_expediente_creado(usuario_creador, expediente, nombre_asignado):
@@ -134,18 +289,26 @@ def crear_notificacion_recepcion_expediente(usuario_destino, expediente, pase_ac
     )
 
 # Regla de acceso: cada usuario (TS, LG, DE) solo ve y toca los expedientes que tiene en su poder
-# (usuario_asignado). Al hacer un pase, el expediente deja de ser suyo y deja de verlo. El superadmin ve todo.
+# (usuario_asignado). Al hacer un pase, el expediente deja de ser suyo y deja de verlo.
+# El superadmin VE todo, pero solo ACTUA (pase, adjuntar, cambiar estado, etc.) sobre lo que tiene en su
+# poder, como cualquier otro paso del flujo: el resto lo ve en modo lectura.
 def filtrar_expedientes_en_poder(queryset, request, campo_expediente='expediente'):
     if usuario_tiene_rol(request, ['SU']):
         return queryset
     return queryset.filter(**{f'{campo_expediente}__usuario_asignado': request.user}).distinct()
 
 
+def expediente_en_poder(request, expediente):
+    return expediente is not None and expediente.usuario_asignado_id == request.user.id
+
+
 def validar_expediente_en_poder(request, expediente):
-    if expediente is None or usuario_tiene_rol(request, ['SU']):
+    if expediente is None:
         return
-    if expediente.usuario_asignado_id != request.user.id:
+    if not expediente_en_poder(request, expediente):
         raise PermissionDenied('El expediente no está en tu poder: pedí que te lo pasen.')
+    if expediente.archivado:
+        raise PermissionDenied('El expediente está archivado: desarchivalo para modificarlo.')
 
 
 def registrar_auditoria(user_request, expediente, mensaje):
@@ -191,8 +354,10 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
             usuario_asignado=trabajadora_social
         )
         
+        pase_inicial = registrar_asignacion_inicial(self.request.user, expediente, trabajadora_social)
+
         # notifica a la trabajadora social cuando recibe el expediente por primera vez
-        crear_notificacion_recepcion_expediente(trabajadora_social, expediente)
+        crear_notificacion_recepcion_expediente(trabajadora_social, expediente, pase_actual=pase_inicial)
 
         # y a quien lo cargo, a quien le quedo asignado (el nombre tambien vuelve en la respuesta para el cartel)
         self.nombre_asignado = nombre_para_mostrar(trabajadora_social)
@@ -202,10 +367,19 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
         registrar_auditoria(
             self.request.user,
             expediente,
-            f"Expediente inicial creado y asignado a TS: {trabajadora_social.first_name} {trabajadora_social.last_name}."
+            f"Expediente inicial creado y asignado a TS: {self.nombre_asignado}."
         )
-        
-    
+
+    def perform_update(self, serializer):
+        # editar al titular es parte del flujo: hace falta tener en poder alguno de sus expedientes
+        # (para DE/TS/LG get_queryset ya lo garantiza; esto cubre al superadmin, que ve todo)
+        if not Expediente.objects.filter(
+            postulante_titular=serializer.instance, usuario_asignado=self.request.user
+        ).exists():
+            raise PermissionDenied('El expediente no está en tu poder: pedí que te lo pasen.')
+        serializer.save()
+
+
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update']:
             return [IsDataEntryOrSuperAdmin()]
@@ -289,7 +463,9 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
             expediente,
             "El usuario visualizó los detalles del legajo en pantalla."
         )
-        
+
+        # el boton "Archivar" aparece recien cuando el expediente completo ya se imprimio
+        response.data['impreso'] = _expediente_impreso(expediente)
         return response
     
     def perform_create(self, serializer):
@@ -298,14 +474,16 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
         # Guarda el expediente creado manualmente y conserva la instancia para notificar al usuario asignado.
         expediente = serializer.save(usuario_asignado=trabajadora_social)
         
+        pase_inicial = registrar_asignacion_inicial(self.request.user, expediente, trabajadora_social)
+
         # Notifica a la Trabajadora Social cuando recibe el expediente creado desde este endpoint.
-        crear_notificacion_recepcion_expediente(trabajadora_social, expediente)
+        crear_notificacion_recepcion_expediente(trabajadora_social, expediente, pase_actual=pase_inicial)
 
         # NUEVO: Auditoría de creación manual
         registrar_auditoria(
             self.request.user,
             expediente,
-            f"Expediente manual creado y asignado a TS: {trabajadora_social.first_name} {trabajadora_social.last_name}."
+            f"Expediente manual creado y asignado a TS: {nombre_para_mostrar(trabajadora_social) if trabajadora_social else 'sin asignar'}."
         )
 
 
@@ -439,6 +617,10 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
         if discapacidad in ('true', 'false'):
             queryset = queryset.filter(postulante_titular__tiene_discapacidad=(discapacidad == 'true'))
 
+        # sin resultados no se arma un Excel vacio: el frontend avisa que esos filtros no traen nada
+        if not queryset.exists():
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
         libro = openpyxl.Workbook()
 
         # --- Hoja 1: detalle ---
@@ -506,10 +688,26 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
     @action(detail=True, methods=['patch'])
     def cambiar_estado(self, request, pk=None):
         expediente = self.get_object()
+        validar_expediente_en_poder(request, expediente)
         nuevo_estado = request.data.get('estado')
 
-        if nuevo_estado not in ['AP', 'NOAP', 'NUEVAV']:
+        if nuevo_estado not in ['AP', 'NOAP', 'NUEVAV', 'DOCP']:
             return Response({'error': 'Estado no válido'}, status=400)
+
+        # el estado lo decide Mesa de Entrada; los demas cambios (Sin Iniciar, 1ra Visita, Legales)
+        # los pone el sistema solo al cargar, al guardar el informe o al pasar a Legales
+        if not usuario_tiene_rol(request, ['DE']):
+            raise PermissionDenied('El estado del expediente lo decide Mesa de Entrada.')
+
+        # "Doc Presentada" lo pone la data entry, y recien cuando el expediente ya es Apto y tiene
+        # el formulario socio-habitacional terminado
+        if nuevo_estado == 'DOCP':
+            if not usuario_tiene_rol(request, ['DE']):
+                raise PermissionDenied('Solo Mesa de Entrada puede marcar la documentación como presentada.')
+            if getattr(expediente.estado_expediente, 'nombre', None) != 'AP':
+                return Response({'error': 'El expediente tiene que estar en Apto para marcar la documentación como presentada.'}, status=400)
+            if self._formulario_completo(expediente) is None:
+                return Response({'error': 'Primero hay que completar el formulario socio-habitacional.'}, status=400)
 
         try:
             estado_obj = EstadoExpediente.objects.get(nombre=nuevo_estado)
@@ -527,6 +725,61 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
         )
 
         return Response({'mensaje': 'Estado actualizado'}, status=200)
+
+    @action(detail=True, methods=['post'], url_path='archivar')
+    def archivar(self, request, pk=None):
+        # ultimo paso: Mesa de Entrada archiva el expediente con la documentacion presentada y ya impreso
+        expediente = self.get_object()
+        if not usuario_tiene_rol(request, ['DE']):
+            raise PermissionDenied('Archivar lo hace Mesa de Entrada.')
+        validar_expediente_en_poder(request, expediente)
+        if getattr(expediente.estado_expediente, 'nombre', None) != 'DOCP':
+            return Response({'error': 'Solo se archivan expedientes con la documentación presentada.'}, status=400)
+        if not _expediente_impreso(expediente):
+            return Response({'error': 'Primero imprimí el expediente completo.'}, status=400)
+        expediente.archivado = True
+        expediente.fecha_archivado = timezone.now()
+        expediente.save(update_fields=['archivado', 'fecha_archivado'])
+        registrar_auditoria(request.user, expediente, "Archivó el expediente.")
+        return Response({'mensaje': 'Expediente archivado'})
+
+    @action(detail=True, methods=['post'], url_path='desarchivar')
+    def desarchivar(self, request, pk=None):
+        expediente = self.get_object()
+        if not usuario_tiene_rol(request, ['DE']):
+            raise PermissionDenied('Desarchivar lo hace Mesa de Entrada.')
+        if not expediente_en_poder(request, expediente):
+            raise PermissionDenied('El expediente no está en tu poder.')
+        if not expediente.archivado:
+            return Response({'error': 'El expediente no está archivado.'}, status=400)
+        expediente.archivado = False
+        expediente.fecha_archivado = None
+        expediente.save(update_fields=['archivado', 'fecha_archivado'])
+        registrar_auditoria(request.user, expediente, "Desarchivó el expediente.")
+        return Response({'mensaje': 'Expediente desarchivado'})
+
+    @action(detail=True, methods=['get'], url_path='imprimir')
+    def imprimir(self, request, pk=None):
+        """
+        Expediente completo en un solo PDF para imprimir: caratula con los datos del titular y el indice,
+        el informe socio-habitacional y los documentos adjuntos (PDF e imagenes).
+        Solo con la documentacion presentada (estado DOCP). Es una lectura: la puede pedir cualquiera
+        que vea el expediente (get_object filtra por get_queryset), tambien el superadmin.
+        """
+        expediente = self.get_object()
+        if getattr(expediente.estado_expediente, 'nombre', None) != 'DOCP':
+            return Response(
+                {'error': 'El expediente se puede imprimir recién cuando tiene la documentación presentada.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        pdf_bytes = _construir_pdf_expediente_completo(expediente, self._formulario_completo(expediente))
+
+        registrar_auditoria(request.user, expediente, MENSAJE_IMPRESION)
+
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="Expediente_{expediente.id}.pdf"'
+        return response
 
     @action(detail=True, methods=['get'], url_path='semaforo')
     def semaforo(self, request, pk=None):
@@ -619,7 +872,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     
     def get_permissions(self):
         # get_permissions pisa el permission_classes del @action: cada accion con permisos propios va aca
-        if self.action in ['create', 'destroy', 'update', 'partial_update', 'auditoria_usuarios']:
+        if self.action in ['create', 'destroy', 'update', 'partial_update', 'auditoria_usuarios', 'casos_baja']:
             return [IsSuperAdmin()]
         return [IsAnyRole()]
     
@@ -634,7 +887,8 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         # un rol operativo solo usa este listado para el desplegable de pases: no se incluye a si mismo.
         # El superadmin (pantalla de administracion de usuarios) sigue viendo a todos.
         if not usuario_tiene_rol(self.request, ['SU']):
-            queryset = queryset.exclude(usuario=self.request.user)
+            # tampoco a los inactivos (de vacaciones o dados de baja): no se les puede mandar un expediente
+            queryset = queryset.exclude(usuario=self.request.user).filter(activo=True)
 
         return queryset
     
@@ -680,6 +934,16 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             logger.exception("Error armando la auditoria de usuarios")
             return Response({"error_fatal": "No se pudo generar la auditoría de usuarios."}, status=500)
     
+    @action(detail=True, methods=['get'], url_path='casos-baja')
+    def casos_baja(self, request, pk=None):
+        # cuantos expedientes tiene en su poder (para preguntar si se reparten al darlo de baja) y cuantos
+        # se le repartieron por una baja y todavia nadie toco (para ofrecer devolverlos al reactivarlo)
+        perfil = self.get_object()
+        return Response({
+            'en_poder': Expediente.objects.filter(usuario_asignado=perfil.usuario).count(),
+            'devolvibles': len(_expedientes_devolvibles(perfil.usuario)),
+        })
+
     # auditoría creación de usuarios
     def perform_create(self, serializer):
         #se guarda el nuevo usuario
@@ -696,8 +960,26 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     
     # auditoría modificación de usuarios
     def perform_update(self, serializer):
+        estaba_activo = serializer.instance.activo
+        # la baja definitiva reparte todos sus casos: se confirma escribiendo el DNI del usuario
+        if estaba_activo and _flag(self.request.data.get('reasignar_casos')):
+            dni_confirmado = str(self.request.data.get('confirmar_dni', '')).strip().replace('.', '')
+            if dni_confirmado != str(serializer.instance.dni).strip().replace('.', ''):
+                raise ValidationError({'confirmar_dni': 'El DNI no coincide con el del usuario que querés dar de baja.'})
         #se guarda cambio del usuario actualizado
         usuario_actualizado = serializer.save()
+
+        # el boton Activo/Inactivo de la pantalla de usuarios llega por aca: el login sigue al perfil
+        user_django = usuario_actualizado.usuario
+        if user_django.is_active != usuario_actualizado.activo:
+            user_django.is_active = usuario_actualizado.activo
+            user_django.save(update_fields=['is_active'])
+        # la pantalla de usuarios pregunta: ausencia temporal (los casos esperan) o baja definitiva
+        # (reasignar_casos=true, se reparten). Al reactivar puede pedir devolver_casos=true.
+        if estaba_activo and not usuario_actualizado.activo and _flag(self.request.data.get('reasignar_casos')):
+            reasignar_casos_por_baja(usuario_actualizado, self.request.user)
+        if not estaba_activo and usuario_actualizado.activo and _flag(self.request.data.get('devolver_casos')):
+            devolver_casos_por_reactivacion(usuario_actualizado, self.request.user)
 
         # Se busca el perfil del administrador que hace la petición
         usuario_admin = Usuario.objects.get(usuario=self.request.user)
@@ -710,9 +992,12 @@ class UsuarioViewSet(viewsets.ModelViewSet):
    
     # auditoría eliminación de usuarios
     def perform_destroy(self, instance):
+        estaba_activo = instance.activo
         # 1. Borrado lógico del modelo Usuario personalizado
         instance.activo = False
         instance.save()
+        if estaba_activo:
+            reasignar_casos_por_baja(instance, self.request.user)
 
         # 2. Borrado lógico del User nativo de Django (para deshabilitar el login)
         user_django = instance.usuario
@@ -764,8 +1049,15 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
             
         return queryset
     
+    def perform_update(self, serializer):
+        validar_expediente_en_poder(self.request, serializer.instance.expediente)
+        # tampoco se puede mover el documento a un expediente que no se tiene en poder
+        validar_expediente_en_poder(self.request, serializer.validated_data.get('expediente'))
+        serializer.save()
+
     #auditoría de borrado
     def perform_destroy(self, instance):
+        validar_expediente_en_poder(self.request, instance.expediente)
         # DocumentoAdjunto no tiene borrado lógico (no posee campo "activo"),
         # por eso se elimina el registro real.
         nombre_archivo = instance.archivo.name if instance.archivo else instance.tipo_documento
@@ -813,6 +1105,10 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
     def perform_create(self, serializer):
         # solo quien tiene el expediente en su poder lo puede pasar
         validar_expediente_en_poder(self.request, serializer.validated_data.get('expediente'))
+        destino = serializer.validated_data.get('usuario_destino')
+        perfil_destino = getattr(destino, 'usuario', None) if destino else None
+        if destino and (not destino.is_active or (perfil_destino and not perfil_destino.activo)):
+            raise ValidationError({'usuario_destino': 'Ese usuario está inactivo: elegí otro.'})
         pase = serializer.save(usuario_origen = self.request.user)
         expediente = pase.expediente
 
@@ -826,6 +1122,25 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
         
         if pase.usuario_destino:
             expediente.usuario_asignado = pase.usuario_destino
+            # cuando el expediente llega a un usuario de Legales pasa al estado "Legales"
+            perfil_destino = getattr(pase.usuario_destino, 'usuario', None)
+            if perfil_destino and perfil_destino.rol.nombre_rol == 'LG':
+                estado_anterior = expediente.estado_expediente
+                expediente.estado_expediente, _ = EstadoExpediente.objects.get_or_create(nombre='LEG')
+                if estado_anterior != expediente.estado_expediente:
+                    registrar_auditoria(
+                        self.request.user, expediente,
+                        f"Cambio de estado: de {estado_anterior} a {expediente.estado_expediente} (pase a Legales)."
+                    )
+            elif getattr(expediente.estado_expediente, 'nombre', None) == 'LEG':
+                # sale de Legales (ya hay dictamen): vuelve al estado que tenia antes de entrar
+                estado_previo = _estado_antes_de_legales(expediente)
+                if estado_previo is not None:
+                    registrar_auditoria(
+                        self.request.user, expediente,
+                        f"Cambio de estado: de {expediente.estado_expediente} a {estado_previo} (vuelve de Legales)."
+                    )
+                    expediente.estado_expediente = estado_previo
             expediente.save()
 
         # Notifica al usuario destino cuando recibe el expediente por pase.
@@ -842,11 +1157,14 @@ class HistorialPaseViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin,
                 'expediente__usuario_asignado',
                 'expediente__usuario_asignado__usuario',
                 'usuario_origen',
-                'usuario_origen__usuario',
+                'usuario_origen__usuario__rol',
                 'usuario_destino',
-                'usuario_destino__usuario',
+                'usuario_destino__usuario__rol',
             )
             .prefetch_related('documentos_adjuntos')
+            # por fecha real del pase (el mas nuevo arriba): los pases de asignacion reconstruidos
+            # tienen un id alto pero la fecha de la carga, y con '-id' quedaban arriba de todo
+            .order_by('-fecha_envio', '-id')
         )
         queryset = filtrar_expedientes_en_poder(queryset, self.request)
         expediente_id = self.request.query_params.get('expediente')
@@ -1079,6 +1397,13 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
         pdf_bytes = _construir_pdf_formulario(formulario)
         nombre_archivo = f"Formulario_{formulario.id}.pdf"
 
+        # quien no tiene el expediente en poder (el superadmin mirando) solo descarga el PDF:
+        # no se toca la copia adjunta que viaja en el proximo pase
+        if not expediente_en_poder(request, expediente):
+            response = HttpResponse(pdf_bytes, content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
+            return response
+
         # regenerar el PDF reemplaza la copia que todavia no viajo en ningun pase, en lugar de sumar
         # otra cada vez; las copias que ya se enviaron en un pase quedan intactas como parte del historial
         documento = (
@@ -1121,6 +1446,139 @@ MESES_PDF = [
     "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
 ]
+
+
+EXTENSIONES_IMAGEN = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp')
+
+
+def _documento_a_pdf(documento):
+    """
+    Pasa un documento adjunto a bytes de PDF para sumarlo al expediente impreso.
+    Devuelve (bytes, None) o (None, motivo) si no se puede incluir.
+    """
+    if not documento.archivo:
+        return None, 'sin archivo'
+    nombre = documento.archivo.name.lower()
+    try:
+        with documento.archivo.open('rb') as f:
+            contenido = f.read()
+    except (FileNotFoundError, OSError):
+        return None, 'el archivo no está en el servidor'
+
+    if nombre.endswith('.pdf'):
+        try:
+            lector = PdfReader(io.BytesIO(contenido))
+            if lector.is_encrypted:
+                return None, 'PDF protegido con contraseña'
+            len(lector.pages)  # fuerza la lectura: si esta roto falla aca y no al unir
+        except Exception:
+            return None, 'PDF dañado o ilegible'
+        return contenido, None
+
+    if nombre.endswith(EXTENSIONES_IMAGEN):
+        try:
+            imagen = ImageReader(io.BytesIO(contenido))
+            ancho_img, alto_img = imagen.getSize()
+        except Exception:
+            return None, 'imagen dañada o ilegible'
+        # una hoja A4 por imagen, centrada y achicada para que entre con 1,5 cm de margen
+        buffer = io.BytesIO()
+        hoja = pdf_canvas.Canvas(buffer, pagesize=A4)
+        ancho_pag, alto_pag = A4
+        margen = 1.5 * cm
+        escala = min((ancho_pag - 2 * margen) / ancho_img, (alto_pag - 2 * margen) / alto_img, 1)
+        ancho, alto = ancho_img * escala, alto_img * escala
+        hoja.drawImage(imagen, (ancho_pag - ancho) / 2, (alto_pag - alto) / 2, ancho, alto, mask='auto')
+        hoja.showPage()
+        hoja.save()
+        return buffer.getvalue(), None
+
+    return None, 'formato que no se puede imprimir (descargarlo aparte)'
+
+
+def _construir_pdf_expediente_completo(expediente, formulario):
+    """Une caratula + informe socio-habitacional + documentos adjuntos en un solo PDF."""
+    titular = expediente.postulante_titular
+
+    # las copias del informe que viajaron en los pases se reemplazan por el informe actual
+    documentos = [
+        doc for doc in expediente.documentos.select_related('subido_por__usuario').order_by('id')
+        if doc.tipo_documento != TIPO_DOCUMENTO_FORMULARIO
+    ]
+    convertidos = [(doc, *_documento_a_pdf(doc)) for doc in documentos]
+
+    # --- caratula ---
+    buffer = io.BytesIO()
+    doc_pdf = SimpleDocTemplate(buffer, pagesize=A4, topMargin=3.6 * cm, bottomMargin=2.2 * cm,
+                                leftMargin=2 * cm, rightMargin=2 * cm)
+    styles = getSampleStyleSheet()
+    titulo = ParagraphStyle('TituloCaratula', parent=styles['Heading1'], alignment=TA_CENTER, fontSize=14)
+    subtitulo = ParagraphStyle('SubCaratula', parent=styles['Normal'], fontName='Helvetica-Bold',
+                               fontSize=11, spaceBefore=12, spaceAfter=6)
+    etiqueta = ParagraphStyle('EtqCaratula', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=9.5)
+    valor = ParagraphStyle('ValCaratula', parent=styles['Normal'], fontSize=9.5)
+
+    def fila(nombre, dato):
+        return [Paragraph(nombre, etiqueta), Paragraph(_texto_pdf(dato), valor)]
+
+    def tabla(filas, anchos):
+        t = Table(filas, colWidths=anchos)
+        t.setStyle(TableStyle([
+            ('BOX', (0, 0), (-1, -1), 0.75, COLOR_BORDE_PDF),
+            ('INNERGRID', (0, 0), (-1, -1), 0.5, COLOR_BORDE_PDF),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        return t
+
+    asignado = expediente.usuario_asignado
+    elementos = [
+        Paragraph(f"Expediente N° {expediente.id}", titulo),
+        Paragraph("Datos del expediente", subtitulo),
+        tabla([
+            fila("DJ N°", expediente.DDJJ),
+            fila("Estado", str(expediente.estado_expediente)),
+            fila("Fecha de inicio", timezone.localtime(expediente.fecha_creacion).strftime('%d/%m/%Y')),
+            fila("En poder de", f"{asignado.first_name} {asignado.last_name}".strip() if asignado else 'Sin asignar'),
+        ], [4.5 * cm, 12.5 * cm]),
+        Paragraph("Datos del titular", subtitulo),
+        tabla([
+            fila("Apellido y nombre", f"{titular.apellido}, {titular.nombre}"),
+            fila("DNI", titular.dni),
+            fila("Domicilio", titular.domicilio_actual),
+            fila("Teléfono", titular.telefono),
+            fila("Email", titular.email),
+            fila("Ingresos", f"$ {titular.ingresos:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')),
+            fila("Discapacidad", 'Sí' if titular.tiene_discapacidad else 'No'),
+        ], [4.5 * cm, 12.5 * cm]),
+        Paragraph("Contenido", subtitulo),
+    ]
+    indice = [[Paragraph('Documento', etiqueta), Paragraph('Subido por', etiqueta), Paragraph('', etiqueta)]]
+    indice.append([Paragraph(TIPO_DOCUMENTO_FORMULARIO, valor), Paragraph('-', valor),
+                   Paragraph('Incluido' if formulario else 'No completado', valor)])
+    for doc, pdf_doc, motivo in convertidos:
+        subido = doc.subido_por
+        indice.append([
+            Paragraph(_texto_pdf(f"{doc.tipo_documento} ({os.path.basename(doc.archivo.name) if doc.archivo else '-'})"), valor),
+            Paragraph(_texto_pdf(f"{subido.first_name} {subido.last_name}".strip() or subido.username), valor),
+            Paragraph('Incluido' if pdf_doc else _texto_pdf(f'No incluido: {motivo}'), valor),
+        ])
+    elementos.append(tabla(indice, [8.5 * cm, 4 * cm, 4.5 * cm]))
+    doc_pdf.build(elementos, onFirstPage=_dibujar_encabezado_pie_formulario,
+                  onLaterPages=_dibujar_encabezado_pie_formulario)
+
+    # --- union de todo ---
+    escritor = PdfWriter()
+    partes = [buffer.getvalue()]
+    if formulario:
+        partes.append(_construir_pdf_formulario(formulario))
+    partes += [pdf_doc for _, pdf_doc, _ in convertidos if pdf_doc]
+    for parte in partes:
+        escritor.append(PdfReader(io.BytesIO(parte)))
+    salida = io.BytesIO()
+    escritor.write(salida)
+    return salida.getvalue()
 
 
 def _texto_pdf(valor, vacio='-'):

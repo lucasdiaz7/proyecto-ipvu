@@ -6,7 +6,7 @@ La lista completa de variables, con su explicación, está en [`.env.example`](.
 
 ## Situación actual (desarrollo)
 
-- `api/.env` **está subido al repositorio** e incluye la contraseña de la base de Supabase. Se aceptó así mientras el repo sea privado y el sistema esté en desarrollo.
+- `api/.env` **ya no se versiona** (se sacó del repositorio y se cambió la contraseña de la base). Cada integrante lo recibe por privado. La contraseña vieja quedó en el historial de git, pero ya no sirve.
 - Sin variables definidas, el backend usa valores de desarrollo: `DEBUG=False`, cualquier dominio permitido, CORS abierto, correos impresos en la terminal y una `SECRET_KEY` insegura.
 
 ## Checklist el día del deploy

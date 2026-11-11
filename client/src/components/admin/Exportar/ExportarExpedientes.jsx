@@ -46,8 +46,12 @@ const ExportarExpedientes = () => {
         setError(null);
         setExito(false);
         try {
-            await expedienteService.exportarExcel(filtros);
-            setExito(true);
+            const { cantidad } = await expedienteService.exportarExcel(filtros);
+            if (cantidad === 0) {
+                setError('No hay expedientes que coincidan con esos filtros. Probá con otros.');
+            } else {
+                setExito(true);
+            }
         } catch (err) {
             console.error('Error al exportar expedientes:', err);
             setError('No se pudo generar el Excel. Intentá de nuevo.');

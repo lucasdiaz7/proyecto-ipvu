@@ -499,12 +499,19 @@ class ElevationOfPrivilegeTests(StrideBaseTestCase):
                 self.assertEqual(self.como(user).post('/api/postulantetitular/', {}).status_code, 403)
                 self.assertEqual(self.como(user).post('/api/expediente/', {}).status_code, 403)
 
-    def test_todos_los_roles_ponen_apto_no_apto_en_sus_expedientes(self):
-        for user in [self.ts1, self.lg, self.user_de]:
+    def test_solo_mesa_de_entrada_decide_el_estado(self):
+        expediente = self.crear_expediente(f'3{self.user_de.id:07d}', self.user_de)
+        response = self.como(self.user_de).patch(f'/api/expediente/{expediente.id}/cambiar_estado/', {'estado': 'AP'})
+        self.assertEqual(response.status_code, 200)
+
+        # TS, Legales y el superadmin no deciden el estado, aunque tengan el expediente en su poder
+        for user in [self.ts1, self.lg, self.su]:
             with self.subTest(user=user.username):
                 expediente = self.crear_expediente(f'3{user.id:07d}', user)
                 response = self.como(user).patch(f'/api/expediente/{expediente.id}/cambiar_estado/', {'estado': 'AP'})
-                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.status_code, 403)
+                expediente.refresh_from_db()
+                self.assertEqual(expediente.estado_expediente, self.estado_sini)
 
     def test_nadie_cambia_el_estado_de_un_expediente_ajeno(self):
         for user in [self.ts2, self.lg, self.user_de]:
@@ -531,3 +538,316 @@ class ElevationOfPrivilegeTests(StrideBaseTestCase):
     def test_un_superusuario_de_django_sin_perfil_no_entra_a_la_api(self):
         root = User.objects.create_superuser('root', password=PASSWORD)
         self.assertEqual(self.como(root).get('/api/usuario/').status_code, 403)
+
+
+class SuperadminSoloLecturaTests(StrideBaseTestCase):
+    """
+    El superadmin ve todos los expedientes, pero solo actua (pase, adjuntar, cambiar estado, borrar
+    documentos) sobre los que tiene en su poder, como cualquier otro paso del flujo.
+    """
+
+    def test_el_superadmin_ve_un_expediente_ajeno_en_modo_lectura(self):
+        response = self.como(self.su).get(f'/api/expediente/{self.exp_ts1.id}/')
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data['en_mi_poder'])
+
+    def test_el_superadmin_no_pasa_un_expediente_ajeno(self):
+        response = self.como(self.su).post('/api/historialpase/', {
+            'expediente': self.exp_ts1.id, 'usuario_destino': self.ts2.id, 'observacion': 'x',
+        })
+        self.assertEqual(response.status_code, 403)
+        self.exp_ts1.refresh_from_db()
+        self.assertEqual(self.exp_ts1.usuario_asignado, self.ts1)
+
+    def test_el_superadmin_no_adjunta_en_un_expediente_ajeno(self):
+        response = self.como(self.su).post('/api/documentoadjunto/', {
+            'tipo_documento': 'DNI', 'expediente': self.exp_ts1.id,
+            'archivo': SimpleUploadedFile('x.pdf', b'%PDF-1.4 x'),
+        }, format='multipart')
+        self.assertEqual(response.status_code, 403)
+
+    def test_el_superadmin_no_borra_documentos_de_un_expediente_ajeno(self):
+        response = self.como(self.su).delete(f'/api/documentoadjunto/{self.doc_ts1.id}/')
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(DocumentoAdjunto.objects.filter(id=self.doc_ts1.id).exists())
+
+    def test_el_superadmin_no_cambia_el_estado_de_un_expediente_ajeno(self):
+        response = self.como(self.su).patch(f'/api/expediente/{self.exp_ts1.id}/cambiar_estado/', {'estado': 'AP'})
+        self.assertEqual(response.status_code, 403)
+        self.exp_ts1.refresh_from_db()
+        self.assertEqual(self.exp_ts1.estado_expediente, self.estado_sini)
+
+    def test_el_superadmin_no_edita_el_titular_de_un_expediente_ajeno(self):
+        titular = self.exp_ts1.postulante_titular
+        response = self.como(self.su).patch(f'/api/postulantetitular/{titular.id}/', {'nombre': 'Cambiado'})
+        self.assertEqual(response.status_code, 403)
+        titular.refresh_from_db()
+        self.assertEqual(titular.nombre, 'Postulante')
+
+    def test_el_superadmin_si_pasa_un_expediente_en_su_poder(self):
+        propio = self.crear_expediente('20333333', self.su)
+        self.assertTrue(self.como(self.su).get(f'/api/expediente/{propio.id}/').data['en_mi_poder'])
+        response = self.como(self.su).post('/api/historialpase/', {
+            'expediente': propio.id, 'usuario_destino': self.ts2.id, 'observacion': 'Para resolver',
+        })
+        self.assertEqual(response.status_code, 201)
+        propio.refresh_from_db()
+        self.assertEqual(propio.usuario_asignado, self.ts2)
+        # una vez pasado, ya no lo puede volver a pasar
+        response = self.como(self.su).post('/api/historialpase/', {
+            'expediente': propio.id, 'usuario_destino': self.ts1.id, 'observacion': 'otra vez',
+        })
+        self.assertEqual(response.status_code, 403)
+
+
+class EstadoLegalesTests(StrideBaseTestCase):
+    """Cuando el expediente se pasa a un usuario de Legales queda en estado "Legales" (LEG)."""
+
+    def pasar(self, origen, expediente, destino):
+        return self.como(origen).post('/api/historialpase/', {
+            'expediente': expediente.id, 'usuario_destino': destino.id, 'observacion': 'pase',
+        })
+
+    def test_el_pase_a_legales_pone_el_estado_legales(self):
+        self.assertEqual(self.pasar(self.ts1, self.exp_ts1, self.lg).status_code, 201)
+        self.exp_ts1.refresh_from_db()
+        self.assertEqual(self.exp_ts1.estado_expediente.nombre, 'LEG')
+        self.assertTrue(HistorialAccion.objects.filter(
+            id_expediente=self.exp_ts1, mensaje_accion__contains='pase a Legales').exists())
+
+    def test_al_salir_de_legales_vuelve_al_estado_que_tenia(self):
+        self.exp_ts1.estado_expediente = EstadoExpediente.objects.get(nombre='AP')
+        self.exp_ts1.save()
+        self.pasar(self.ts1, self.exp_ts1, self.lg)
+        self.exp_ts1.refresh_from_db()
+        self.assertEqual(self.exp_ts1.estado_expediente.nombre, 'LEG')
+        # Legales da el dictamen y lo devuelve: vuelve a Apto
+        self.assertEqual(self.pasar(self.lg, self.exp_ts1, self.user_de).status_code, 201)
+        self.exp_ts1.refresh_from_db()
+        self.assertEqual(self.exp_ts1.estado_expediente.nombre, 'AP')
+
+    def test_el_pase_a_otro_rol_no_cambia_el_estado(self):
+        self.assertEqual(self.pasar(self.ts1, self.exp_ts1, self.ts2).status_code, 201)
+        self.exp_ts1.refresh_from_db()
+        self.assertEqual(self.exp_ts1.estado_expediente, self.estado_sini)
+
+
+class DocPresentadaEImpresionTests(StrideBaseTestCase):
+    """
+    Mesa de Entrada marca "Doc Presentada" (DOCP) solo con el expediente en Apto y el formulario terminado;
+    con DOCP se puede imprimir el expediente completo (caratula + informe + adjuntos) en un solo PDF.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.estado_ap = EstadoExpediente.objects.get(nombre='AP')
+        EstadoExpediente.objects.get_or_create(nombre='DOCP')
+        self.exp = self.crear_expediente('20444444', self.user_de)
+        self.exp.estado_expediente = self.estado_ap
+        self.exp.save()
+        campos = {c: 'dato' for c in FormularioSocioHabitacional.CAMPOS_DE_ESTADO}
+        self.form = FormularioSocioHabitacional.objects.create(expediente=self.exp, **campos)
+        self.assertEqual(self.form.estado, 'completado')
+
+    def marcar(self, user, expediente=None):
+        expediente = expediente or self.exp
+        return self.como(user).patch(f'/api/expediente/{expediente.id}/cambiar_estado/', {'estado': 'DOCP'})
+
+    def test_la_data_entry_marca_doc_presentada(self):
+        self.assertEqual(self.marcar(self.user_de).status_code, 200)
+        self.exp.refresh_from_db()
+        self.assertEqual(self.exp.estado_expediente.nombre, 'DOCP')
+
+    def test_sin_apto_no_se_marca(self):
+        self.exp.estado_expediente = self.estado_sini
+        self.exp.save()
+        self.assertEqual(self.marcar(self.user_de).status_code, 400)
+
+    def test_sin_formulario_completo_no_se_marca(self):
+        self.form.observaciones = ''
+        self.form.save()
+        self.assertEqual(self.marcar(self.user_de).status_code, 400)
+
+    def test_otro_rol_no_marca_doc_presentada(self):
+        propio = self.crear_expediente('20555555', self.ts1)
+        propio.estado_expediente = self.estado_ap
+        propio.save()
+        self.assertEqual(self.marcar(self.ts1, propio).status_code, 403)
+
+    def test_sin_doc_presentada_no_se_imprime(self):
+        self.assertEqual(self.como(self.user_de).get(f'/api/expediente/{self.exp.id}/imprimir/').status_code, 400)
+
+    def test_imprime_el_expediente_completo(self):
+        from io import BytesIO
+        from PIL import Image
+        from pypdf import PdfReader, PdfWriter
+
+        pdf = BytesIO()
+        escritor = PdfWriter()
+        escritor.add_blank_page(width=595, height=842)
+        escritor.add_blank_page(width=595, height=842)
+        escritor.write(pdf)
+        png = BytesIO()
+        Image.new('RGB', (40, 30), 'red').save(png, format='PNG')
+        for nombre, contenido in [('dni.pdf', pdf.getvalue()), ('foto.png', png.getvalue()),
+                                  ('notas.docx', b'no imprimible')]:
+            DocumentoAdjunto.objects.create(tipo_documento=nombre, subido_por=self.user_de, expediente=self.exp,
+                                            archivo=SimpleUploadedFile(nombre, contenido))
+        self.marcar(self.user_de)
+
+        response = self.como(self.user_de).get(f'/api/expediente/{self.exp.id}/imprimir/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        paginas = len(PdfReader(BytesIO(response.content)).pages)
+        # caratula + informe (al menos 1 hoja) + 2 hojas del PDF + 1 de la imagen; el .docx queda en el indice
+        self.assertGreaterEqual(paginas, 5)
+        self.assertTrue(HistorialAccion.objects.filter(
+            id_expediente=self.exp, mensaje_accion__contains='Imprimió').exists())
+
+    def test_el_superadmin_imprime_aunque_no_lo_tenga_en_poder(self):
+        self.marcar(self.user_de)
+        self.assertEqual(self.como(self.su).get(f'/api/expediente/{self.exp.id}/imprimir/').status_code, 200)
+
+    def test_un_rol_operativo_no_imprime_un_expediente_ajeno(self):
+        self.marcar(self.user_de)
+        self.assertEqual(self.como(self.ts2).get(f'/api/expediente/{self.exp.id}/imprimir/').status_code, 404)
+
+
+class BajaDeUsuarioTests(StrideBaseTestCase):
+    """Al dar de baja a un usuario sus expedientes se reparten entre los activos de su rol y no puede entrar."""
+
+    def setUp(self):
+        super().setUp()
+        self.ts3 = self.crear_usuario('ts3', 'TS')
+        self.exp_ts1_b = self.crear_expediente('20666666', self.ts1)
+
+    def baja(self, user, definitiva=True):
+        # el boton Activo/Inactivo de la pantalla de usuarios: "baja definitiva" manda reasignar_casos
+        datos = {'activo': False, 'reasignar_casos': definitiva}
+        if definitiva:
+            datos['confirmar_dni'] = user.usuario.dni
+        return self.como(self.su).patch(f'/api/usuario/{user.usuario.id}/', datos)
+
+    def test_la_baja_definitiva_pide_el_dni_correcto(self):
+        response = self.como(self.su).patch(f'/api/usuario/{self.ts1.usuario.id}/', {
+            'activo': False, 'reasignar_casos': True, 'confirmar_dni': '99999999',
+        })
+        self.assertEqual(response.status_code, 400)
+        self.ts1.usuario.refresh_from_db()
+        self.assertTrue(self.ts1.usuario.activo)
+        self.exp_ts1.refresh_from_db()
+        self.assertEqual(self.exp_ts1.usuario_asignado, self.ts1)
+
+    def test_ausencia_temporal_no_mueve_los_casos(self):
+        self.assertEqual(self.baja(self.ts1, definitiva=False).status_code, 200)
+        self.exp_ts1.refresh_from_db()
+        self.assertEqual(self.exp_ts1.usuario_asignado, self.ts1)
+        self.ts1.refresh_from_db()
+        self.assertFalse(self.ts1.is_active)
+
+    def test_la_pantalla_sabe_cuantos_casos_tiene(self):
+        data = self.como(self.su).get(f'/api/usuario/{self.ts1.usuario.id}/casos-baja/').data
+        self.assertEqual(data, {'en_poder': 2, 'devolvibles': 0})
+        self.assertEqual(self.como(self.ts2).get(f'/api/usuario/{self.ts1.usuario.id}/casos-baja/').status_code, 403)
+
+    def test_baja_por_error_se_deshace_al_reactivar(self):
+        self.baja(self.ts1)
+        # uno de los casos repartidos ya avanzo: ese no se devuelve
+        self.exp_ts1_b.refresh_from_db()
+        quien_lo_tiene = self.exp_ts1_b.usuario_asignado
+        self.como(quien_lo_tiene).post('/api/historialpase/', {
+            'expediente': self.exp_ts1_b.id, 'usuario_destino': self.lg.id, 'observacion': 'a legales',
+        })
+        self.assertEqual(self.como(self.su).get(f'/api/usuario/{self.ts1.usuario.id}/casos-baja/').data['devolvibles'], 1)
+
+        self.como(self.su).patch(f'/api/usuario/{self.ts1.usuario.id}/', {'activo': True, 'devolver_casos': True})
+        self.exp_ts1.refresh_from_db()
+        self.exp_ts1_b.refresh_from_db()
+        self.assertEqual(self.exp_ts1.usuario_asignado, self.ts1)
+        self.assertEqual(self.exp_ts1_b.usuario_asignado, self.lg)
+
+    def test_no_se_le_pasa_un_expediente_a_un_usuario_inactivo(self):
+        self.baja(self.ts2, definitiva=False)
+        response = self.como(self.ts1).post('/api/historialpase/', {
+            'expediente': self.exp_ts1.id, 'usuario_destino': self.ts2.id, 'observacion': 'x',
+        })
+        self.assertEqual(response.status_code, 400)
+        # y no aparece en el desplegable de destinos
+        ids = [u['usuario'] for u in self.como(self.ts1).get('/api/usuario/').data]
+        self.assertNotIn(self.ts2.id, ids)
+
+    def test_los_casos_se_reparten_entre_las_ts_activas(self):
+        self.assertEqual(self.baja(self.ts1).status_code, 200)
+        destinos = set()
+        for expediente in (self.exp_ts1, self.exp_ts1_b):
+            expediente.refresh_from_db()
+            self.assertIn(expediente.usuario_asignado, [self.ts2, self.ts3])
+            destinos.add(expediente.usuario_asignado)
+            pase = HistorialPase.objects.filter(expediente=expediente).order_by('-id').first()
+            self.assertEqual(pase.usuario_origen, self.ts1)
+            self.assertIn('baja de', pase.observacion)
+        # por turno: uno a cada TS
+        self.assertEqual(destinos, {self.ts2, self.ts3})
+        # el documento que habia subido y no habia enviado viaja con el pase
+        self.assertTrue(self.doc_ts1.historial_pases.exists())
+
+    def test_la_baja_desde_el_boton_bloquea_el_acceso(self):
+        token = str(AccessToken.for_user(self.ts1))
+        self.baja(self.ts1)
+        self.ts1.refresh_from_db()
+        self.assertFalse(self.ts1.is_active)
+        # aunque tenga un token de antes, ya no puede usar la API
+        self.assertIn(self.con_token(token).get('/api/expediente/').status_code, (401, 403))
+
+    def test_reactivar_devuelve_el_acceso(self):
+        self.baja(self.ts1)
+        self.como(self.su).patch(f'/api/usuario/{self.ts1.usuario.id}/', {'activo': True})
+        self.ts1.refresh_from_db()
+        self.assertTrue(self.ts1.is_active)
+
+    def test_sin_otro_usuario_activo_del_rol_los_casos_quedan(self):
+        expediente_lg = self.crear_expediente('20777777', self.lg)
+        self.assertEqual(self.baja(self.lg).status_code, 200)
+        expediente_lg.refresh_from_db()
+        self.assertEqual(expediente_lg.usuario_asignado, self.lg)
+
+
+class ArchivoTests(StrideBaseTestCase):
+    """Con Doc Presentada y el expediente ya impreso, Mesa de Entrada lo archiva; se puede desarchivar."""
+
+    def setUp(self):
+        super().setUp()
+        EstadoExpediente.objects.get_or_create(nombre='DOCP')
+        self.exp = self.crear_expediente('20888888', self.user_de)
+        self.exp.estado_expediente = EstadoExpediente.objects.get(nombre='DOCP')
+        self.exp.save()
+        campos = {c: 'dato' for c in FormularioSocioHabitacional.CAMPOS_DE_ESTADO}
+        FormularioSocioHabitacional.objects.create(expediente=self.exp, **campos)
+
+    def archivar(self, user=None):
+        return self.como(user or self.user_de).post(f'/api/expediente/{self.exp.id}/archivar/')
+
+    def test_sin_imprimir_no_se_archiva(self):
+        self.assertEqual(self.archivar().status_code, 400)
+        self.assertFalse(self.como(self.user_de).get(f'/api/expediente/{self.exp.id}/').data['impreso'])
+
+    def test_archivar_y_desarchivar(self):
+        self.como(self.user_de).get(f'/api/expediente/{self.exp.id}/imprimir/')
+        self.assertTrue(self.como(self.user_de).get(f'/api/expediente/{self.exp.id}/').data['impreso'])
+        self.assertEqual(self.archivar().status_code, 200)
+        self.exp.refresh_from_db()
+        self.assertTrue(self.exp.archivado)
+
+        # archivado no se puede pasar
+        response = self.como(self.user_de).post('/api/historialpase/', {
+            'expediente': self.exp.id, 'usuario_destino': self.ts1.id, 'observacion': 'x',
+        })
+        self.assertEqual(response.status_code, 403)
+
+        self.assertEqual(self.como(self.user_de).post(f'/api/expediente/{self.exp.id}/desarchivar/').status_code, 200)
+        self.exp.refresh_from_db()
+        self.assertFalse(self.exp.archivado)
+
+    def test_solo_mesa_de_entrada_archiva(self):
+        self.como(self.user_de).get(f'/api/expediente/{self.exp.id}/imprimir/')
+        self.assertEqual(self.archivar(self.su).status_code, 403)

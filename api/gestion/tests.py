@@ -31,7 +31,7 @@ def usuario_con_rol(nombre_rol):
     return SimpleNamespace(
         is_authenticated=True,
         is_active=True,
-        usuario=SimpleNamespace(rol=SimpleNamespace(nombre_rol=nombre_rol), requiere_cambio_password=False),
+        usuario=SimpleNamespace(rol=SimpleNamespace(nombre_rol=nombre_rol), requiere_cambio_password=False, activo=True),
     )
 
 
@@ -157,7 +157,7 @@ from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import AccessToken
 
 from .models import (
-    DocumentoAdjunto, EstadoExpediente, Expediente, HistorialAccion, Notificacion, PostulanteTitular, Rol, Usuario,
+    DocumentoAdjunto, EstadoExpediente, Expediente, HistorialAccion, HistorialPase, Notificacion, PostulanteTitular, Rol, Usuario,
 )
 
 MEDIA_TEMPORAL = tempfile.mkdtemp()
@@ -361,6 +361,23 @@ class NotificacionExpedienteCreadoTests(SeguridadBaseTestCase):
     def notificaciones(self, user):
         self.client.force_authenticate(user)
         return [notif['mensaje'] for notif in self.client.get('/api/notificacion/').data]
+
+    def test_la_carga_queda_como_primer_movimiento_del_historial(self):
+        response = self.crear_expediente()
+        expediente = Expediente.objects.get(postulante_titular_id=response.data['id'])
+        pases = list(HistorialPase.objects.filter(expediente=expediente))
+        self.assertEqual(len(pases), 1)
+        self.assertEqual(pases[0].usuario_origen, self.user_de)
+        self.assertEqual(pases[0].usuario_destino, expediente.usuario_asignado)
+
+        # la TS asignada lo ve en su historial marcado como asignacion inicial
+        self.client.force_authenticate(expediente.usuario_asignado)
+        movimiento = self.client.get(f'/api/historialpase/?expediente={expediente.id}').data[0]
+        self.assertTrue(movimiento['es_asignacion_inicial'])
+        self.assertEqual(movimiento['usuario_origen_rol'], 'DE')
+        self.assertEqual(movimiento['usuario_destino_rol'], 'TS')
+        # y la notificacion sigue siendo la de caso nuevo (el pase de la carga no cuenta como "recibido antes")
+        self.assertIn('Nuevo caso recibido', self.notificaciones(expediente.usuario_asignado))
 
     def test_la_respuesta_dice_a_quien_quedo_asignado(self):
         response = self.crear_expediente()
@@ -778,7 +795,8 @@ class PanelAuditoriaTests(SeguridadBaseTestCase):
         reciente = HistorialAccion.objects.create(
             id_usuario_accion=self.ts.usuario, mensaje_accion='Acción de hoy.'
         )
-        hoy = timezone.now().date().isoformat()
+        # fecha local (Argentina), igual que el filtro: con UTC fallaba de 21 a 24 h
+        hoy = timezone.localdate().isoformat()
         data = self.listar(desde=hoy).data
         self.assertEqual([a['id'] for a in data], [reciente.id])
 
@@ -816,6 +834,12 @@ class ExportarExpedientesExcelTests(SeguridadBaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('spreadsheetml', response['Content-Type'])
         self.assertIn('.xlsx', response['Content-Disposition'])
+
+    def test_si_los_filtros_no_traen_nada_no_manda_un_excel_vacio(self):
+        self.client.force_authenticate(self.superadmin)
+        response = self.exportar(estado='DOCP')
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response.content, b'')
 
     def test_trae_una_fila_por_expediente_mas_encabezado_y_hoja_resumen(self):
         self.client.force_authenticate(self.superadmin)
