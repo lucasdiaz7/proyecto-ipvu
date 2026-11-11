@@ -4,6 +4,8 @@ import { ClockIcon, EyeIcon, ClipboardDocumentListIcon, MagnifyingGlassIcon } fr
 import AdminQuickLinks from '../AdminQuickLinks';
 import Paginacion from '../../Paginacion/Paginacion';
 import { usePaginacion } from '../../../hooks/usePaginacion';
+import { useOrden } from '../../../hooks/useOrden';
+import { SelectorOrden } from '../../Orden/Orden';
 import { auditoriaService } from '../../../services/auditoria/auditoria';
 import { usuarioService } from '../../../services/usuarios/usuarios';
 
@@ -77,8 +79,17 @@ const Auditoria = () => {
         };
     }, [filtros]);
 
+    // viene de la mas reciente a la mas vieja; se puede ordenar por otra columna o invertir
+    const { ordenados, orden, setOrden } = useOrden(acciones, {
+        fecha: (accion) => new Date(accion.fecha_accion).getTime(),
+        usuario: (accion) => accion.usuario_display || '',
+        rol: (accion) => ROLES[accion.rol_display]?.label || '',
+        accion: (accion) => accion.mensaje_accion || '',
+        expediente: (accion) => Number(accion.id_expediente) || 0,
+    });
+
     const { paginaActual, setPaginaActual, totalPaginas, itemsPaginados, totalItems, itemsPorPagina } =
-        usePaginacion(acciones);
+        usePaginacion(ordenados);
 
     const hayFiltros = useMemo(
         () => Object.values(filtros).some((v) => String(v).trim() !== ''),
@@ -169,10 +180,18 @@ const Auditoria = () => {
             {/* RESULTADOS */}
             <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl p-4 shadow-sm">
                 {!cargando && !error && (
-                    <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">
-                        {totalItems} {totalItems === 1 ? 'movimiento' : 'movimientos'}
-                        {hayFiltros ? ' (filtrados)' : ''}
-                    </p>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-1">
+                        <p className="text-xs text-gray-500 dark:text-slate-400">
+                            {totalItems} {totalItems === 1 ? 'movimiento' : 'movimientos'}
+                            {hayFiltros ? ' (filtrados)' : ''}
+                        </p>
+                        <SelectorOrden
+                            className=""
+                            columnas={[['fecha', 'Fecha'], ['usuario', 'Usuario'], ['rol', 'Rol'], ['accion', 'Acción'], ['expediente', 'Nº de expediente']]}
+                            orden={orden}
+                            setOrden={setOrden}
+                        />
+                    </div>
                 )}
 
                 {cargando ? (

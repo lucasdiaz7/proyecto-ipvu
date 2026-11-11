@@ -110,8 +110,10 @@ class ProcesarDocumentoViewTests(SimpleTestCase):
         self.assertEqual((nombre, contenido), ('ddjj.pdf', b'%PDF-1.4 contenido'))
 
     def test_rechaza_roles_sin_permiso(self, mock_post):
-        response = self.enviar(self.pdf(), rol='TS')
-        self.assertEqual(response.status_code, 403)
+        # solo Mesa de Entrada carga expedientes, asi que solo ella precarga la DDJJ
+        for rol in ['TS', 'LG', 'SU']:
+            with self.subTest(rol=rol):
+                self.assertEqual(self.enviar(self.pdf(), rol=rol).status_code, 403)
         mock_post.assert_not_called()
 
     def test_valida_archivo_antes_de_llamar_a_ia(self, mock_post):
@@ -889,3 +891,117 @@ class ExportarExpedientesExcelTests(SeguridadBaseTestCase):
         self.assertTrue(
             HistorialAccion.objects.filter(mensaje_accion__startswith='Exportó un Excel').exists()
         )
+
+    def test_exporta_solo_los_expedientes_tildados(self):
+        self.client.force_authenticate(self.superadmin)
+        response = self.client.post(
+            '/api/expediente/exportar-excel/', {'ids': [self.expediente_ap.id]}, format='json'
+        )
+        hoja = self._abrir(response)['Expedientes']
+        self.assertEqual(hoja.max_row, 2)  # encabezado + solo el tildado
+        self.assertEqual(hoja['A2'].value, self.expediente_ap.id)
+        self.assertEqual(hoja['L2'].value, 'Test dataentry')  # "En poder de"
+
+    def test_exportar_tildados_sin_ninguno_responde_400(self):
+        self.client.force_authenticate(self.superadmin)
+        response = self.client.post('/api/expediente/exportar-excel/', {'ids': []}, format='json')
+        self.assertEqual(response.status_code, 400)
+
+    def test_un_rol_operativo_no_puede_exportar_tildados(self):
+        self.client.force_authenticate(self.user_de)
+        response = self.client.post(
+            '/api/expediente/exportar-excel/', {'ids': [self.expediente.id]}, format='json'
+        )
+        self.assertIn(response.status_code, (403, 404))
+
+
+class AuditoriaUsuariosTests(SeguridadBaseTestCase):
+
+    def test_cuenta_asignados_vistos_y_estados_por_usuario(self):
+        # self.expediente (SINI, no visto) ya esta asignado a la data entry; se suma uno visto en 1V
+        Expediente.objects.create(
+            postulante_titular=PostulanteTitular.objects.create(
+                nombre='Luis', apellido='Paz', telefono='385', dni='30999888', domicilio_actual='Calle 3',
+            ),
+            estado_expediente=EstadoExpediente.objects.create(nombre='1V'),
+            usuario_asignado=self.user_de, visto=True,
+        )
+        admin = self.crear_usuario('admin1', 'SU')
+        self.client.force_authenticate(admin)
+
+        datos = {fila['usuario_id']: fila for fila in self.client.get('/api/usuario/auditoria_usuarios/').data}
+
+        de = datos[self.user_de.usuario.id]
+        self.assertEqual(de['total_asignados'], 2)
+        self.assertEqual(de['total_vistos'], 1)
+        self.assertEqual(de['total_no_vistos'], 1)
+        self.assertEqual(de['desglose_estados'], {'SINI': 1, '1V': 1})
+        # un usuario sin expedientes aparece con todo en cero
+        self.assertEqual(datos[admin.usuario.id]['total_asignados'], 0)
+        self.assertEqual(datos[admin.usuario.id]['desglose_estados'], {})
+
+
+class AnularDocumentoTests(SeguridadBaseTestCase):
+    """Un documento mal subido: se borra solo antes del pase; despues se anula con motivo."""
+
+    def setUp(self):
+        super().setUp()
+        self.legales = self.crear_usuario('legales2', 'LG')
+
+    def enviar_en_pase(self, documento):
+        pase = HistorialPase.objects.create(
+            expediente=self.expediente, usuario_origen=self.user_de, usuario_destino=self.legales,
+        )
+        pase.documentos_adjuntos.add(documento)
+
+    def anular(self, user, motivo='Era de otro titular', documento=None):
+        self.client.force_authenticate(user)
+        return self.client.post(
+            f'/api/documentoadjunto/{(documento or self.documento).id}/anular/', {'motivo': motivo}, format='json'
+        )
+
+    def test_quien_lo_subio_lo_borra_antes_del_pase(self):
+        self.client.force_authenticate(self.user_de)
+        self.assertEqual(self.client.delete(f'/api/documentoadjunto/{self.documento.id}/').status_code, 204)
+
+    def test_otro_usuario_no_borra_lo_que_no_subio(self):
+        otra_de = self.crear_usuario('otrade2', 'DE')
+        self.documento.subido_por = otra_de
+        self.documento.save()
+        self.client.force_authenticate(self.user_de)
+        self.assertEqual(self.client.delete(f'/api/documentoadjunto/{self.documento.id}/').status_code, 403)
+
+    def test_despues_del_pase_no_se_borra(self):
+        self.enviar_en_pase(self.documento)
+        self.client.force_authenticate(self.user_de)
+        self.assertEqual(self.client.delete(f'/api/documentoadjunto/{self.documento.id}/').status_code, 403)
+        self.assertTrue(DocumentoAdjunto.objects.filter(id=self.documento.id).exists())
+
+    def test_mesa_de_entrada_lo_anula_con_motivo_y_queda_en_auditoria(self):
+        self.enviar_en_pase(self.documento)
+        response = self.anular(self.user_de)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['anulado'])
+        self.assertEqual(response.data['motivo_anulacion'], 'Era de otro titular')
+        self.assertEqual(response.data['anulado_por_display'], 'Test dataentry')
+        self.assertTrue(HistorialAccion.objects.filter(mensaje_accion__startswith='Anular documento').exists())
+        # no se borra: sigue existiendo y sigue en el historial del pase
+        self.assertEqual(self.documento.historial_pases.count(), 1)
+
+    def test_sin_motivo_no_se_anula(self):
+        self.assertEqual(self.anular(self.user_de, motivo='  ').status_code, 400)
+
+    def test_otros_roles_no_anulan(self):
+        self.expediente.usuario_asignado = self.legales
+        self.expediente.save()
+        self.assertEqual(self.anular(self.legales).status_code, 403)
+
+    def test_no_se_puede_anular_dos_veces(self):
+        self.assertEqual(self.anular(self.user_de).status_code, 200)
+        self.assertEqual(self.anular(self.user_de).status_code, 400)
+
+    def test_el_campo_anulado_no_se_cambia_por_la_api_comun(self):
+        self.client.force_authenticate(self.user_de)
+        self.client.patch(f'/api/documentoadjunto/{self.documento.id}/', {'anulado': True}, format='json')
+        self.documento.refresh_from_db()
+        self.assertFalse(self.documento.anulado)

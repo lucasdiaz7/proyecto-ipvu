@@ -494,7 +494,8 @@ class ElevationOfPrivilegeTests(StrideBaseTestCase):
         self.assertEqual(self.como(self.user_de).delete(f'/api/expediente/{exp_de.id}/').status_code, 403)
 
     def test_solo_data_entry_crea_expedientes(self):
-        for user in [self.ts1, self.lg]:
+        # el superadmin tampoco carga expedientes: es tarea exclusiva de Mesa de Entrada
+        for user in [self.ts1, self.lg, self.su]:
             with self.subTest(user=user.username):
                 self.assertEqual(self.como(user).post('/api/postulantetitular/', {}).status_code, 403)
                 self.assertEqual(self.como(user).post('/api/expediente/', {}).status_code, 403)

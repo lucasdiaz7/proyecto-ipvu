@@ -78,22 +78,35 @@ export const expedienteService = {
         // 204: ningun expediente coincide con los filtros, no hay archivo para bajar
         if (response.status === 204) return { cantidad: 0 };
 
-        // el nombre de archivo viene en el header Content-Disposition del backend
-        const dispo = response.headers["content-disposition"] || "";
-        const match = dispo.match(/filename="?([^"]+)"?/);
-        const nombre = match ? match[1] : "expedientes.xlsx";
-
-        // con el tipo de archivo correcto el navegador lo reconoce como Excel y no como un binario desconocido
-        const tipoExcel = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-        const url = window.URL.createObjectURL(new Blob([response.data], { type: tipoExcel }));
-        const enlace = document.createElement("a");
-        enlace.href = url;
-        enlace.setAttribute("download", nombre);
-        document.body.appendChild(enlace);
-        enlace.click();
-        enlace.remove();
-        window.URL.revokeObjectURL(url);
+        descargarExcel(response);
         return { cantidad: null };
+    },
+
+    // descarga el .xlsx solo con los expedientes que el superadmin dejo tildados (lista de ids)
+    exportarExcelSeleccion: async (ids) => {
+        const response = await api.post("/expediente/exportar-excel/", { ids }, { responseType: "blob" });
+        if (response.status === 204) return { cantidad: 0 };
+        descargarExcel(response);
+        return { cantidad: ids.length };
     }
 }
+
+// dispara la descarga del .xlsx que devolvio el backend
+const descargarExcel = (response) => {
+    // el nombre de archivo viene en el header Content-Disposition del backend
+    const dispo = response.headers["content-disposition"] || "";
+    const match = dispo.match(/filename="?([^"]+)"?/);
+    const nombre = match ? match[1] : "expedientes.xlsx";
+
+    // con el tipo de archivo correcto el navegador lo reconoce como Excel y no como un binario desconocido
+    const tipoExcel = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    const url = window.URL.createObjectURL(new Blob([response.data], { type: tipoExcel }));
+    const enlace = document.createElement("a");
+    enlace.href = url;
+    enlace.setAttribute("download", nombre);
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+    window.URL.revokeObjectURL(url);
+};
 

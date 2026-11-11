@@ -95,7 +95,8 @@ class ExpedienteSerializer(serializers.ModelSerializer):
                 'dni': titular.dni,
                 'domicilio': getattr(titular, 'domicilio_actual', getattr(titular, 'domicilio', 'Sin domicilio')),
                 'telefono': getattr(titular, 'telefono', 'Sin teléfono'),
-                'email': getattr(titular, 'email', 'Sin email')
+                'email': getattr(titular, 'email', 'Sin email'),
+                'tiene_discapacidad': titular.tiene_discapacidad,
             }
         else:
             response['postulante_titular'] = None
@@ -226,8 +227,12 @@ class DocumentoAdjuntoSerializer(serializers.ModelSerializer):
             'expediente',
             'historial_pases',
             'pendiente_pase',
+            'anulado',
+            'motivo_anulacion',
+            'fecha_anulacion',
         ]
-        read_only_fields = ['subido_por']
+        # la anulacion solo se hace por el endpoint /anular/ (con rol, motivo y auditoria)
+        read_only_fields = ['subido_por', 'anulado', 'motivo_anulacion', 'fecha_anulacion']
         
     def get_archivo_url(self, obj):
         return url_descarga(obj)
@@ -246,6 +251,15 @@ class DocumentoAdjuntoSerializer(serializers.ModelSerializer):
             ret['subido_por_display'] = f"{nombre} {apellido}".strip() or subido_por.username
         else:
             ret['subido_por_display'] = "Sistema"
+
+        anulado_por = instance.anulado_por
+        if anulado_por:
+            perfil = getattr(anulado_por, 'usuario', None)
+            ret['anulado_por_display'] = (
+                f"{perfil.nombre} {perfil.apellido}".strip() if perfil else anulado_por.get_full_name()
+            ) or anulado_por.username
+        else:
+            ret['anulado_por_display'] = None
         return ret
 
     def validate_archivo(self, archivo):

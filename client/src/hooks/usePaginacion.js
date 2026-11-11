@@ -11,9 +11,12 @@ export const usePaginacion = (items = [], itemsPorPagina = ITEMS_POR_PAGINA_DEFA
     // Si cambia el resultado filtrado (búsqueda, filtros, orden, recarga de
     // datos) volvemos a la página 1 para no quedar "varados" en una página
     // que ya no tiene sentido para el nuevo resultado.
+    // Se compara el contenido (ids en orden) y no la referencia del array: muchas pantallas arman la
+    // lista filtrada con un .filter() en cada render, y eso devolvia siempre a la página 1 al paginar.
+    const firmaItems = items.map((item, indice) => item?.id ?? indice).join(',');
     useEffect(() => {
         setPaginaActual(1);
-    }, [items]);
+    }, [firmaItems]);
 
     const totalPaginas = Math.max(1, Math.ceil(items.length / itemsPorPagina));
 

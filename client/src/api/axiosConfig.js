@@ -58,7 +58,14 @@ api.interceptors.response.use((response) => response, async (error) => {
         original.headers.Authorization = `Bearer ${nuevoToken}`;
         return api(original);
     } catch (errorRenovacion) {
-        cerrarSesionVencida();
+        // solo se cierra la sesion si el refresh de verdad no sirve (vencido o invalido). Si fallo la red,
+        // el servidor se estaba reiniciando o se supero el limite de renovaciones, se mantiene la sesion
+        // y falla solo este pedido
+        const sinRefresh = errorRenovacion.message === "Sin refresh token";
+        const refreshRechazado = [400, 401].includes(errorRenovacion.response?.status);
+        if (sinRefresh || refreshRechazado) {
+            cerrarSesionVencida();
+        }
         return Promise.reject(error);
     } finally {
         renovacionEnCurso = null;

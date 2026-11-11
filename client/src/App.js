@@ -57,6 +57,10 @@ function App() {
               {/* Data entry (3) */}
               <Route element={<ProtectedRoute allowedRoles={["3", "4"]} />}>
                 <Route path="/dataEntry" element={<Home />} />
+              </Route>
+
+              {/* cargar un expediente nuevo: solo Mesa de Entrada (el administrador no carga) */}
+              <Route element={<ProtectedRoute allowedRoles={["3"]} />}>
                 <Route path="/nuevoExpediente" element={<FormExpedientes />} />
               </Route>
 

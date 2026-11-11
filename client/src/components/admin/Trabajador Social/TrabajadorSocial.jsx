@@ -5,6 +5,17 @@ import { auditoriaService } from '../../../services/auditoria/auditoria';
 import AdminQuickLinks from '../AdminQuickLinks';
 import { usePaginacion } from '../../../hooks/usePaginacion';
 import Paginacion from '../../Paginacion/Paginacion';
+import { useOrden } from '../../../hooks/useOrden';
+import { EncabezadoOrden, SelectorOrden } from '../../Orden/Orden';
+
+const COLUMNAS_TS = [
+    ['matricula', 'Matrícula'],
+    ['nombre', 'Nombre'],
+    ['dni', 'DNI'],
+    ['total', 'Total'],
+    ['vistos', 'Vistos'],
+    ['enEjecucion', 'En ejecución'],
+];
 
 const ESTADOS_EN_EJECUCION = ['SINI', '1V', 'LEG', 'DOCP', 'NUEVAV'];
 
@@ -65,7 +76,16 @@ const TrabajadorSocial = () => {
         );
     });
 
-    const { paginaActual, setPaginaActual, totalPaginas, itemsPaginados, totalItems } = usePaginacion(tsFiltrados);
+    const { ordenados, orden, setOrden, pedirOrden } = useOrden(tsFiltrados, {
+        matricula: (ts) => ts.matricula || '',
+        nombre: (ts) => `${ts.apellido || ''} ${ts.nombre || ''}`.trim(),
+        dni: (ts) => Number(String(ts.dni || '').replace(/\D/g, '')) || 0,
+        total: (ts) => obtenerMetricasTS(ts).total,
+        vistos: (ts) => obtenerMetricasTS(ts).vistos,
+        enEjecucion: (ts) => obtenerMetricasTS(ts).enEjecucion,
+    });
+
+    const { paginaActual, setPaginaActual, totalPaginas, itemsPaginados, totalItems } = usePaginacion(ordenados);
 
     if (cargando) {
         return (
@@ -110,13 +130,11 @@ const TrabajadorSocial = () => {
 
                     <div className="mt-6 overflow-x-auto">
                         <div className="hidden lg:grid grid-cols-6 gap-2 min-w-[900px] bg-gray-100 dark:bg-slate-800 p-3 rounded-lg text-gray-700 dark:text-slate-300 font-semibold text-sm">
-                            <span>Matrícula</span>
-                            <span>Nombre</span>
-                            <span>DNI</span>
-                            <span>Total</span>
-                            <span>Vistos</span>
-                            <span>En ejecución</span>
+                            {COLUMNAS_TS.map(([columna, titulo]) => (
+                                <EncabezadoOrden key={columna} columna={columna} titulo={titulo} orden={orden} onOrdenar={pedirOrden} />
+                            ))}
                         </div>
+                        <SelectorOrden columnas={COLUMNAS_TS} orden={orden} setOrden={setOrden} />
 
                         {!error && itemsPaginados.length === 0 ? (
                             <div className="text-center py-10 text-gray-500 dark:text-slate-400 font-medium border-b dark:border-slate-800">

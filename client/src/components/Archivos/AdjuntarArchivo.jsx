@@ -139,7 +139,8 @@ export const AdjuntarArchivos = ({ expedienteId, adjuntosExcluidos = [], onArchi
       onArchivosChange?.(filtrados);
     } catch (error) {
       console.error('Error al eliminar documento adjunto:', error);
-      setError('No se pudo eliminar el archivo adjunto.');
+      // ej: "Solo quien subió el documento lo puede borrar."
+      setError(error?.response?.data?.detail || 'No se pudo eliminar el archivo adjunto.');
     } finally {
       setEliminandoId(null);
     }

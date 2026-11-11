@@ -112,6 +112,14 @@ class DocumentoAdjunto(models.Model):
     #FK
     subido_por = models.ForeignKey(User, on_delete=models.RESTRICT, related_name='mis_documentos_subidos')
     expediente = models.ForeignKey(Expediente, on_delete=models.PROTECT, related_name='documentos', null=True, blank=True)
+
+    # un documento que ya viajo en un pase no se borra (es parte del historial): Mesa de Entrada o el
+    # administrador lo anulan con un motivo. Anulado no sale en el expediente impreso, pero sigue visible.
+    anulado = models.BooleanField(default=False)
+    motivo_anulacion = models.CharField(max_length=300, blank=True)
+    anulado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='documentos_anulados')
+    fecha_anulacion = models.DateTimeField(null=True, blank=True)
+
     def __str__(self):
         return f"ID Documento: {self.id}"
 

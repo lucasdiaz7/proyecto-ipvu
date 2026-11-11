@@ -167,25 +167,29 @@ const Expedientes = () => {
         });
 
         // Ordenar el resultado final
+        const valorOrden = (e, key) => {
+            const titular = typeof e.postulante_titular === 'object' ? e.postulante_titular : null;
+            switch (key) {
+                case 'ddjj': return e.DDJJ || '';
+                case 'dni': return cleanDni(titular?.dni);
+                case 'titular': return `${titular?.apellido || ''} ${titular?.nombre || ''}`.trim();
+                case 'estado': return CONFIG_ESTADOS[obtenerCodigoEstado(e)]?.texto || '';
+                case 'fecha_creacion': return e.fecha_creacion ? new Date(e.fecha_creacion).getTime() : 0;
+                case 'usuario_asignado': return nombreUsuarioAsignado(e) || '';
+                case 'dias_en_poder': return e.dias_en_poder ?? 0;
+                default: return e[key];
+            }
+        };
+
         return [...porVisto].sort((a, b) => {
             if (!sortConfig.key) return 0;
-
-            let valA = a[sortConfig.key];
-            let valB = b[sortConfig.key];
-
-            if (sortConfig.key === 'ddjj') { valA = a.DDJJ; valB = b.DDJJ; }
-            if (sortConfig.key === 'dni') {
-                valA = cleanDni(typeof a.postulante_titular === 'object' ? a.postulante_titular?.dni : "");
-                valB = cleanDni(typeof b.postulante_titular === 'object' ? b.postulante_titular?.dni : "");
-            }
-            if (sortConfig.key === 'titular') {
-                valA = typeof a.postulante_titular === 'object' ? a.postulante_titular?.nombre : "";
-                valB = typeof b.postulante_titular === 'object' ? b.postulante_titular?.nombre : "";
-            }
-
-            if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-            if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
-            return 0;
+            const valA = valorOrden(a, sortConfig.key);
+            const valB = valorOrden(b, sortConfig.key);
+            // los textos se comparan "naturalmente": DDJJ 20 antes que 100, sin importar tildes ni mayusculas
+            const comparacion = typeof valA === 'string' || typeof valB === 'string'
+                ? String(valA).localeCompare(String(valB), 'es', { numeric: true, sensitivity: 'base' })
+                : valA - valB;
+            return sortConfig.direction === 'asc' ? comparacion : -comparacion;
         });
     }, [expedientes, selectedEstado, searchTerm, verSoloNuevos, verArchivados, diasMinimos, creadoDesde, creadoHasta, sortConfig]);
 
@@ -417,8 +421,16 @@ const Expedientes = () => {
                                 <option value="titular:desc">Titular (Z-A)</option>
                                 <option value="dni:asc">DNI (menor a mayor)</option>
                                 <option value="dni:desc">DNI (mayor a menor)</option>
-                                <option value="ddjj:asc">DD.JJ (A-Z)</option>
-                                <option value="ddjj:desc">DD.JJ (Z-A)</option>
+                                <option value="ddjj:asc">DD.JJ (menor a mayor)</option>
+                                <option value="ddjj:desc">DD.JJ (mayor a menor)</option>
+                                <option value="estado:asc">Estado (A-Z)</option>
+                                <option value="estado:desc">Estado (Z-A)</option>
+                                <option value="fecha_creacion:desc">Fecha de creación (más nuevos)</option>
+                                <option value="fecha_creacion:asc">Fecha de creación (más viejos)</option>
+                                {mostrarAsignacion && <option value="usuario_asignado:asc">Usuario asignado (A-Z)</option>}
+                                {mostrarAsignacion && <option value="usuario_asignado:desc">Usuario asignado (Z-A)</option>}
+                                <option value="dias_en_poder:desc">Días en poder (más días)</option>
+                                <option value="dias_en_poder:asc">Días en poder (menos días)</option>
                             </select>
                         </div>
 
@@ -433,10 +445,20 @@ const Expedientes = () => {
                             <button onClick={() => requestSort('dni')} className="flex items-center text-left focus:outline-none group">
                                 <span>DNI</span> {renderSortIcon('dni')}
                             </button>
-                            <span>Estado</span>
-                            <span>Fecha Creación</span>
-                            {mostrarAsignacion && <span>Usuario Asignado</span>}
-                            <span>Días en Poder</span>
+                            <button onClick={() => requestSort('estado')} className="flex items-center text-left focus:outline-none group">
+                                <span>Estado</span> {renderSortIcon('estado')}
+                            </button>
+                            <button onClick={() => requestSort('fecha_creacion')} className="flex items-center text-left focus:outline-none group">
+                                <span>Fecha Creación</span> {renderSortIcon('fecha_creacion')}
+                            </button>
+                            {mostrarAsignacion && (
+                                <button onClick={() => requestSort('usuario_asignado')} className="flex items-center text-left focus:outline-none group">
+                                    <span>Usuario Asignado</span> {renderSortIcon('usuario_asignado')}
+                                </button>
+                            )}
+                            <button onClick={() => requestSort('dias_en_poder')} className="flex items-center text-left focus:outline-none group">
+                                <span>Días en Poder</span> {renderSortIcon('dias_en_poder')}
+                            </button>
                         </div>
 
                         {itemsPaginados.length === 0 ? (

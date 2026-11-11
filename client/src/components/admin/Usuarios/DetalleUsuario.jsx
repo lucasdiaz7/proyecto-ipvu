@@ -12,7 +12,17 @@ import { usuarioService } from '../../../services/usuarios/usuarios';
 import { auditoriaService } from '../../../services/auditoria/auditoria';
 import { historial } from '../../../services/historial/historial';
 import { usePaginacion } from '../../../hooks/usePaginacion';
+import { useOrden } from '../../../hooks/useOrden';
+import { EncabezadoOrden, SelectorOrden } from '../../Orden/Orden';
 import Paginacion from '../../Paginacion/Paginacion';
+
+const COLUMNAS_EXPEDIENTES = [
+    ['ddjj', 'DD.JJ'],
+    ['titular', 'Titular'],
+    ['dni', 'DNI'],
+    ['estado', 'Estado'],
+    ['fecha', 'Fecha'],
+];
 
 const CONFIG_ESTADOS = {
     SINI: { texto: 'Sin Iniciar', color: 'bg-gray-100 text-gray-800 border-gray-300 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600' },
@@ -124,13 +134,27 @@ const DetalleUsuario = () => {
         };
     }, [expedientes]);
 
+    const ordenExpedientes = useOrden(expedientes, {
+        ddjj: (exp) => exp.DDJJ || '',
+        titular: (exp) => `${exp.postulante_titular?.apellido || ''} ${exp.postulante_titular?.nombre || ''}`.trim(),
+        dni: (exp) => Number(String(exp.postulante_titular?.dni || '').replace(/\D/g, '')) || 0,
+        estado: (exp) => CONFIG_ESTADOS[obtenerCodigoEstado(exp)]?.texto || '',
+        fecha: (exp) => (exp.fecha_creacion ? new Date(exp.fecha_creacion).getTime() : 0),
+    });
+
+    // la actividad ya viene de la mas reciente a la mas vieja; se puede invertir o agrupar por accion
+    const ordenAuditorias = useOrden(auditorias, {
+        fecha: (accion) => new Date(accion.fecha_accion).getTime(),
+        accion: (accion) => accion.mensaje_accion || '',
+    });
+
     const {
         paginaActual: paginaExpedientes,
         setPaginaActual: setPaginaExpedientes,
         totalPaginas: totalPaginasExpedientes,
         itemsPaginados: expedientesPaginados,
         totalItems: totalExpedientes
-    } = usePaginacion(expedientes);
+    } = usePaginacion(ordenExpedientes.ordenados);
 
     const {
         paginaActual: paginaAuditorias,
@@ -138,7 +162,7 @@ const DetalleUsuario = () => {
         totalPaginas: totalPaginasAuditorias,
         itemsPaginados: auditoriasPaginadas,
         totalItems: totalAuditorias
-    } = usePaginacion(auditorias);
+    } = usePaginacion(ordenAuditorias.ordenados);
 
     const handleVerAuditoria = async () => {
         setVista('auditoria');
@@ -269,13 +293,13 @@ const DetalleUsuario = () => {
                         <>
                             <div className="overflow-x-auto">
                                 <div className="hidden lg:grid grid-cols-6 gap-2 min-w-[980px] bg-gray-50 dark:bg-slate-800 p-3 rounded-xl text-gray-500 dark:text-slate-400 font-bold text-xs uppercase tracking-wider">
-                                    <span>DD.JJ</span>
-                                    <span>Titular</span>
-                                    <span>DNI</span>
-                                    <span>Estado</span>
-                                    <span>Fecha</span>
+                                    {COLUMNAS_EXPEDIENTES.map(([columna, titulo]) => (
+                                        <EncabezadoOrden key={columna} columna={columna} titulo={titulo}
+                                            orden={ordenExpedientes.orden} onOrdenar={ordenExpedientes.pedirOrden} />
+                                    ))}
                                     <span>Acción</span>
                                 </div>
+                                <SelectorOrden columnas={COLUMNAS_EXPEDIENTES} orden={ordenExpedientes.orden} setOrden={ordenExpedientes.setOrden} />
 
                                 {expedientesPaginados.length === 0 ? (
                                     <div className="text-center py-8 text-gray-400 dark:text-slate-500 font-medium">
@@ -338,6 +362,9 @@ const DetalleUsuario = () => {
                                     Este usuario no registra actividad en el sistema.
                                 </div>
                             ) : (
+                                <>
+                                <SelectorOrden className="" columnas={[['fecha', 'Fecha'], ['accion', 'Acción']]}
+                                    orden={ordenAuditorias.orden} setOrden={ordenAuditorias.setOrden} />
                                 <div className="flex flex-col divide-y divide-gray-100 dark:divide-slate-800 border-t border-gray-100 dark:border-slate-800">
                                     {auditoriasPaginadas.map((accion) => {
                                         const expedienteRelacionado = accion.id_expediente
@@ -371,6 +398,7 @@ const DetalleUsuario = () => {
                                         );
                                     })}
                                 </div>
+                                </>
                             )}
 
                             {!cargandoAuditoria && !errorAuditoria && (

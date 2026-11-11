@@ -169,6 +169,28 @@ const DetailExpedientes = () => {
         setAdjuntoEnVista(adjunto);
     };
 
+    // anular un documento mal subido que ya viajó en un pase (Mesa de Entrada o administrador)
+    const [documentoAAnular, setDocumentoAAnular] = useState(null);
+    const [motivoAnulacion, setMotivoAnulacion] = useState('');
+    const [anulando, setAnulando] = useState(false);
+
+    const confirmarAnulacion = async () => {
+        if (!documentoAAnular || !motivoAnulacion.trim()) return;
+        try {
+            setAnulando(true);
+            const actualizado = await documentoAdjuntoService.anular(documentoAAnular.id, motivoAnulacion.trim());
+            setDocumentosExpediente((docs) => docs.map((doc) => (doc.id === actualizado.id ? actualizado : doc)));
+            setDocumentoAAnular(null);
+            setMotivoAnulacion('');
+            toast.success('Documento anulado. Ya no va a salir en el expediente impreso.');
+        } catch (error) {
+            console.error('Error al anular el documento:', error);
+            toast.error(error?.response?.data?.error || error?.response?.data?.detail || 'No se pudo anular el documento.');
+        } finally {
+            setAnulando(false);
+        }
+    };
+
     // ícono simple según la extensión del archivo, para distinguir de un vistazo
     const iconoAdjunto = (adjunto) => {
         const nombre = (adjunto?.archivo || adjunto?.tipo_documento || '').toLowerCase();
@@ -526,17 +548,39 @@ const DetailExpedientes = () => {
                                 {documentosExpediente.map((doc) => (
                                     <div
                                         key={doc.id}
-                                        className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl"
+                                        className={`flex flex-wrap items-center gap-3 p-3 bg-white dark:bg-slate-900 border rounded-xl ${doc.anulado
+                                            ? 'border-red-200 dark:border-red-500/30'
+                                            : 'border-gray-200 dark:border-slate-700'}`}
                                     >
-                                        <span className="text-2xl shrink-0" aria-hidden="true">{iconoAdjunto(doc)}</span>
+                                        <span className={`text-2xl shrink-0 ${doc.anulado ? 'opacity-40' : ''}`} aria-hidden="true">{iconoAdjunto(doc)}</span>
                                         <div className="min-w-0 flex-1">
-                                            <p className="text-sm font-medium text-gray-800 dark:text-slate-100 truncate" title={obtenerNombreAdjunto(doc)}>
+                                            <p className={`text-sm font-medium truncate ${doc.anulado
+                                                ? 'line-through text-gray-400 dark:text-slate-500'
+                                                : 'text-gray-800 dark:text-slate-100'}`} title={obtenerNombreAdjunto(doc)}>
                                                 {obtenerNombreAdjunto(doc)}
                                             </p>
                                             <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
                                                 Subido por {doc.subido_por_display || '---'}
                                             </p>
+                                            {doc.anulado && (
+                                                <p className="text-xs text-red-600 dark:text-red-400 mt-0.5 break-words">
+                                                    <span className="font-semibold">Anulado</span>
+                                                    {doc.anulado_por_display ? ` por ${doc.anulado_por_display}` : ''}
+                                                    {doc.fecha_anulacion ? ` el ${new Date(doc.fecha_anulacion).toLocaleDateString('es-AR')}` : ''}
+                                                    : {doc.motivo_anulacion}. No sale en el expediente impreso.
+                                                </p>
+                                            )}
                                         </div>
+                                        {/* anular: Mesa de Entrada o administrador, con el expediente en su poder, sobre lo ya enviado en un pase */}
+                                        {!doc.anulado && (rolId === 3 || rolId === 4) && enMiPoder && !archivado && doc.historial_pases?.length > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => { setDocumentoAAnular(doc); setMotivoAnulacion(''); }}
+                                                className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-red-200 dark:border-red-500/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition shrink-0"
+                                            >
+                                                Anular
+                                            </button>
+                                        )}
                                         <button
                                             type="button"
                                             onClick={() => verAdjunto(doc)}
@@ -869,6 +913,56 @@ const DetailExpedientes = () => {
                     onClose={() => setAdjuntoEnVista(null)}
                     onDescargar={() => descargarAdjunto(adjuntoEnVista)}
                 />
+            )}
+
+            {documentoAAnular && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+                    onClick={() => !anulando && setDocumentoAAnular(null)}
+                    role="dialog"
+                    aria-modal="true"
+                >
+                    <div
+                        className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-6 flex flex-col gap-3"
+                        onClick={(ev) => ev.stopPropagation()}
+                    >
+                        <h4 className="text-lg font-bold text-gray-800 dark:text-slate-100">Anular documento</h4>
+                        <p className="text-sm text-gray-600 dark:text-slate-300 break-words">
+                            <span className="font-semibold">{obtenerNombreAdjunto(documentoAAnular)}</span> no se borra: queda en el
+                            historial marcado como anulado, pero no sale en el expediente impreso. No se puede deshacer.
+                        </p>
+                        <label className="text-sm font-semibold text-gray-700 dark:text-slate-300">
+                            Motivo <span className="text-red-500">*</span>
+                        </label>
+                        <textarea
+                            autoFocus
+                            rows={3}
+                            maxLength={300}
+                            value={motivoAnulacion}
+                            onChange={(ev) => setMotivoAnulacion(ev.target.value)}
+                            placeholder="Ej: es el DNI de otro titular, se subió por error"
+                            className="w-full p-3 text-sm bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-200 dark:focus:ring-red-500/30 text-gray-800 dark:text-slate-100"
+                        />
+                        <div className="flex justify-end gap-2 mt-1">
+                            <button
+                                type="button"
+                                onClick={() => setDocumentoAAnular(null)}
+                                disabled={anulando}
+                                className="text-sm px-4 py-2 rounded-lg text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 transition"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmarAnulacion}
+                                disabled={anulando || !motivoAnulacion.trim()}
+                                className="bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+                            >
+                                {anulando ? 'Anulando...' : 'Anular documento'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     )

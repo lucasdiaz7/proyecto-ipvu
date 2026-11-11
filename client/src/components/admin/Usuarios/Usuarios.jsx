@@ -1,5 +1,5 @@
-import { UsersIcon } from '@heroicons/react/24/outline';
-import React, { useEffect, useState } from 'react';
+import { UsersIcon, ChevronDoubleUpIcon, ChevronDoubleDownIcon } from '@heroicons/react/24/outline';
+import React, { useEffect, useMemo, useState } from 'react';
 import { usuarioService } from '../../../services/usuarios/usuarios';
 import { Link, useNavigate } from 'react-router';
 import { auditoriaService } from '../../../services/auditoria/auditoria';
@@ -8,9 +8,8 @@ import { useToast } from '../../../context/ToastContext';
 import { usePaginacion } from '../../../hooks/usePaginacion';
 import Paginacion from '../../Paginacion/Paginacion';
 
-const obtenerUsuarioId = (usuario) => Number(usuario?.usuario ?? usuario?.id);
-
-const usuarioEsTS = (usuario) => usuario?.rol_display === 'TS';
+// nombre visible de cada perfil: se ordena por este texto y no por el codigo del rol
+const NOMBRE_PERFIL = { TS: 'Trabajadora Social', SU: 'Administrador', LG: 'Legales', DE: 'Mesa de Entrada' };
 
 const Usuarios = () => {
     const navigate = useNavigate();
@@ -30,45 +29,27 @@ const Usuarios = () => {
                 setCargando(true);
                 setError(null);
 
-                const usuariosData = await usuarioService.getUsuarios();
-                const auditoriaResult = await auditoriaService.getAuditoriaUsuarios()
-                    .catch(() => null);
+                // las dos consultas en paralelo; los conteos vienen ya calculados del backend
+                const [usuariosData, auditoriaResult] = await Promise.all([
+                    usuarioService.getUsuarios(),
+                    auditoriaService.getAuditoriaUsuarios().catch(() => null),
+                ]);
 
-                let metricasPorPerfil = new Map();
+                const metricasPorPerfil = new Map(
+                    (auditoriaResult || []).map((item) => [
+                        Number(item.usuario_id),
+                        {
+                            cantidad_casos: item.total_asignados ?? 0,
+                            cantidad_vistos: item.total_vistos ?? 0
+                        }
+                    ])
+                );
 
-                const auditoriaTieneVistos = auditoriaResult?.every((item) => item.total_vistos !== undefined);
-
-                if (auditoriaResult && auditoriaTieneVistos) {
-                    metricasPorPerfil = new Map(
-                        auditoriaResult.map((item) => [
-                            Number(item.usuario_id),
-                            {
-                                cantidad_casos: item.total_asignados ?? 0,
-                                cantidad_vistos: item.total_vistos ?? 0
-                            }
-                        ])
-                    );
-                } else {
-                    const expedientesData = await auditoriaService.getExpedientes()
-                        .catch(() => []);
-
-                    metricasPorPerfil = usuariosData.reduce((mapa, usuario) => {
-                        const usuarioId = obtenerUsuarioId(usuario);
-                        const casosAsignados = expedientesData.filter((exp) => Number(exp.usuario_asignado?.id) === usuarioId);
-
-                        mapa.set(Number(usuario.id), {
-                            cantidad_casos: casosAsignados.length,
-                            cantidad_vistos: casosAsignados.filter((exp) => exp.visto).length
-                        });
-
-                        return mapa;
-                    }, new Map());
-                }
-
+                // si fallaron los conteos se muestra "-" en lugar de ceros que parecerian reales
                 const usuariosConCasos = usuariosData.map((usuario) => ({
                     ...usuario,
-                    cantidad_casos: metricasPorPerfil.get(Number(usuario.id))?.cantidad_casos ?? 0,
-                    cantidad_vistos: metricasPorPerfil.get(Number(usuario.id))?.cantidad_vistos ?? 0
+                    cantidad_casos: metricasPorPerfil.get(Number(usuario.id))?.cantidad_casos ?? null,
+                    cantidad_vistos: metricasPorPerfil.get(Number(usuario.id))?.cantidad_vistos ?? null
                 }));
 
                 setListaUsuarios(usuariosConCasos);
@@ -132,7 +113,38 @@ const Usuarios = () => {
         }
     };
 
-    const usuariosFiltrados = listaUsuarios.filter((u) => {
+    // orden por columna con las flechitas del encabezado (misma logica que la lista de expedientes)
+    const [orden, setOrden] = useState({ key: null, direction: 'asc' });
+
+    const pedirOrden = (key) => {
+        setOrden((actual) => ({
+            key,
+            direction: actual.key === key && actual.direction === 'asc' ? 'desc' : 'asc',
+        }));
+    };
+
+    const iconoOrden = (key) => {
+        if (orden.key !== key) {
+            return <ChevronDoubleUpIcon className="w-4 h-4 ml-1 inline text-gray-400 dark:text-slate-500 opacity-50 group-hover:opacity-100" />;
+        }
+        return orden.direction === 'asc'
+            ? <ChevronDoubleUpIcon className="w-4 h-4 ml-1 inline text-blue-600 dark:text-blue-400" />
+            : <ChevronDoubleDownIcon className="w-4 h-4 ml-1 inline text-blue-600 dark:text-blue-400" />;
+    };
+
+    const valorOrden = (u, key) => {
+        switch (key) {
+            case 'nombre': return `${u.apellido || ''} ${u.nombre || ''}`.trim();
+            case 'perfil': return NOMBRE_PERFIL[u.rol_display] || '';
+            case 'dni': return Number(String(u.dni || '').replace(/\D/g, '')) || 0;
+            case 'casos': return u.cantidad_casos ?? -1;
+            case 'vistos': return u.cantidad_vistos ?? -1;
+            case 'estado': return u.activo === false ? 'Inactivo' : 'Activo';
+            default: return '';
+        }
+    };
+
+    const usuariosFiltrados = useMemo(() => listaUsuarios.filter((u) => {
         const pasaPerfil = perfilSeleccionado === 'Todos' || u.rol_display === perfilSeleccionado;
         const textoBusqueda = busqueda.toLowerCase();
 
@@ -148,7 +160,16 @@ const Usuarios = () => {
             || (estadoSeleccionado === 'Inactivos' && u.activo === false);
 
         return pasaPerfil && pasaBusqueda && pasaEstado;
-    });
+    }).sort((a, b) => {
+        if (!orden.key) return 0;
+        const valA = valorOrden(a, orden.key);
+        const valB = valorOrden(b, orden.key);
+        const comparacion = typeof valA === 'string'
+            ? valA.localeCompare(valB, 'es', { numeric: true, sensitivity: 'base' })
+            : valA - valB;
+        return orden.direction === 'asc' ? comparacion : -comparacion;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }), [listaUsuarios, perfilSeleccionado, estadoSeleccionado, busqueda, orden]);
 
     const { paginaActual, setPaginaActual, totalPaginas, itemsPaginados, totalItems } = usePaginacion(usuariosFiltrados);
 
@@ -214,12 +235,42 @@ const Usuarios = () => {
                     <div className="mt-6 overflow-x-auto">
 
                         <div className="hidden lg:grid grid-cols-6 gap-2 min-w-[880px] bg-gray-100 dark:bg-slate-800 p-3 rounded-lg text-gray-700 dark:text-slate-300 font-semibold text-sm">
-                            <span>Nombre</span>
-                            <span>Perfil</span>
-                            <span>DNI</span>
-                            <span>Total</span>
-                            <span>Vistos</span>
-                            <span>Estado</span>
+                            {[
+                                ['nombre', 'Nombre'],
+                                ['perfil', 'Perfil'],
+                                ['dni', 'DNI'],
+                                ['casos', 'Total'],
+                                ['vistos', 'Vistos'],
+                                ['estado', 'Estado'],
+                            ].map(([key, titulo]) => (
+                                <button key={key} type="button" onClick={() => pedirOrden(key)} className="flex items-center text-left focus:outline-none group">
+                                    <span>{titulo}</span> {iconoOrden(key)}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* en celular no hay encabezados: se ordena con este desplegable */}
+                        <div className="lg:hidden mb-3 flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
+                            <span>Ordenar por</span>
+                            <select
+                                value={orden.key ? `${orden.key}:${orden.direction}` : ''}
+                                onChange={(ev) => {
+                                    const [key, direction] = ev.target.value.split(':');
+                                    setOrden({ key: key || null, direction: direction || 'asc' });
+                                }}
+                                className="px-2 py-1.5 rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-slate-100 outline-none"
+                            >
+                                <option value="">Sin orden</option>
+                                <option value="nombre:asc">Nombre (A-Z)</option>
+                                <option value="nombre:desc">Nombre (Z-A)</option>
+                                <option value="perfil:asc">Perfil (A-Z)</option>
+                                <option value="dni:asc">DNI (menor a mayor)</option>
+                                <option value="dni:desc">DNI (mayor a menor)</option>
+                                <option value="casos:desc">Más expedientes</option>
+                                <option value="casos:asc">Menos expedientes</option>
+                                <option value="estado:asc">Activos primero</option>
+                                <option value="estado:desc">Inactivos primero</option>
+                            </select>
                         </div>
 
 
@@ -263,10 +314,11 @@ const Usuarios = () => {
                                     <span className="text-gray-700 dark:text-slate-300 font-mono text-sm lg:text-base"><span className="lg:hidden font-sans text-xs text-gray-400">DNI </span>{e.dni || "---"}</span>
 
 
+                                    {/* todos los roles manejan expedientes: se muestran los conteos de cada usuario */}
                                     <span className="text-gray-700 text-sm text-left">
-                                        {usuarioEsTS(e) ? (
+                                        {e.cantidad_casos !== null ? (
                                             <span className="bg-gray-100 dark:bg-slate-700 px-2 py-1 rounded-full text-xs font-semibold text-gray-600 dark:text-slate-300">
-                                                {e.cantidad_casos ?? 0} expedientes
+                                                {e.cantidad_casos} expedientes
                                             </span>
                                         ) : (
                                             <span className="text-gray-400 dark:text-slate-500 pl-4">-</span>
@@ -274,9 +326,9 @@ const Usuarios = () => {
                                     </span>
 
                                     <span className="text-gray-700 text-sm text-left">
-                                        {usuarioEsTS(e) ? (
+                                        {e.cantidad_vistos !== null ? (
                                             <span className="bg-green-50 dark:bg-green-500/10 px-2 py-1 rounded-full text-xs font-semibold text-green-700 dark:text-green-400">
-                                                {e.cantidad_vistos ?? 0} vistos
+                                                {e.cantidad_vistos} vistos
                                             </span>
                                         ) : (
                                             <span className="text-gray-400 dark:text-slate-500 pl-4">-</span>

@@ -377,12 +377,15 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
 
 
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update']:
+        # cargar un expediente nuevo es tarea exclusiva de Mesa de Entrada (el superadmin no carga)
+        if self.action == 'create':
+            return [IsDataEntry()]
+        if self.action in ['update', 'partial_update']:
             return [IsDataEntryOrSuperAdmin()]
         if self.action == 'destroy':
             return [IsSuperAdmin()]
         return [IsAnyRole()]
-    
+
 
 class EstadoExpedienteViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet, UpdateModelMixin):
     queryset = EstadoExpediente.objects.all()
@@ -580,18 +583,30 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
         return response
 
 
-    @action(detail=False, methods=['get'], url_path='exportar-excel')
+    @action(detail=False, methods=['get', 'post'], url_path='exportar-excel')
     def exportar_excel(self, request):
         # Exporta los expedientes a un .xlsx con dos hojas: "Expedientes" (un renglon por expediente) y
         # "Resumen" (conteo por estado). Solo el superadmin (ver get_permissions). Acepta los mismos
         # filtros que la lista: estado, usuario_asignado, discapacidad y rango de fechas de creacion.
+        # Por POST recibe {"ids": [...]}: los expedientes que el superadmin dejo tildados en la pantalla
+        # de exportar (van por POST porque pueden ser cientos y no entran comodos en la URL).
         import openpyxl
         from openpyxl.styles import Font
         from openpyxl.utils import get_column_letter
 
         queryset = Expediente.objects.select_related(
-            'estado_expediente', 'postulante_titular', 'usuario_asignado'
+            'estado_expediente', 'postulante_titular', 'usuario_asignado__usuario'
         ).order_by('id')
+
+        if request.method == 'POST':
+            ids = request.data.get('ids')
+            if not isinstance(ids, list) or not ids:
+                return Response({'error': 'Elegí al menos un expediente para exportar.'}, status=400)
+            try:
+                ids = [int(id_expediente) for id_expediente in ids]
+            except (TypeError, ValueError):
+                return Response({'error': 'La lista de expedientes no es válida.'}, status=400)
+            queryset = queryset.filter(id__in=ids)
 
         estado = request.query_params.get('estado')
         if estado:
@@ -624,14 +639,15 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
         hoja.title = 'Expedientes'
         encabezados = [
             'Nº', 'DDJJ', 'Estado', 'Apellido', 'Nombre', 'DNI', 'Teléfono', 'Email',
-            'Domicilio', 'Ingresos', 'Discapacidad', 'TS asignada', 'Fecha de creación',
+            'Domicilio', 'Ingresos', 'Discapacidad', 'En poder de', 'Fecha de creación',
         ]
         hoja.append(encabezados)
 
         for exp in queryset:
             titular = exp.postulante_titular
+            # el expediente puede estar en poder de cualquier rol, no solo de una TS
             ts = exp.usuario_asignado
-            ts_nombre = f"{ts.first_name} {ts.last_name}".strip() if ts else 'Sin asignar'
+            ts_nombre = nombre_para_mostrar(ts) if ts else 'Sin asignar'
             hoja.append([
                 exp.id,
                 exp.DDJJ or '',
@@ -911,30 +927,40 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             if solo_ts == 'true':
                 perfiles = perfiles.filter(rol__nombre_rol= 'TS')
                 
+            perfiles = list(perfiles)
+
+            # una sola consulta agrupada para todos los usuarios: antes eran 3 por usuario y, con la base
+            # remota, la pantalla de usuarios tardaba varios segundos
+            conteos = (
+                Expediente.objects
+                .filter(usuario_asignado__in=[perfil.usuario_id for perfil in perfiles])
+                .values('usuario_asignado', 'estado_expediente__nombre', 'visto')
+                .annotate(cantidad=Count('id'))
+            )
+            por_usuario = {}
+            for fila in conteos:
+                datos = por_usuario.setdefault(
+                    fila['usuario_asignado'], {'total': 0, 'no_vistos': 0, 'estados': {}}
+                )
+                datos['total'] += fila['cantidad']
+                if not fila['visto']:
+                    datos['no_vistos'] += fila['cantidad']
+                clave = fila['estado_expediente__nombre'] or "Sin estado"
+                datos['estados'][clave] = datos['estados'].get(clave, 0) + fila['cantidad']
+
             resultado = []
-
             for perfil in perfiles:
-                user_nativo = perfil.usuario
-                expedientes_del_usuario = user_nativo.expediente_set.all()
-                
-                total_asignados = expedientes_del_usuario.count()
-                total_no_vistos = expedientes_del_usuario.filter(visto=False).count()
-
-                desglose_db = expedientes_del_usuario.values('estado_expediente__nombre').annotate(cantidad=Count('id'))
-
-                estados_limpios = {}
-                for item in desglose_db:
-                    codigo_estado = item['estado_expediente__nombre']
-                    clave = codigo_estado if codigo_estado else "Sin estado"
-                    estados_limpios[clave] = item['cantidad']
-
+                datos = por_usuario.get(perfil.usuario_id, {'total': 0, 'no_vistos': 0, 'estados': {}})
                 resultado.append({
                     "usuario_id": perfil.id,
                     "nombre_completo": f"{perfil.apellido}, {perfil.nombre}",
                     "rol": perfil.rol.nombre_rol if perfil.rol else "Sin Rol",
-                    "total_asignados": total_asignados,
-                    "total_no_vistos": total_no_vistos,
-                    "desglose_estados": estados_limpios
+                    "total_asignados": datos['total'],
+                    "total_no_vistos": datos['no_vistos'],
+                    # la pantalla de usuarios muestra los vistos: sin este dato se traia la lista
+                    # completa de expedientes para contarlos en el navegador
+                    "total_vistos": datos['total'] - datos['no_vistos'],
+                    "desglose_estados": datos['estados']
                 })
             return Response(resultado)
         
@@ -1048,7 +1074,7 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
         # select_related/prefetch evitan una consulta por documento al armar subido_por_display
         # (subido_por -> usuario) y las listas de pases de cada documento.
         base = DocumentoAdjunto.objects.select_related(
-            'subido_por__usuario'
+            'subido_por__usuario', 'anulado_por__usuario'
         ).prefetch_related('historial_pases')
         queryset = filtrar_expedientes_en_poder(base, self.request)
         expediente_id = self.request.query_params.get('expediente')
@@ -1067,6 +1093,12 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
     #auditoría de borrado
     def perform_destroy(self, instance):
         validar_expediente_en_poder(self.request, instance.expediente)
+        # borrar es solo para corregir un error antes de enviar: lo hace quien lo subio y mientras no
+        # haya viajado en un pase. Despues es parte del historial y solo se puede anular.
+        if instance.historial_pases.exists():
+            raise PermissionDenied('El documento ya se envió en un pase: no se puede borrar, solo anular.')
+        if instance.subido_por_id != self.request.user.id:
+            raise PermissionDenied('Solo quien subió el documento lo puede borrar.')
         # DocumentoAdjunto no tiene borrado lógico (no posee campo "activo"),
         # por eso se elimina el registro real.
         nombre_archivo = instance.archivo.name if instance.archivo else instance.tipo_documento
@@ -1082,6 +1114,36 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
                 mensaje_accion=f'Borrar documento: Eliminó el archivo "{nombre_archivo}".'
             )
     
+    @action(detail=True, methods=['post'], url_path='anular')
+    def anular(self, request, pk=None):
+        """
+        Anula un documento mal subido: no se borra (sigue en el historial, marcado como anulado) pero no
+        sale en el expediente impreso. Lo hacen Mesa de Entrada o el administrador, con el expediente en
+        su poder y explicando el motivo.
+        """
+        documento = self.get_object()
+        if not usuario_tiene_rol(request, ['DE', 'SU']):
+            raise PermissionDenied('Anular documentos lo hacen Mesa de Entrada o el administrador.')
+        validar_expediente_en_poder(request, documento.expediente)
+        if documento.anulado:
+            return Response({'error': 'El documento ya está anulado.'}, status=400)
+        motivo = str(request.data.get('motivo') or '').strip()
+        if not motivo:
+            return Response({'error': 'Escribí el motivo de la anulación.'}, status=400)
+
+        documento.anulado = True
+        documento.motivo_anulacion = motivo[:300]
+        documento.anulado_por = request.user
+        documento.fecha_anulacion = timezone.now()
+        documento.save(update_fields=['anulado', 'motivo_anulacion', 'anulado_por', 'fecha_anulacion'])
+
+        nombre_archivo = documento.archivo.name if documento.archivo else documento.tipo_documento
+        registrar_auditoria(
+            request.user, documento.expediente,
+            f'Anular documento: Anuló el archivo "{nombre_archivo}". Motivo: {documento.motivo_anulacion}'[:300]
+        )
+        return Response(self.get_serializer(documento).data)
+
     # Los archivos NO se sirven por /media/ (quedarian publicos para cualquiera con la URL):
     # se descargan solo por aca, con login y rol, y cada descarga queda en la auditoria.
     @action(detail=True, methods=['get'], url_path='descargar')
@@ -1510,10 +1572,11 @@ def _construir_pdf_expediente_completo(expediente, formulario):
     """Une caratula + informe socio-habitacional + documentos adjuntos en un solo PDF."""
     titular = expediente.postulante_titular
 
-    # las copias del informe que viajaron en los pases se reemplazan por el informe actual
+    # las copias del informe que viajaron en los pases se reemplazan por el informe actual, y los
+    # documentos anulados (mal subidos) no se imprimen
     documentos = [
         doc for doc in expediente.documentos.select_related('subido_por__usuario').order_by('id')
-        if doc.tipo_documento != TIPO_DOCUMENTO_FORMULARIO
+        if doc.tipo_documento != TIPO_DOCUMENTO_FORMULARIO and not doc.anulado
     ]
     convertidos = [(doc, *_documento_a_pdf(doc)) for doc in documentos]
 
@@ -1874,7 +1937,8 @@ class ProcesarDocumentoView(APIView):
     para precargar el formulario de nuevo expediente. No guarda nada: la operadora revisa los
     campos y recien al crear el expediente se persisten.
     """
-    permission_classes = [IsDataEntryOrSuperAdmin]
+    # solo Mesa de Entrada: es la precarga del formulario de nuevo expediente, que carga solo ella
+    permission_classes = [IsDataEntry]
     parser_classes = [MultiPartParser]
 
     EXTENSIONES_PERMITIDAS = ('.pdf', '.png', '.jpg', '.jpeg')

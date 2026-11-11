@@ -39,6 +39,13 @@ export const documentoAdjuntoService = {
         await api.delete(`/documentoadjunto/${documentoId}/`);
     },
 
+    // un documento que ya viajo en un pase no se borra: Mesa de Entrada o el administrador lo anulan
+    // con un motivo. Devuelve el documento actualizado (anulado, motivo, quien y cuando).
+    anular: async (documentoId, motivo) => {
+        const response = await api.post(`/documentoadjunto/${documentoId}/anular/`, { motivo });
+        return response.data;
+    },
+
     // los archivos piden login: se bajan con axios (que manda el token) y se arma una URL local del navegador
     obtenerArchivo: async (documentoId) => {
         const response = await api.get(`/documentoadjunto/${documentoId}/descargar/`, {
