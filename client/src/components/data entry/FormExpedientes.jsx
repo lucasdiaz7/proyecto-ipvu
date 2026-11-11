@@ -6,6 +6,19 @@ import { postulanteTitular } from "../../services/DataEntry/formDataEntry";
 import { useToast } from "../../context/ToastContext";
 import { api } from "../../api/axiosConfig";
 
+// nombres legibles para las alertas de campos con error
+const NOMBRES_CAMPOS = {
+    ddjj: "DDJJ",
+    nombre: "Nombre",
+    apellido: "Apellido",
+    telefono: "Teléfono",
+    dni: "DNI",
+    domicilio_actual: "Domicilio",
+    email: "Email",
+    discapacidad: "Discapacidad",
+    fecha_inscripcion: "Fecha de inscripción",
+};
+
 const FormExpedientes = () => {
     const { register, formState: { errors }, handleSubmit, setValue } = useForm();
     const toast = useToast();
@@ -35,7 +48,26 @@ const FormExpedientes = () => {
             navigate("/expedientes");
         } catch (error) {
             console.log(error);
+            // el backend responde { campo: ["mensaje"] } (ej. DNI ya cargado): se muestra en la alerta
+            const respuesta = error.response?.data;
+            let detalle = "";
+            if (respuesta && typeof respuesta === "object") {
+                detalle = Object.entries(respuesta)
+                    .map(([campo, mensajes]) => {
+                        const texto = Array.isArray(mensajes) ? mensajes.join(" ") : String(mensajes);
+                        const etiqueta = NOMBRES_CAMPOS[campo];
+                        return etiqueta ? `${etiqueta}: ${texto}` : texto;
+                    })
+                    .join(" · ");
+            }
+            toast.error(detalle ? `No se pudo crear el expediente. ${detalle}` : "No se pudo crear el expediente. Revisá los datos e intentá de nuevo.");
         }
+    };
+
+    // se llama cuando algun campo no pasa la validacion del formulario (antes de enviar nada)
+    const onInvalid = (erroresCampos) => {
+        const campos = Object.keys(erroresCampos).map((campo) => NOMBRES_CAMPOS[campo] || campo);
+        toast.error(`Revisá ${campos.length === 1 ? "el campo" : "los campos"}: ${campos.join(", ")}.`);
     };
 
     // --- FUNCIÓN DE PROCESAMIENTO DE DOCUMENTO (OCR / PyMuPDF) ---
@@ -94,7 +126,7 @@ const FormExpedientes = () => {
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit(onSubmit)} className="w-full rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-xl dark:shadow-black/30 border border-gray-100 dark:border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-5 transition-colors">
+                <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="w-full rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-xl dark:shadow-black/30 border border-gray-100 dark:border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-5 transition-colors">
 
                     <h3 className="text-gray-800 dark:text-slate-100 font-bold text-[18px] tracking-tight text-center col-span-full">
                         Crear Nuevo Expediente
@@ -185,7 +217,8 @@ const FormExpedientes = () => {
                             className="w-full px-3 py-2 font-normal text-sm border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 text-gray-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-500/40 focus:border-blue-400 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-all duration-200 rounded-md"
                         />
                         {errors.telefono?.type === 'required' && <p className="font-sans text-sm text-red-600 dark:text-red-400">El telefono es requerido</p>}
-                        {errors.telefono?.type === 'pattern' && <p className="font-sans text-sm text-red-600 dark:text-red-400">Telefono invalido (ingresa sin 0 y 15)</p>}
+                        {(errors.telefono?.type === 'minLength' || errors.telefono?.type === 'maxLength') && <p className="font-sans text-sm text-red-600 dark:text-red-400">El teléfono debe tener entre 10 y 13 números</p>}
+                        {errors.telefono?.type === 'pattern' &&<p className="font-sans text-sm text-red-600 dark:text-red-400">Telefono invalido (ingresa sin 0 y 15)</p>}
                     </div>
 
                     <div className='grid grid-cols-1'>
@@ -221,7 +254,8 @@ const FormExpedientes = () => {
                             className="w-full px-3 py-2 font-normal text-sm border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 text-gray-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-500/40 focus:border-blue-400 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-all duration-200 rounded-md"
                         />
                         {errors.domicilio_actual?.type === 'required' && <p className="font-sans text-sm text-red-600 dark:text-red-400">Direccion es requerida</p>}
-                        {errors.domicilio_actual?.type === 'pattern' && <p className="font-sans text-sm text-red-600 dark:text-red-400">Ingresa una dirección válida. Usa letras, números, puntos o comas, y evita símbolos extraños. (Ej: Av. Rivadavia 1520, Piso 3° B)</p>}
+                        {(errors.domicilio_actual?.type === 'minLength' || errors.domicilio_actual?.type === 'maxLength') && <p className="font-sans text-sm text-red-600 dark:text-red-400">El domicilio debe tener entre 5 y 100 caracteres</p>}
+                        {errors.domicilio_actual?.type === 'pattern' &&<p className="font-sans text-sm text-red-600 dark:text-red-400">Ingresa una dirección válida. Usa letras, números, puntos o comas, y evita símbolos extraños. (Ej: Av. Rivadavia 1520, Piso 3° B)</p>}
                     </div>
 
                     <div className='grid grid-cols-1'>

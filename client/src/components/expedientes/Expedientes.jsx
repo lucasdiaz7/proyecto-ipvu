@@ -401,7 +401,29 @@ const Expedientes = () => {
                     </div>
 
                     <div className="mt-6 overflow-x-auto">
-                        <div className={`grid ${mostrarAsignacion ? 'grid-cols-7 min-w-[1180px]' : 'grid-cols-5 min-w-[860px]'} gap-2 bg-gray-100 dark:bg-slate-800 p-3 rounded-lg text-gray-700 dark:text-slate-300 font-semibold text-sm`}>
+                        {/* en tarjetas no hay encabezados para ordenar: se ordena con este desplegable */}
+                        <div className="lg:hidden mb-3 flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
+                            <span>Ordenar por</span>
+                            <select
+                                value={sortConfig.key ? `${sortConfig.key}:${sortConfig.direction}` : ''}
+                                onChange={(ev) => {
+                                    const [key, direction] = ev.target.value.split(':');
+                                    setSortConfig({ key: key || null, direction: direction || 'asc' });
+                                }}
+                                className="px-2 py-1.5 rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-slate-100 outline-none"
+                            >
+                                <option value="">Sin orden</option>
+                                <option value="titular:asc">Titular (A-Z)</option>
+                                <option value="titular:desc">Titular (Z-A)</option>
+                                <option value="dni:asc">DNI (menor a mayor)</option>
+                                <option value="dni:desc">DNI (mayor a menor)</option>
+                                <option value="ddjj:asc">DD.JJ (A-Z)</option>
+                                <option value="ddjj:desc">DD.JJ (Z-A)</option>
+                            </select>
+                        </div>
+
+                        {/* en celular y tablet vertical se muestran tarjetas; la tabla, desde pantallas grandes */}
+                        <div className={`hidden lg:grid ${mostrarAsignacion ? 'grid-cols-7 min-w-[1180px]' : 'grid-cols-6 min-w-[960px]'} gap-2 bg-gray-100 dark:bg-slate-800 p-3 rounded-lg text-gray-700 dark:text-slate-300 font-semibold text-sm`}>
                             <button onClick={() => requestSort('ddjj')} className="flex items-center text-left focus:outline-none group">
                                 <span>DD.JJ</span> {renderSortIcon('ddjj')}
                             </button>
@@ -413,12 +435,8 @@ const Expedientes = () => {
                             </button>
                             <span>Estado</span>
                             <span>Fecha Creación</span>
-                            {mostrarAsignacion && (
-                                <>
-                                    <span>Usuario Asignado</span>
-                                    <span>Días en Poder</span>
-                                </>
-                            )}
+                            {mostrarAsignacion && <span>Usuario Asignado</span>}
+                            <span>Días en Poder</span>
                         </div>
 
                         {itemsPaginados.length === 0 ? (
@@ -442,11 +460,41 @@ const Expedientes = () => {
                                 const fechaFormateada = e.fecha_creacion ? new Date(e.fecha_creacion).toLocaleDateString('es-AR') : '---';
 
                                 return (
+                                    <React.Fragment key={e.id}>
+                                    {/* tarjeta: celular y tablet */}
                                     <Link
                                         to={`/Expediente/${e.id}`}
                                         onClick={() => handleManejarVisto(e.id, e.visto)}
-                                        key={e.id}
-                                        className={`grid ${mostrarAsignacion ? 'grid-cols-7 min-w-[1180px]' : 'grid-cols-5 min-w-[860px]'} gap-2 items-center w-full text-left p-4 border-b dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/60 transition`}
+                                        className="lg:hidden block mb-3 p-4 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-slate-800/60 transition"
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <p className="font-semibold text-gray-800 dark:text-slate-100 capitalize truncate">{`${apellido} ${nombre}`}</p>
+                                                <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                                                    DNI <span className="font-mono">{dni}</span> · DDJJ {e.DDJJ || "---"}
+                                                </p>
+                                            </div>
+                                            <span className={`shrink-0 px-2.5 py-1 text-[11px] rounded-full border font-semibold ${configEst.color}`}>
+                                                {configEst.texto}
+                                            </span>
+                                        </div>
+                                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-slate-400">
+                                            <span>Creado: {fechaFormateada}</span>
+                                            {mostrarAsignacion && (
+                                                <span className="capitalize">En poder de: {nombreUsuarioAsignado(e)}</span>
+                                            )}
+                                            <span>{e.dias_en_poder ?? 0} días en poder</span>
+                                            {e.visto === false && rolId === 1 && (
+                                                <span className="font-semibold text-red-600 dark:text-red-400">Nuevo</span>
+                                            )}
+                                        </div>
+                                    </Link>
+
+                                    {/* fila de la tabla: pantallas grandes */}
+                                    <Link
+                                        to={`/Expediente/${e.id}`}
+                                        onClick={() => handleManejarVisto(e.id, e.visto)}
+                                        className={`hidden lg:grid ${mostrarAsignacion ? 'grid-cols-7 min-w-[1180px]' : 'grid-cols-6 min-w-[960px]'} gap-2 items-center w-full text-left p-4 border-b dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/60 transition`}
                                     >
                                         <span className="font-bold text-gray-800 dark:text-slate-100">{e.DDJJ || "---"}</span>
                                         <span className="text-gray-700 dark:text-slate-300 capitalize">{`${apellido} ${nombre}`}</span>
@@ -461,16 +509,15 @@ const Expedientes = () => {
                                         <span className="text-gray-500 dark:text-slate-400 text-sm">{fechaFormateada}</span>
 
                                         {mostrarAsignacion && (
-                                            <>
-                                                <span className="text-gray-700 dark:text-slate-300 text-sm capitalize">
-                                                    {nombreUsuarioAsignado(e)}
-                                                </span>
-                                                <span className="text-gray-700 dark:text-slate-300 text-sm">
-                                                    {e.dias_en_poder ?? 0} días
-                                                </span>
-                                            </>
+                                            <span className="text-gray-700 dark:text-slate-300 text-sm capitalize">
+                                                {nombreUsuarioAsignado(e)}
+                                            </span>
                                         )}
+                                        <span className="text-gray-700 dark:text-slate-300 text-sm">
+                                            {e.dias_en_poder ?? 0} días
+                                        </span>
                                     </Link>
+                                    </React.Fragment>
                                 );
                             })
                         )}

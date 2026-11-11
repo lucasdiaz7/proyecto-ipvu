@@ -213,7 +213,7 @@ const Usuarios = () => {
 
                     <div className="mt-6 overflow-x-auto">
 
-                        <div className="grid grid-cols-6 gap-2 min-w-[880px] bg-gray-100 dark:bg-slate-800 p-3 rounded-lg text-gray-700 dark:text-slate-300 font-semibold text-sm">
+                        <div className="hidden lg:grid grid-cols-6 gap-2 min-w-[880px] bg-gray-100 dark:bg-slate-800 p-3 rounded-lg text-gray-700 dark:text-slate-300 font-semibold text-sm">
                             <span>Nombre</span>
                             <span>Perfil</span>
                             <span>DNI</span>
@@ -240,10 +240,10 @@ const Usuarios = () => {
                                 <div
                                     key={e.id}
                                     onClick={() => navigate(`/DetalleUsuario/${e.id}`)}
-                                    className={`grid grid-cols-6 gap-2 items-center w-full min-w-[880px] text-left p-4 border-b dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/60 transition cursor-pointer ${e.activo === false ? 'opacity-60' : ''}`}
+                                    className={`grid grid-cols-2 gap-x-3 gap-y-2 mb-3 rounded-xl border border-gray-200 lg:mb-0 lg:rounded-none lg:border-0 lg:border-b lg:grid-cols-6 lg:gap-2 lg:min-w-[880px] items-center w-full text-left p-4 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/60 transition cursor-pointer ${e.activo === false ? 'opacity-60' : ''}`}
                                 >
 
-                                    <span className="text-gray-700 dark:text-slate-300 capitalize">{`${e.apellido} ${e.nombre}`}</span>
+                                    <span className="col-span-2 lg:col-span-1 font-semibold lg:font-normal text-gray-800 lg:text-gray-700 dark:text-slate-300 capitalize">{`${e.apellido} ${e.nombre}`}</span>
 
                                     <span className="text-gray-700">
                                         <span className={`px-2 py-0.5 rounded-md text-xs font-bold
@@ -260,7 +260,7 @@ const Usuarios = () => {
                                     </span>
 
 
-                                    <span className="text-gray-700 dark:text-slate-300 font-mono">{e.dni || "---"}</span>
+                                    <span className="text-gray-700 dark:text-slate-300 font-mono text-sm lg:text-base"><span className="lg:hidden font-sans text-xs text-gray-400">DNI </span>{e.dni || "---"}</span>
 
 
                                     <span className="text-gray-700 text-sm text-left">

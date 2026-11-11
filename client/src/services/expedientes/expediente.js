@@ -41,12 +41,10 @@ export const expedienteService = {
     },
 
     marcarComoVisto: async (id) => {
-        try {
-            const response = await api.patch(`/expediente/${id}/`, { visto: true });
-            return response.data;
-        } catch (error) {
-            console.log("Error al marcar como visto:", error);
-        }
+        // accion propia del backend: el PATCH general del expediente es solo de Mesa de Entrada.
+        // Si falla, el error sube para que la pantalla vuelva el contador atras.
+        const response = await api.post(`/expediente/${id}/marcar-visto/`);
+        return response.data;
     },
 
     estadoExpediente: async (id, datos) => {

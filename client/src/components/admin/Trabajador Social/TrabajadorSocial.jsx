@@ -109,7 +109,7 @@ const TrabajadorSocial = () => {
                     </div>
 
                     <div className="mt-6 overflow-x-auto">
-                        <div className="grid grid-cols-6 gap-2 min-w-[900px] bg-gray-100 dark:bg-slate-800 p-3 rounded-lg text-gray-700 dark:text-slate-300 font-semibold text-sm">
+                        <div className="hidden lg:grid grid-cols-6 gap-2 min-w-[900px] bg-gray-100 dark:bg-slate-800 p-3 rounded-lg text-gray-700 dark:text-slate-300 font-semibold text-sm">
                             <span>Matrícula</span>
                             <span>Nombre</span>
                             <span>DNI</span>
@@ -130,14 +130,15 @@ const TrabajadorSocial = () => {
                                     <Link
                                         key={ts.matricula || ts.id}
                                         to={`/DetalleUsuario/${ts.id}`}
-                                        className="grid grid-cols-6 gap-2 items-center w-full min-w-[900px] text-left p-4 border-b dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/60 transition"
+                                        className="grid grid-cols-3 gap-x-3 gap-y-2 mb-3 rounded-xl border border-gray-200 lg:mb-0 lg:rounded-none lg:border-0 lg:border-b lg:grid-cols-6 lg:gap-2 lg:min-w-[900px] items-center w-full text-left p-4 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/60 transition"
                                     >
-                                        <span className="font-medium text-gray-800 dark:text-slate-100 font-mono">{ts.matricula || "---"}</span>
-                                        <span className="text-gray-700 dark:text-slate-300 capitalize">{`${ts.apellido} ${ts.nombre}`}</span>
-                                        <span className="text-gray-700 dark:text-slate-300 font-mono">{ts.dni || "---"}</span>
-                                        <span className="text-gray-700 dark:text-slate-300 font-semibold">{metricas.total}</span>
-                                        <span className="text-green-700 dark:text-green-400 font-semibold">{metricas.vistos}</span>
-                                        <span className="text-gray-700 dark:text-slate-300 font-semibold">{metricas.enEjecucion}</span>
+                                        {/* en celular: tarjeta con el nombre arriba y cada dato con su etiqueta */}
+                                        <span className="col-span-3 lg:col-span-1 order-2 lg:order-none font-medium text-gray-800 dark:text-slate-100 font-mono text-sm lg:text-base"><span className="lg:hidden font-sans text-xs text-gray-400">Matrícula </span>{ts.matricula || "---"}</span>
+                                        <span className="col-span-3 lg:col-span-1 order-1 lg:order-none font-semibold lg:font-normal text-gray-800 lg:text-gray-700 dark:text-slate-300 capitalize">{`${ts.apellido} ${ts.nombre}`}</span>
+                                        <span className="col-span-3 lg:col-span-1 order-3 lg:order-none text-gray-700 dark:text-slate-300 font-mono text-sm lg:text-base"><span className="lg:hidden font-sans text-xs text-gray-400">DNI </span>{ts.dni || "---"}</span>
+                                        <span className="order-4 lg:order-none text-gray-700 dark:text-slate-300 font-semibold"><span className="lg:hidden block text-xs font-normal text-gray-400">Total</span>{metricas.total}</span>
+                                        <span className="order-5 lg:order-none text-green-700 dark:text-green-400 font-semibold"><span className="lg:hidden block text-xs font-normal text-gray-400">Vistos</span>{metricas.vistos}</span>
+                                        <span className="order-6 lg:order-none text-gray-700 dark:text-slate-300 font-semibold"><span className="lg:hidden block text-xs font-normal text-gray-400">En ejecución</span>{metricas.enEjecucion}</span>
                                     </Link>
                                 );
                             })

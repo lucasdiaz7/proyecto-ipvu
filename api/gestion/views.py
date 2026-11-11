@@ -758,6 +758,19 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
         registrar_auditoria(request.user, expediente, "Desarchivó el expediente.")
         return Response({'mensaje': 'Expediente desarchivado'})
 
+    @action(detail=True, methods=['post'], url_path='marcar-visto')
+    def marcar_visto(self, request, pk=None):
+        # el aviso de "expediente nuevo" lo apaga quien lo tiene en su poder (cualquier rol).
+        # Es una accion aparte porque el PATCH general del expediente es solo de Mesa de Entrada,
+        # y aca no se toca ningun otro campo.
+        expediente = self.get_object()
+        if not expediente_en_poder(request, expediente):
+            raise PermissionDenied('El expediente no está en tu poder.')
+        if not expediente.visto:
+            expediente.visto = True
+            expediente.save(update_fields=['visto'])
+        return Response({'visto': True})
+
     @action(detail=True, methods=['get'], url_path='imprimir')
     def imprimir(self, request, pk=None):
         """

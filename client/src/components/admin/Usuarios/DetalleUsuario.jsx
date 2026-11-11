@@ -268,7 +268,7 @@ const DetalleUsuario = () => {
                     {vista === 'expedientes' ? (
                         <>
                             <div className="overflow-x-auto">
-                                <div className="grid grid-cols-6 gap-2 min-w-[980px] bg-gray-50 dark:bg-slate-800 p-3 rounded-xl text-gray-500 dark:text-slate-400 font-bold text-xs uppercase tracking-wider">
+                                <div className="hidden lg:grid grid-cols-6 gap-2 min-w-[980px] bg-gray-50 dark:bg-slate-800 p-3 rounded-xl text-gray-500 dark:text-slate-400 font-bold text-xs uppercase tracking-wider">
                                     <span>DD.JJ</span>
                                     <span>Titular</span>
                                     <span>DNI</span>
@@ -291,20 +291,21 @@ const DetalleUsuario = () => {
                                         return (
                                             <div
                                                 key={exp.id}
-                                                className="grid grid-cols-6 gap-2 items-center w-full min-w-[980px] text-left p-4 border-b border-gray-100 dark:border-slate-800 hover:bg-gray-50/80 dark:hover:bg-slate-800/60 transition text-sm"
+                                                className="grid grid-cols-2 gap-x-3 gap-y-2 mb-3 rounded-xl border border-gray-200 lg:mb-0 lg:rounded-none lg:border-0 lg:border-b lg:grid-cols-6 lg:gap-2 lg:min-w-[980px] items-center w-full text-left p-4 border-gray-100 dark:border-slate-800 hover:bg-gray-50/80 dark:hover:bg-slate-800/60 transition text-sm"
                                             >
-                                                <span className="font-bold text-gray-800 dark:text-slate-100">{exp.DDJJ || `#${exp.id}`}</span>
-                                                <span className="text-gray-600 dark:text-slate-300 capitalize">{titular ? `${titular.apellido} ${titular.nombre}` : 'Sin titular'}</span>
-                                                <span className="text-gray-500 dark:text-slate-400 font-mono">{titular?.dni || '---'}</span>
-                                                <span>
+                                                {/* en celular: tarjeta de 2 columnas, titular arriba */}
+                                                <span className="order-2 lg:order-none font-bold text-gray-800 dark:text-slate-100"><span className="lg:hidden font-normal text-xs text-gray-400">DDJJ </span>{exp.DDJJ || `#${exp.id}`}</span>
+                                                <span className="col-span-2 lg:col-span-1 order-1 lg:order-none font-semibold lg:font-normal text-gray-800 lg:text-gray-600 dark:text-slate-300 capitalize">{titular ? `${titular.apellido} ${titular.nombre}` : 'Sin titular'}</span>
+                                                <span className="order-3 lg:order-none text-gray-500 dark:text-slate-400 font-mono"><span className="lg:hidden font-sans text-xs text-gray-400">DNI </span>{titular?.dni || '---'}</span>
+                                                <span className="order-4 lg:order-none">
                                                     <span className={`px-2.5 py-1 text-xs rounded-full border font-bold ${configEst.color}`}>
                                                         {configEst.texto}
                                                     </span>
                                                 </span>
-                                                <span className="text-gray-500 dark:text-slate-400">{fecha}</span>
+                                                <span className="order-5 lg:order-none text-gray-500 dark:text-slate-400"><span className="lg:hidden text-xs text-gray-400">Fecha </span>{fecha}</span>
                                                 <Link
                                                     to={`/Expediente/${exp.id}`}
-                                                    className="inline-flex items-center justify-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-lg font-medium w-max"
+                                                    className="order-6 lg:order-none col-span-2 lg:col-span-1 inline-flex items-center justify-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-2 lg:py-1.5 rounded-lg font-medium w-full lg:w-max"
                                                 >
                                                     <EyeIcon className="w-4 h-4" />
                                                     Ver expediente
