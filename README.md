@@ -8,6 +8,8 @@ expediente completo y archivo. Cada movimiento queda registrado en el historial 
 - **Frontend:** React + Tailwind (carpeta `client/`).
 - **IA:** microservicio externo que lee la DDJJ y arma el semáforo de inconsistencias.
 
+> **Defensa de Programación IV:** guía simple en [README_DEFENSA.md](README_DEFENSA.md) (PDF: [GUIA_FACIL.pdf](GUIA_FACIL.pdf)) y guía técnica completa en [GUIA_DEFENSA.md](GUIA_DEFENSA.md) (PDF: [GUIA_DEFENSA.pdf](GUIA_DEFENSA.pdf)).
+
 ---
 
 ## Índice
