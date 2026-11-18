@@ -50,8 +50,8 @@ class EstadoExpediente(models.Model):
             'NOAP': 'red',        # No Apto -> Rojo
             'NUEVAV': 'orange',     # Nueva Visita -> Naranja
             }
-    
-    
+        return colores.get(self.nombre, 'gray')
+
 class Expediente(models.Model):
     #fechas
     fecha_creacion =  models.DateTimeField(auto_now_add=True)

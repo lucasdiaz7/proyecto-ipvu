@@ -359,7 +359,7 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
         self.nombre_asignado = nombre_para_mostrar(trabajadora_social)
         crear_notificacion_expediente_creado(self.request.user, expediente, self.nombre_asignado)
 
-        # NUEVO: Auditoría de creación
+        # Auditoría de creación
         registrar_auditoria(
             self.request.user,
             expediente,
@@ -400,7 +400,7 @@ class EstadoExpedienteViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet
 
 #Algoritmo de asignacion de trabajadoras sociales para la creacion de expedientes
 def obtener_siguiente_trabajadora_social():
-    # 1. ¡Acá está el cambio! Solo traemos a las TS que están activas
+    # 1. Solo se consideran las trabajadoras sociales que están activas
     trabajadoras = list(
         User.objects
         .filter(usuario__rol__nombre_rol="TS", usuario__activo=True)
@@ -410,8 +410,8 @@ def obtener_siguiente_trabajadora_social():
     if not trabajadoras:
         return None
 
-    # 2. Buscamos el último expediente (ya no hace falta filtrar activo acá, 
-    # pero dejarlo no hace daño)
+    # 2. Se busca el último expediente asignado a una TS para continuar
+    # el turno desde la trabajadora siguiente (rotación round-robin)
     ultimo_expediente = (
         Expediente.objects
         .filter(usuario_asignado__usuario__rol__nombre_rol="TS")
@@ -424,8 +424,8 @@ def obtener_siguiente_trabajadora_social():
 
     ultimo_usuario = ultimo_expediente.usuario_asignado
 
-    # 3. Si el último usuario se dio de baja y ya no está en la lista de activas, 
-    # va a saltar al 'except' y arrancar desde el principio. ¡Perfecto!
+    # 3. Si el último usuario se dio de baja y ya no está en la lista de activas,
+    # index() lanza ValueError y se resuelve en el bloque except
     try:
         indice_actual = trabajadoras.index(ultimo_usuario)
         siguiente_indice = indice_actual + 1
@@ -446,7 +446,7 @@ def obtener_siguiente_trabajadora_social():
             return trabajadoras[0] # Si el que se fue era el último, volvemos a empezar
 
 class ExpedienteViewSet(viewsets.ModelViewSet,):
-    queryset = Expediente.objects.all().order_by('-id')[:5]
+    queryset = Expediente.objects.all().order_by('-id')
     serializer_class = ExpedienteSerializer
 
     def retrieve(self, request, *args, **kwargs):
@@ -478,7 +478,7 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
         # Notifica a la Trabajadora Social cuando recibe el expediente creado desde este endpoint.
         crear_notificacion_recepcion_expediente(trabajadora_social, expediente, pase_actual=pase_inicial)
 
-        # NUEVO: Auditoría de creación manual
+        # Auditoría de creación manual
         registrar_auditoria(
             self.request.user,
             expediente,
@@ -1448,7 +1448,7 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
         expediente.estado_expediente = estado_1v
         expediente.save()
 
-        # NUEVO: Auditoría de Trabajo de Campo
+        # Auditoría de Trabajo de Campo
         registrar_auditoria(
             self.request.user,
             expediente,
