@@ -9,9 +9,7 @@ class PostulanteTitular(models.Model):
     dni = models.CharField (max_length=15, unique=True)
     domicilio_actual = models.CharField (max_length=200)
     email = models.EmailField(null=True, blank=True)
-    # Usamos DecimalField para la plata, así te permite poner centavos si querés
     ingresos = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
-    # Un booleano simple para la discapacidad (por defecto arranca en falso)
     tiene_discapacidad = models.BooleanField(default=False)
     #fechas
     fecha_creacion = models.DateTimeField (auto_now_add=True)
@@ -208,7 +206,6 @@ class FormularioSocioHabitacional(models.Model):
     fecha_creacion=models.DateTimeField(auto_now_add=True)
     fecha_modificacion=models.DateTimeField(auto_now=True)
 
-    # Lista centralizada de campos que se usan para calcular automaticamente el estado del formulario.
     CAMPOS_DE_ESTADO = [
         'grupo_familiar',
         'situacion_habitacional',
@@ -221,22 +218,18 @@ class FormularioSocioHabitacional(models.Model):
 
     @property
     def estado(self):
-        # Calcula cuantos campos tienen contenido real, ignorando espacios en blanco.
         campos_completados = sum(
             1
             for campo in self.CAMPOS_DE_ESTADO
             if str(getattr(self, campo, '') or '').strip()
         )
 
-        # Si no hay ningun campo cargado, el formulario todavia no fue iniciado.
         if campos_completados == 0:
             return 'sin iniciar'
 
-        # Si todos los campos estan cargados, el formulario esta completo.
         if campos_completados == len(self.CAMPOS_DE_ESTADO):
             return 'completado'
 
-        # Si tiene al menos un campo cargado pero no todos, sigue en progreso.
         return 'en progreso'
 
     def __str__(self):

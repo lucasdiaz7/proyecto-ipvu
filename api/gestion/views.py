@@ -312,7 +312,6 @@ def registrar_auditoria(user_request, expediente, mensaje):
     Guarda un registro en HistorialAccion.
     """
     try:
-        # Buscamos el perfil de Usuario (tu modelo) asociado al User logueado
         perfil_usuario = getattr(user_request, 'usuario', None)
         if perfil_usuario:
             HistorialAccion.objects.create(
@@ -359,7 +358,6 @@ class PostulanteTitularViewSet(viewsets.ModelViewSet):
         self.nombre_asignado = nombre_para_mostrar(trabajadora_social)
         crear_notificacion_expediente_creado(self.request.user, expediente, self.nombre_asignado)
 
-        # Auditoría de creación
         registrar_auditoria(
             self.request.user,
             expediente,
@@ -400,7 +398,7 @@ class EstadoExpedienteViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet
 
 #Algoritmo de asignacion de trabajadoras sociales para la creacion de expedientes
 def obtener_siguiente_trabajadora_social():
-    # 1. Solo se consideran las trabajadoras sociales que están activas
+    # Solo se consideran las trabajadoras sociales que están activas
     trabajadoras = list(
         User.objects
         .filter(usuario__rol__nombre_rol="TS", usuario__activo=True)
@@ -410,7 +408,7 @@ def obtener_siguiente_trabajadora_social():
     if not trabajadoras:
         return None
 
-    # 2. Se busca el último expediente asignado a una TS para continuar
+    # Se busca el último expediente asignado a una TS para continuar
     # el turno desde la trabajadora siguiente (rotación round-robin)
     ultimo_expediente = (
         Expediente.objects
@@ -424,7 +422,7 @@ def obtener_siguiente_trabajadora_social():
 
     ultimo_usuario = ultimo_expediente.usuario_asignado
 
-    # 3. Si el último usuario se dio de baja y ya no está en la lista de activas,
+    # Si el último usuario se dio de baja y ya no está en la lista de activas,
     # index() lanza ValueError y se resuelve en el bloque except
     try:
         indice_actual = trabajadoras.index(ultimo_usuario)
@@ -450,13 +448,10 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
     serializer_class = ExpedienteSerializer
 
     def retrieve(self, request, *args, **kwargs):
-        # 1. Dejamos que el sistema busque el expediente y arme la respuesta normal
         response = super().retrieve(request, *args, **kwargs)
         
-        # 2. Obtenemos el expediente que el usuario acaba de abrir
         expediente = self.get_object()
         
-        # 3. Guardamos la acción en el historial usando el helper que armamos
         registrar_auditoria(
             request.user,
             expediente,
@@ -470,15 +465,12 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
     def perform_create(self, serializer):
         trabajadora_social = obtener_siguiente_trabajadora_social()
         
-        # Guarda el expediente creado manualmente y conserva la instancia para notificar al usuario asignado.
         expediente = serializer.save(usuario_asignado=trabajadora_social)
         
         pase_inicial = registrar_asignacion_inicial(self.request.user, expediente, trabajadora_social)
 
-        # Notifica a la Trabajadora Social cuando recibe el expediente creado desde este endpoint.
         crear_notificacion_recepcion_expediente(trabajadora_social, expediente, pase_actual=pase_inicial)
 
-        # Auditoría de creación manual
         registrar_auditoria(
             self.request.user,
             expediente,
@@ -634,7 +626,6 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
 
         libro = openpyxl.Workbook()
 
-        # --- Hoja 1: detalle ---
         hoja = libro.active
         hoja.title = 'Expedientes'
         encabezados = [
@@ -664,7 +655,6 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
                 timezone.localtime(exp.fecha_creacion).strftime('%d/%m/%Y %H:%M'),
             ])
 
-        # --- Hoja 2: resumen por estado ---
         resumen = libro.create_sheet('Resumen')
         resumen.append(['Estado', 'Cantidad'])
         conteos = {
@@ -922,7 +912,6 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         try:
             perfiles = self.get_queryset()
             
-            #filtro para mostrar solo trabajadoras sociales
             solo_ts = request.query_params.get('solo_ts')
             if solo_ts == 'true':
                 perfiles = perfiles.filter(rol__nombre_rol= 'TS')
@@ -971,29 +960,22 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['get'], url_path='casos-baja')
     def casos_baja(self, request, pk=None):
-        # cuantos expedientes tiene en su poder (para preguntar si se reparten al darlo de baja) y cuantos
-        # se le repartieron por una baja y todavia nadie toco (para ofrecer devolverlos al reactivarlo)
         perfil = self.get_object()
         return Response({
             'en_poder': Expediente.objects.filter(usuario_asignado=perfil.usuario).count(),
             'devolvibles': len(_expedientes_devolvibles(perfil.usuario)),
         })
 
-    # auditoría creación de usuarios
     def perform_create(self, serializer):
-        #se guarda el nuevo usuario
         nuevo_usuario = serializer.save()
         
-        # Se busca el perfil de 'Usuario' del administrador que hace la petición
         usuario_admin = Usuario.objects.get(usuario=self.request.user)
         
-        # Se deja constancia en la tabla de auditoría
         HistorialAccion.objects.create(
             id_usuario_accion=usuario_admin,
             mensaje_accion=f'Crear usuario: Creó el perfil de usuario para: {nuevo_usuario.nombre} {nuevo_usuario.apellido}.'
         )
     
-    # auditoría modificación de usuarios
     def perform_update(self, serializer):
         estaba_activo = serializer.instance.activo
         # la baja definitiva reparte todos sus casos: se confirma escribiendo el DNI del usuario
@@ -1001,49 +983,42 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             dni_confirmado = str(self.request.data.get('confirmar_dni', '')).strip().replace('.', '')
             if dni_confirmado != str(serializer.instance.dni).strip().replace('.', ''):
                 raise ValidationError({'confirmar_dni': 'El DNI no coincide con el del usuario que querés dar de baja.'})
-        #se guarda cambio del usuario actualizado
         usuario_actualizado = serializer.save()
 
-        # el boton Activo/Inactivo de la pantalla de usuarios llega por aca: el login sigue al perfil
+ 
         user_django = usuario_actualizado.usuario
         if user_django.is_active != usuario_actualizado.activo:
             user_django.is_active = usuario_actualizado.activo
             user_django.save(update_fields=['is_active'])
-        # la pantalla de usuarios pregunta: ausencia temporal (los casos esperan) o baja definitiva
-        # (reasignar_casos=true, se reparten). Al reactivar puede pedir devolver_casos=true.
+       
         if estaba_activo and not usuario_actualizado.activo and _flag(self.request.data.get('reasignar_casos')):
             reasignar_casos_por_baja(usuario_actualizado, self.request.user)
         if not estaba_activo and usuario_actualizado.activo and _flag(self.request.data.get('devolver_casos')):
             devolver_casos_por_reactivacion(usuario_actualizado, self.request.user)
 
-        # Se busca el perfil del administrador que hace la petición
         usuario_admin = Usuario.objects.get(usuario=self.request.user)
 
-        #se registra la modificación
+ 
         HistorialAccion.objects.create(
             id_usuario_accion=usuario_admin,
             mensaje_accion=f'Actualizar usuario: Modificó los datos o el estado del usuario: {usuario_actualizado.nombre} {usuario_actualizado.apellido}.'
         )
    
-    # auditoría eliminación de usuarios
     def perform_destroy(self, instance):
         estaba_activo = instance.activo
-        # 1. Borrado lógico del modelo Usuario personalizado
         instance.activo = False
         instance.save()
         if estaba_activo:
             reasignar_casos_por_baja(instance, self.request.user)
 
-        # 2. Borrado lógico del User nativo de Django (para deshabilitar el login)
         user_django = instance.usuario
         user_django.is_active = False
         user_django.save()
 
-        # 3. Se busca el perfil del administrador que hace la petición
         usuario_admin = Usuario.objects.get(usuario=self.request.user)
         nombre_completo = f"{instance.nombre} {instance.apellido}"
         
-        # 4. Se deja constancia en la tabla de auditoría
+        
         HistorialAccion.objects.create(
             id_usuario_accion=usuario_admin,
             mensaje_accion=f'Borrar usuario: Dio de baja al usuario {nombre_completo}.'
@@ -1057,7 +1032,6 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAnyRole]
     serializer_class = DocumentoAdjuntoSerializer   
     
-    #auditoría de subida
     def perform_create(self, serializer):
         validar_expediente_en_poder(self.request, serializer.validated_data.get('expediente'))
         documento = serializer.save(subido_por = self.request.user)
@@ -1071,8 +1045,6 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
             )
     
     def get_queryset(self):
-        # select_related/prefetch evitan una consulta por documento al armar subido_por_display
-        # (subido_por -> usuario) y las listas de pases de cada documento.
         base = DocumentoAdjunto.objects.select_related(
             'subido_por__usuario', 'anulado_por__usuario'
         ).prefetch_related('historial_pases')
@@ -1086,21 +1058,15 @@ class DocumentoAdjuntoViewSet(viewsets.ModelViewSet):
     
     def perform_update(self, serializer):
         validar_expediente_en_poder(self.request, serializer.instance.expediente)
-        # tampoco se puede mover el documento a un expediente que no se tiene en poder
         validar_expediente_en_poder(self.request, serializer.validated_data.get('expediente'))
         serializer.save()
 
-    #auditoría de borrado
     def perform_destroy(self, instance):
         validar_expediente_en_poder(self.request, instance.expediente)
-        # borrar es solo para corregir un error antes de enviar: lo hace quien lo subio y mientras no
-        # haya viajado en un pase. Despues es parte del historial y solo se puede anular.
         if instance.historial_pases.exists():
             raise PermissionDenied('El documento ya se envió en un pase: no se puede borrar, solo anular.')
         if instance.subido_por_id != self.request.user.id:
             raise PermissionDenied('Solo quien subió el documento lo puede borrar.')
-        # DocumentoAdjunto no tiene borrado lógico (no posee campo "activo"),
-        # por eso se elimina el registro real.
         nombre_archivo = instance.archivo.name if instance.archivo else instance.tipo_documento
         expediente = instance.expediente
 
@@ -1280,7 +1246,6 @@ class NotificacionViewSet(viewsets.ModelViewSet):
             return [IsSuperAdmin()]
         return [IsAnyRole()]
 
-    # Permite que el frontend marque como leida una notificacion ya mostrada al usuario.
     @action(detail=True, methods=['patch'], url_path='marcar-leida')
     def marcar_leida(self, request, pk=None):
         notificacion = self.get_object()
@@ -1365,7 +1330,6 @@ def _dibujar_encabezado_pie_formulario(canvas, doc):
     canvas.saveState()
     ancho_pagina, alto_pagina = A4
 
-    # --- Rutas de los logos ---
     logo_ipvu_path = os.path.join(
         settings.BASE_DIR, "gestion", "static_pdf", "logo_ipvu.jpg"
     )
@@ -1373,7 +1337,6 @@ def _dibujar_encabezado_pie_formulario(canvas, doc):
         settings.BASE_DIR, "gestion", "static_pdf", "logo_santiago.jpg"
     )
 
-    # --- Logo izquierdo (I.P.V.U.) ---
     if os.path.exists(logo_ipvu_path):
         canvas.drawImage(
             logo_ipvu_path,
@@ -1384,7 +1347,6 @@ def _dibujar_encabezado_pie_formulario(canvas, doc):
     else:
         logger.warning(f"No se encontró el logo IPVU en: {logo_ipvu_path}")
 
-    # --- Logo derecho (Santiago) ---
     if os.path.exists(logo_santiago_path):
         canvas.drawImage(
             logo_santiago_path,
@@ -1395,7 +1357,6 @@ def _dibujar_encabezado_pie_formulario(canvas, doc):
     else:
         logger.warning(f"No se encontró el logo Santiago en: {logo_santiago_path}")
 
-    # --- Encabezado institucional (3 líneas centradas) ---
     y = alto_pagina - 1.3 * cm
     canvas.setFont("Helvetica-Bold", 10)
     canvas.drawCentredString(ancho_pagina / 2, y, "INSTITUTO PROVINCIAL DE VIVIENDA Y URBANISMO")
@@ -1404,7 +1365,6 @@ def _dibujar_encabezado_pie_formulario(canvas, doc):
     y -= 0.42 * cm
     canvas.drawCentredString(ancho_pagina / 2, y, "SECRETARÍA TÉCNICA DE RELACIONES PUBLICAS E INSTITUCIONALES")
 
-    # --- Fila de contacto ---
     y -= 0.35 * cm
     canvas.setLineWidth(0.5)
     canvas.line(2 * cm, y, ancho_pagina - 2 * cm, y)
@@ -1416,7 +1376,6 @@ def _dibujar_encabezado_pie_formulario(canvas, doc):
     y -= 0.25 * cm
     canvas.line(2 * cm, y, ancho_pagina - 2 * cm, y)
 
-    # --- Pie de página ---
     canvas.setFont("Helvetica-Oblique", 7)
     canvas.drawCentredString(
         ancho_pagina / 2, 1.3 * cm,
@@ -1448,7 +1407,6 @@ class FormularioSocioHabitacionalViewSet(ListModelMixin, RetrieveModelMixin, Cre
         expediente.estado_expediente = estado_1v
         expediente.save()
 
-        # Auditoría de Trabajo de Campo
         registrar_auditoria(
             self.request.user,
             expediente,
@@ -1580,7 +1538,6 @@ def _construir_pdf_expediente_completo(expediente, formulario):
     ]
     convertidos = [(doc, *_documento_a_pdf(doc)) for doc in documentos]
 
-    # --- caratula ---
     buffer = io.BytesIO()
     doc_pdf = SimpleDocTemplate(buffer, pagesize=A4, topMargin=3.6 * cm, bottomMargin=2.2 * cm,
                                 leftMargin=2 * cm, rightMargin=2 * cm)
@@ -1641,7 +1598,6 @@ def _construir_pdf_expediente_completo(expediente, formulario):
     doc_pdf.build(elementos, onFirstPage=_dibujar_encabezado_pie_formulario,
                   onLaterPages=_dibujar_encabezado_pie_formulario)
 
-    # --- union de todo ---
     escritor = PdfWriter()
     partes = [buffer.getvalue()]
     if formulario:
@@ -1664,7 +1620,6 @@ def _construir_pdf_formulario(formulario):
     """Arma el PDF del informe socio-habitacional y devuelve sus bytes."""
     expediente = formulario.expediente
 
-    # --- Datos del profesional asignado ---
     profesional = ""
     if expediente.usuario_asignado:
         try:
@@ -1680,7 +1635,6 @@ def _construir_pdf_formulario(formulario):
                 f"{expediente.usuario_asignado.first_name}"
             )
 
-    # --- Datos del titular ---
     domicilio = apellido = nombre = dni = ""
     if expediente.postulante_titular:
         titular = expediente.postulante_titular
@@ -1690,7 +1644,6 @@ def _construir_pdf_formulario(formulario):
         dni = getattr(titular, 'dni', '') or ''
     titular_completo = ", ".join(parte for parte in (apellido, nombre) if parte)
 
-    # --- Fecha ---
     fecha = formulario.fecha_modificacion or formulario.fecha_creacion
     if fecha:
         texto_fecha = f"Santiago del Estero, {fecha.day} de {MESES_PDF[fecha.month - 1]} de {fecha.year}"
@@ -1797,7 +1750,6 @@ def _construir_pdf_formulario(formulario):
         ]))
         return tabla
 
-    # ============ PÁGINA 1 ============
     elementos.append(Paragraph("INFORME SOCIO HABITACIONAL", styles['TituloFormulario']))
     bloque_identificacion()
     seccion("GRUPO FAMILIAR CONSTITUYENTE", "Tipo y dinámica familiar. Conflictos", formulario.grupo_familiar, 2.2 * cm)
@@ -1807,14 +1759,12 @@ def _construir_pdf_formulario(formulario):
     seccion("NIVEL DE ESTUDIOS", None, formulario.nivel_estudios, 1.1 * cm)
     elementos.append(KeepTogether([firma("Firma y Aclaración del Entrevistado")]))
 
-    # ============ PÁGINA 2 ============
     elementos.append(PageBreak())
     seccion("RELEVAMIENTO VECINAL", None, formulario.relevamiento_vecinal, 5.5 * cm)
     elementos.append(KeepTogether([firma("Firma y Aclaración del Entrevistado")]))
     elementos.append(Spacer(1, 0.6 * cm))
     seccion("OBSERVACIONES Y/O PARTICULARIDADES", None, formulario.observaciones, 5.5 * cm)
 
-    # --- Cierre: fecha, saludo y firma del profesional, siempre juntos en la misma hoja ---
     elementos.append(KeepTogether([
         Spacer(1, 0.4 * cm),
         Paragraph(texto_fecha, styles['TextoCuerpo']),
@@ -1839,16 +1789,12 @@ class MiLoginPersonalizadoView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
         
-        # si el login fue un exito, o sea, status 200, se registra la acción
         if response.status_code == 200:
             try:
-                #  Se busca el User nativo de Django usando el username de la petición
                 usuario_django = User.objects.get(username=request.data.get('username'))
                 
-                #  Se busca tu modelo Usuario personalizado vinculado a ese User
                 usuario_personalizado = Usuario.objects.get(usuario=usuario_django)
 
-                #  Se crea el registro en el historial con el modelo correcto
                 HistorialAccion.objects.create(
                     id_usuario_accion=usuario_personalizado,
                     mensaje_accion='Login: El usuario inició sesión en el sistema.'

@@ -63,7 +63,6 @@ class ExpedienteSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         response = super().to_representation(instance)
         
-         #calculo de dias en poder
         # se calcula en Python sobre los pases ya precargados (prefetch_related en la vista) para no consultar la base por cada expediente
         ultimo_pase = max(instance.historial_pases.all(), key=lambda pase: pase.fecha_envio, default=None)
         fecha_referencia = None
@@ -79,13 +78,11 @@ class ExpedienteSerializer(serializers.ModelSerializer):
         else:
             response['dias_en_poder'] = 0
             
-           #estado del expediente
         if instance.estado_expediente:
             response['estado_expediente'] = instance.estado_expediente.nombre
         else:
             response['estado_expediente'] = "Sin estado"
 
-            #postulante titular
         if instance.postulante_titular:
             titular = instance.postulante_titular
             response['postulante_titular'] = {
@@ -101,7 +98,6 @@ class ExpedienteSerializer(serializers.ModelSerializer):
         else:
             response['postulante_titular'] = None
 
-            #usuario asignado
         if instance.usuario_asignado:
             user = instance.usuario_asignado
             perfil = getattr(user, 'usuario', None)
@@ -145,10 +141,10 @@ class ExpedienteSerializer(serializers.ModelSerializer):
         return documentos_adjuntos
     
     def update(self, instance, validated_data):
-        # Obligamos a que sí o sí usen tu @action "cambiar_estado"
+        # el estado solo se cambia por la accion cambiar_estado
         validated_data.pop('estado_expediente', None)
         
-        # Obligamos a que usen el HistorialPase para transferir expedientes.
+        # el expediente solo se transfiere por el historial de pases
         validated_data.pop('usuario_asignado', None)
 
         return super().update(instance, validated_data)
@@ -182,10 +178,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
         
         return perfil_usuario
         
-    # datos que solo el superadmin puede ver de otros usuarios. El resto de los roles usa este
-    # serializer solo para el desplegable de pases (id, nombre y rol): el DNI es ademas el usuario y
-    # la contrasena inicial, y requiere_cambio_password delata que cuentas siguen con esa contrasena,
-    # asi que exponerlos deja enumerar y tomar cuentas ajenas, incluidas las de superadmin.
+ 
     CAMPOS_SOLO_SUPERADMIN = ('dni', 'email', 'matricula', 'requiere_cambio_password', 'username_display')
 
     def to_representation(self, instance):
@@ -453,7 +446,6 @@ class FormularioSocioHabitacionalSerializer(serializers.ModelSerializer):
     observaciones = serializers.CharField(allow_blank=True, required=False)
     domicilio_constatado = serializers.CharField(allow_blank=True, required=False, max_length=200)
 
-    # Estado calculado automaticamente segun la cantidad de campos completados del formulario.
     estado = serializers.ReadOnlyField()
 
     class Meta:
@@ -537,7 +529,6 @@ class EstablecerPasswordInicialSerializer(serializers.Serializer):
     
     
 
-     # **kwargs indica cualquier argumento extra
      
     def save(self, **kwargs):
         usuario = self.context["request"].user
