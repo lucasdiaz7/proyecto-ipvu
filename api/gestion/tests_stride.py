@@ -459,9 +459,7 @@ class DenialOfServiceTests(StrideBaseTestCase):
         self.assertEqual(response.status_code, 400)
 
 
-# ---------------------------------------------------------------------------
-# E - Elevation of privilege: hacer cosas de un rol que no se tiene
-# ---------------------------------------------------------------------------
+
 class ElevationOfPrivilegeTests(StrideBaseTestCase):
 
     def test_solo_el_superadmin_administra_usuarios(self):
@@ -505,7 +503,7 @@ class ElevationOfPrivilegeTests(StrideBaseTestCase):
         response = self.como(self.user_de).patch(f'/api/expediente/{expediente.id}/cambiar_estado/', {'estado': 'AP'})
         self.assertEqual(response.status_code, 200)
 
-        # TS, Legales y el superadmin no deciden el estado, aunque tengan el expediente en su poder
+        
         for user in [self.ts1, self.lg, self.su]:
             with self.subTest(user=user.username):
                 expediente = self.crear_expediente(f'3{user.id:07d}', user)

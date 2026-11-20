@@ -33,20 +33,19 @@ class EstadoExpediente(models.Model):
     nombre = models.CharField(max_length=10, choices=tipo_estado, unique=True)
     
     def __str__(self):
-        #get_FOO_display() muestra el texto legible ("Apto") y no el código ("AP")
         return self.get_nombre_display()
     
     @property
     def color(self):
         # asocia cada codigo a un color
         colores = {
-            'SINI': 'gray',       # Sin Iniciar -> Gris
-            '1V': 'blue',       # 1ra Visita -> Azul
-            'LEG': 'purple',     # Legales -> Morado
-            'DOCP': 'teal',       # Doc Presentada -> Turquesa
-            'AP': 'green',      # Apto -> Verde
-            'NOAP': 'red',        # No Apto -> Rojo
-            'NUEVAV': 'orange',     # Nueva Visita -> Naranja
+            'SINI': 'gray',       
+            '1V': 'blue',       
+            'LEG': 'purple',
+            'DOCP': 'teal',      
+            'AP': 'green',
+            'NOAP': 'red',        
+            'NUEVAV': 'orange',     
             }
         return colores.get(self.nombre, 'gray')
 
@@ -56,8 +55,7 @@ class Expediente(models.Model):
     fecha_limite_ts = models.DateTimeField(null=True, blank=True)
     DDJJ = models.CharField(max_length=50, null=True, blank=True, unique=True) 
     visto = models.BooleanField(default=False)
-    # ultimo paso del circuito: con la documentacion presentada y el expediente impreso, Mesa de Entrada
-    # lo archiva. Se puede desarchivar. Archivado no se puede pasar ni modificar.
+
     archivado = models.BooleanField(default=False)
     fecha_archivado = models.DateTimeField(null=True, blank=True)
     #FK
@@ -73,7 +71,6 @@ class Expediente(models.Model):
 
 
 class Rol(models.Model):
-     #django exige dos opciones, una abreviacion y un string legible
      tipo_rol = [('TS','TRABAJADORA SOCIAL'),
         ('SU', 'SUPERUSUARIO'),
         ('LG','LEGALES'),
@@ -111,8 +108,7 @@ class DocumentoAdjunto(models.Model):
     subido_por = models.ForeignKey(User, on_delete=models.RESTRICT, related_name='mis_documentos_subidos')
     expediente = models.ForeignKey(Expediente, on_delete=models.PROTECT, related_name='documentos', null=True, blank=True)
 
-    # un documento que ya viajo en un pase no se borra (es parte del historial): Mesa de Entrada o el
-    # administrador lo anulan con un motivo. Anulado no sale en el expediente impreso, pero sigue visible.
+
     anulado = models.BooleanField(default=False)
     motivo_anulacion = models.CharField(max_length=300, blank=True)
     anulado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='documentos_anulados')
@@ -122,8 +118,6 @@ class DocumentoAdjunto(models.Model):
         return f"ID Documento: {self.id}"
 
 
-    
-# observacion del pase que se crea solo al cargar el expediente (asignacion automatica a una TS)
 OBSERVACION_ASIGNACION_INICIAL = "Asignación automática al cargar el expediente"
 
 
@@ -181,8 +175,7 @@ class HistorialAccion(models.Model):
     
     
 class FormularioSocioHabitacional(models.Model): 
-    # Campos completados por la Trabajadora Social. Se permiten vacios para que el formulario pueda existir
-    # en estado "sin iniciar" o "en progreso" antes de que todos los datos esten cargados.
+
     grupo_familiar=models.TextField(blank=True)
     situacion_habitacional=models.TextField(blank=True)
     aspecto_economico=models.TextField(blank=True)
@@ -190,12 +183,10 @@ class FormularioSocioHabitacional(models.Model):
     nivel_estudios=models.CharField(max_length=100, blank=True)
     relevamiento_vecinal=models.TextField(blank=True)
     observaciones=models.TextField(blank=True)
-    # domicilio donde la Trabajadora Social hizo la visita. El microservicio de IA lo compara con el que
-    # declaro el titular en la DDJJ. Es opcional y no cuenta para el estado del formulario.
+  
     domicilio_constatado=models.CharField(max_length=200, blank=True)
 
-    # ultimo semaforo de inconsistencias que devolvio la IA, para no volver a calcularlo cada vez que se
-    # abre el expediente. Queda viejo si despues se edita el formulario o los datos del titular.
+
     semaforo_resultado=models.JSONField(null=True, blank=True)
     semaforo_fecha=models.DateTimeField(null=True, blank=True)
 

@@ -539,12 +539,9 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
         return queryset   
     
     def get_permissions(self):
-        # cambiar_estado (Apto / No apto / Nueva visita) lo usan todos los roles, siempre sobre
-        # expedientes en su poder: get_object() ya filtra por get_queryset
         if self.action in ['create', 'update', 'partial_update']:
             return [IsDataEntry()]
-        # destroy, el Excel y el CSV de conteos globales son reportes/acciones de todo el padron:
-        # solo el Administrador. Un rol operativo solo ve lo que tiene en su poder.
+
         if self.action in ['destroy', 'exportar_excel', 'reporte_estados']:
             return [IsSuperAdmin()]
         return [IsAnyRole()]
@@ -577,11 +574,7 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
 
     @action(detail=False, methods=['get', 'post'], url_path='exportar-excel')
     def exportar_excel(self, request):
-        # Exporta los expedientes a un .xlsx con dos hojas: "Expedientes" (un renglon por expediente) y
-        # "Resumen" (conteo por estado). Solo el superadmin (ver get_permissions). Acepta los mismos
-        # filtros que la lista: estado, usuario_asignado, discapacidad y rango de fechas de creacion.
-        # Por POST recibe {"ids": [...]}: los expedientes que el superadmin dejo tildados en la pantalla
-        # de exportar (van por POST porque pueden ser cientos y no entran comodos en la URL).
+
         import openpyxl
         from openpyxl.styles import Font
         from openpyxl.utils import get_column_letter
@@ -696,13 +689,9 @@ class ExpedienteViewSet(viewsets.ModelViewSet,):
         if nuevo_estado not in ['AP', 'NOAP', 'NUEVAV', 'DOCP']:
             return Response({'error': 'Estado no válido'}, status=400)
 
-        # el estado lo decide Mesa de Entrada; los demas cambios (Sin Iniciar, 1ra Visita, Legales)
-        # los pone el sistema solo al cargar, al guardar el informe o al pasar a Legales
         if not usuario_tiene_rol(request, ['DE']):
             raise PermissionDenied('El estado del expediente lo decide Mesa de Entrada.')
 
-        # "Doc Presentada" lo pone la data entry, y recien cuando el expediente ya es Apto y tiene
-        # el formulario socio-habitacional terminado
         if nuevo_estado == 'DOCP':
             if not usuario_tiene_rol(request, ['DE']):
                 raise PermissionDenied('Solo Mesa de Entrada puede marcar la documentación como presentada.')
