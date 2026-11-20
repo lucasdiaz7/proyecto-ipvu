@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import *
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework.exceptions import AuthenticationFailed
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.models import User
 from django.utils.http import urlsafe_base64_decode
@@ -489,12 +490,26 @@ class HistorialAccionSerializer(serializers.ModelSerializer):
         return response
       
 class MiLoginPersonalizadoSerializer(TokenObtainPairSerializer):
+    MENSAJE_CUENTA_DESACTIVADA = 'Tu cuenta está desactivada. Comunicate con el administrador.'
+
     def validate(self, attrs):
-        data = super().validate(attrs)
-        
+        try:
+            data = super().validate(attrs)
+        except AuthenticationFailed:
+            # Django rechaza igual a una cuenta inactiva y a una clave incorrecta. El aviso especifico solo
+            # se da si la clave es correcta: asi no se revela a quien no la conoce que la cuenta existe.
+            usuario = User.objects.filter(username=attrs.get(self.username_field)).first()
+            if usuario and not usuario.is_active and usuario.check_password(attrs.get('password') or ''):
+                raise self._cuenta_desactivada()
+            raise
+
         try:
             perfil_ipvu = Usuario.objects.get(usuario=self.user)
-            
+
+            # el perfil puede estar inactivo aunque el User de Django siga activo
+            if not perfil_ipvu.activo:
+                raise self._cuenta_desactivada()
+
             data['nombre_completo'] = f"{perfil_ipvu.nombre} {perfil_ipvu.apellido}"
             data['rol_id'] = perfil_ipvu.rol.id
             data['requiere_cambio_password'] = perfil_ipvu.requiere_cambio_password
@@ -503,8 +518,11 @@ class MiLoginPersonalizadoSerializer(TokenObtainPairSerializer):
             
         except Usuario.DoesNotExist:
             pass
-            
+
         return data
+
+    def _cuenta_desactivada(self):
+        return AuthenticationFailed({'detail': self.MENSAJE_CUENTA_DESACTIVADA, 'code': 'cuenta_desactivada'})
 
 class EstablecerPasswordInicialSerializer(serializers.Serializer):
     nueva_password = serializers.CharField(write_only=True)

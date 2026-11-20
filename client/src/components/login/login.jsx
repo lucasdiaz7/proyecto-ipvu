@@ -50,7 +50,9 @@ const Login = () => {
 
         } catch (error) {
             console.error("Error al iniciar sesión:", error.response?.data || error.message);
-            if (error.response?.status === 400 || error.response?.status === 401) {
+            if (error.response?.data?.code === "cuenta_desactivada") {
+                toast.error(error.response.data.detail);
+            } else if (error.response?.status === 400 || error.response?.status === 401) {
                 toast.error("Usuario o contraseña incorrectos.");
             } else {
                 toast.error("Hubo un problema de conexión con el servidor.");
